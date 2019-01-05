@@ -10,9 +10,6 @@ pool:
   vmImage: 'Ubuntu-16.04'
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
 - script: |
     echo 'Install dependency'
     git submodule update --init --recursive
@@ -48,3 +45,10 @@ steps:
     sudo apt-get install -y libibverbs-dev
     sudo apt-get install -y librdmacm-dev
   displayName: 'Setup Dependency'
+
+- script: |
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_CONFIG=everything -DUSE_FSAL_PT=OFF -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=ON -DUSE_LTTNG=ON -DUSE_TIRPC_IPV6=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF ..src/
+    make
+  displayName: 'Build'
