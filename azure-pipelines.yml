@@ -46,15 +46,18 @@ steps:
     sudo apt-get install -y libibverbs-dev
     sudo apt-get install -y librdmacm-dev
     sudo apt-get install -y rpcbind
+    sudo apt-get install -y libtest-dev
+    sudo apt-get install -y libboost-all-dev
+    sudo apt-get install -y google-perftools
   displayName: 'Setup Dependency'
 
 - script: |
     mkdir build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_PT=OFF -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DUSE_LTTNG=OFF -DUSE_FSAL_RGW=OFF -DUSE_TIRPC_IPV6=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF ../src/
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_PT=OFF -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DUSE_LTTNG=OFF -DUSE_FSAL_RGW=OFF -DUSE_TIRPC_IPV6=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF -DUSE_GTEST=ON ../src/
     make
     sudo make install
   displayName: 'Build and Install'
 
-- script: ../test/hello_test.sh
+- script: test/hello_test.sh
   displayName: 'Test'
