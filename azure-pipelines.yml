@@ -57,11 +57,11 @@ steps:
   displayName: 'Build'
 
 - script: |
-  sudo mkdir /nfsroot
-  sudo echo "hello world" > /nfsroot/hello.txt
-  ./MainNFSD/ganesha.nfsd -f ../src/config_samples/vfs-test.conf -L /tmp/vfs.log -N NIV_INFO
-  sleep 70
-  mkdir /tmp/mnt
-  sudo mount -t nfs 127.0.0.1:/nfsroot /tmp/mnt
-  cat /tmp/mnt/hello.txt
+    sudo mkdir /nfsroot
+    sudo echo "hello world" > /nfsroot/hello.txt
+    ./MainNFSD/ganesha.nfsd -f ../src/config_samples/vfs-test.conf -L /tmp/vfs.log -N NIV_INFO
+    sleep 70
+    mkdir /tmp/mnt
+    sudo mount -t nfs 127.0.0.1:/nfsroot /tmp/mnt
+    cat /tmp/mnt/hello.txt
   displayName: 'Test'
