@@ -45,6 +45,7 @@ steps:
     sudo apt-get install -y libaio-dev
     sudo apt-get install -y libibverbs-dev
     sudo apt-get install -y librdmacm-dev
+    sudo apt-get install -y rpcbind
   displayName: 'Setup Dependency'
 
 - script: |
@@ -52,4 +53,15 @@ steps:
     cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_PT=OFF -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DUSE_LTTNG=OFF -DUSE_FSAL_RGW=OFF -DUSE_TIRPC_IPV6=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF ../src/
     make
+    sudo make install
   displayName: 'Build'
+
+- script: |
+  sudo mkdir /nfsroot
+  sudo echo "hello world" > /nfsroot/hello.txt
+  ./MainNFSD/ganesha.nfsd -f ../src/config_samples/vfs-test.conf -L /tmp/vfs.log -N NIV_INFO
+  sleep 70
+  mkdir /tmp/mnt
+  sudo mount -t nfs 127.0.0.1:/nfsroot /tmp/mnt
+  cat /tmp/mnt/hello.txt
+  displayName: 'Test'
