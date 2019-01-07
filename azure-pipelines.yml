@@ -51,13 +51,18 @@ steps:
     sudo apt-get install -y libboost-all-dev
     sudo apt-get install -y google-perftools
     sudo apt-get install -y libgoogle-perftools-dev
+    # install libgtest:
     sudo apt-get install -y libgtest-dev
+    cd /usr/src/gtest
+    sudo cmake CMakeLists.txt
+    sudo make
+    sudo cp libgtest.a libgtest_main.a /usr/lib/
   displayName: 'Setup Dependency'
 
 - script: |
     mkdir build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_PT=OFF -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DLTTNG_PATH_HINT=/usr/ -DUSE_LTTNG=ON -DUSE_FSAL_RGW=OFF -DUSE_TIRPC_IPV6=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF -DUSE_GTEST=ON ../src/
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DLTTNG_PATH_HINT=/usr/ -DUSE_LTTNG=ON -DUSE_FSAL_RGW=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF -DUSE_GTEST=ON ../src/
     make
     sudo make install
   displayName: 'Build and Install'
