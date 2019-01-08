@@ -124,7 +124,7 @@ namespace {
   }
 
   struct cb_data {
-        u8 *cursor;
+        __u8 *cursor;
         unsigned int count;
         unsigned int max;
   };
