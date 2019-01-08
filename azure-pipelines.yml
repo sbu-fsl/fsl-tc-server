@@ -67,5 +67,5 @@ steps:
     sudo make install
   displayName: 'Build and Install'
 
-- script: test/hello_test.sh
+- script: sudo sh test/hello_test.sh
   displayName: 'Test'

@@ -36,12 +36,12 @@ function onerr() {
 trap onerr ERR
 
 if [ -d ${NFSROOT} ]; then
-  sudo rm -rf ${NFSROOT}
+  rm -rf ${NFSROOT}
 fi
 
-sudo mkdir ${NFSROOT}
-sudo echo 'hello world' > ${NFSROOT}/hello.txt
-sudo ${BUILDDIR}/MainNFSD/ganesha.nfsd -f ${CONF} -L ${LOG} -N NIV_INFO
+mkdir ${NFSROOT}
+echo 'hello world' > ${NFSROOT}/hello.txt
+${BUILDDIR}/MainNFSD/ganesha.nfsd -f ${CONF} -L ${LOG} -N NIV_INFO
 echo "Waiting for grace period..."
 sleep 10
 echo "Grace period ended."
@@ -49,6 +49,6 @@ if [ -d ${MNT} ]; then
   rm -rf ${MNT}
 fi
 mkdir ${MNT}
-sudo mount -t nfs 127.0.0.1:${NFSROOT} ${MNT}
+mount -t nfs 127.0.0.1:${NFSROOT} ${MNT}
 cat ${MNT}/hello.txt
-sudo umount ${MNT}
+umount ${MNT}
