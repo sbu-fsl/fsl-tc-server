@@ -174,12 +174,6 @@ namespace {
     return DIR_CONTINUE;
   }
 
-  struct cb_data {
-        u8 *cursor;
-        unsigned int count;
-        unsigned int max;
-  };
-
 } /* namespace */
 
 TEST_F(ReaddirFullCorrectnessTest, BIG)
