@@ -22,6 +22,7 @@
  * -------------
  */
 
+#include <cstdint>
 #include <sys/types.h>
 #include <string.h>
 #include <iostream>
@@ -124,7 +125,7 @@ namespace {
   }
 
   struct cb_data {
-        u8 *cursor;
+        uint8_t *cursor;
         unsigned int count;
         unsigned int max;
   };
