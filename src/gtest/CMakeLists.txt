@@ -23,6 +23,24 @@ set(GANESHA_LIBRARIES
   ${SYSTEM_LIBRARIES}
   )
 
+function(add_gtest testname)
+  add_executable(${testname} "${testname}.cc")
+  set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
+  add_sanitizers(${testname})
+  target_link_libraries(${testname}
+    ${GANESHA_LIBRARIES}
+    ${UNITTEST_LIBS}
+    ${LTTNG_LIBRARIES}
+    ${LTTNG_CTL_LIBRARIES}
+    ${GPERFTOOLS_LIBRARIES}
+    )
+  add_test(${testname}
+    ${testname}
+    "--logfile=/tmp/gtest.log"
+    "--debug=Debug"
+    "--config=../../src/config_samples/vfs-test.conf")
+endfunction()
+
 add_subdirectory(fsal_api)
 add_subdirectory(nfs4)
 
@@ -44,23 +62,7 @@ set_target_properties(test_example PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
 # Test using ganesha internals
-set(test_ci_hash_dist1_SRCS
-  test_ci_hash_dist1.cc
-  )
-
-add_executable(test_ci_hash_dist1
-  ${test_ci_hash_dist1_SRCS})
-add_sanitizers(test_ci_hash_dist1)
-
-target_link_libraries(test_ci_hash_dist1
-  ${GANESHA_LIBRARIES}
-  ${UNITTEST_LIBS}
-  ${LTTNG_LIBRARIES}
-  ${LTTNG_CTL_LIBRARIES}
-  ${GPERFTOOLS_LIBRARIES}
-  )
-set_target_properties(test_ci_hash_dist1 PROPERTIES COMPILE_FLAGS
-  "${UNITTEST_CXX_FLAGS}")
+add_gtest(test_ci_hash_dist1)
 
 set(test_rbt_SRCS
   test_rbt.cc
