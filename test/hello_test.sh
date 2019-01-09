@@ -21,7 +21,7 @@ MNT='/tmp/mnt'
 LOG=`mktemp /tmp/log.XXXXXX`
 echo "NFS-Ganesha writing logs to ${LOG}."
 
-if [[ -n "${1:-}" ]]; then
+if [ -n "${1:-}" ]; then
   BUILDDIR="$1"
   echo "Using provided build directory: ${BUILDDIR}" 
 else
@@ -29,7 +29,7 @@ else
   echo "Using default build directory: ${BUILDDIR}"
 fi
 
-function onerr() {
+function onerr {
   tail -n 100 ${LOG}
 }
 
