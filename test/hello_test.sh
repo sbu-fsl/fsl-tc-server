@@ -11,7 +11,7 @@ export PATH="/bin:/usr/bin:/sbin"
 IFS=$' \t\n'                            # reset IFS
 unset -f unalias                        # make sure unalias is not a function
 \unalias -a                             # unset all aliases
-# ulimit -H -c 0 --                       # disable core dump
+ulimit -H -c 0 --                       # disable core dump
 hash -r                                 # clear the command path hash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -29,7 +29,7 @@ else
   echo "Using default build directory: ${BUILDDIR}"
 fi
 
-function onerr {
+function onerr() {
   tail -n 100 ${LOG}
 }
 
