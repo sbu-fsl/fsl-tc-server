@@ -47,8 +47,6 @@ void admin_halt(void);
 
 #define TEST_ROOT "nfs4_rename_latency"
 #define TEST_ROOT2 "nfs4_rename_latency2"
-#define FILE_COUNT 100000
-#define LOOP_COUNT 1000000
 
 namespace {
 
@@ -120,9 +118,8 @@ TEST_F(RenameEmptyLatencyTest, LOOP)
   for (int i = 0; i < LOOP_COUNT; ++i) {
     rc = nfs4_op_rename(&ops[0], &data, &resp);
     EXPECT_EQ(rc, NFS4_OK);
-    /* Set up so next time, we rename back... Even loop count value assures
-     * that the file ends up having the original name.
-     */
+    // Set up so next time, we rename back... Even loop count value assures
+    // that the file ends up having the original name.
     swap_rename(0);
   }
 
