@@ -1,3 +1,6 @@
 [submodule "src/libntirpc"]
 	path = src/libntirpc
 	url = https://github.com/nfs-ganesha/ntirpc.git
+[submodule "src/abseil-cpp"]
+	path = src/abseil-cpp
+	url = https://github.com/abseil/abseil-cpp.git

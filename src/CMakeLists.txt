@@ -1032,6 +1032,9 @@ endif (USE_SYSTEM_NTIRPC)
 message(${NTIRPC_INCLUDE_DIR})
 include_directories(${NTIRPC_INCLUDE_DIR})
 
+# TC specific settings
+add_subdirectory(abseil-cpp)
+
 # All the plumbing in the basement
 set(SYSTEM_LIBRARIES
   ${NTIRPC_LIBRARY}

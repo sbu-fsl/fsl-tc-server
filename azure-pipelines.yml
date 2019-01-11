@@ -60,6 +60,9 @@ steps:
   displayName: 'Setup Dependency'
 
 - script: |
+    cd src/abseil-cpp
+    git checkout lts_2018_12_18
+    cd ../..
     mkdir build
     cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DLTTNG_PATH_HINT=/usr/ -DUSE_LTTNG=ON -DUSE_FSAL_RGW=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF -DUSE_GTEST=ON ../src/
