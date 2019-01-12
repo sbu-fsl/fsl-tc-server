@@ -66,7 +66,7 @@ steps:
     git checkout cmake-3_5_1
     mkdir build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_GTEST_TESTS=OFF../
+    cmake -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_GTEST_TESTS=OFF ../
     make
     sudo make install
   displayName: 'Setup Dependency'
