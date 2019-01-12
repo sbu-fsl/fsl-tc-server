@@ -1,0 +1,99 @@
+enum TransactionType {
+	NONE = 0;
+	VCREATE = 1;
+	VMKDIR = 2;
+	VWRITE = 3;
+	VRENAME = 4;
+	VUNLINK = 5;
+	VSYMLINK = 6;
+}
+
+enum FileType {
+	FT_NONE = 0;
+	FT_FILE = 1;
+	FT_DIRECTORY = 2;
+	FT_SYMLINK = 3;
+	FT_HARDLINK = 4;
+}
+
+// A 128-bit file ID.
+message FileID {
+	required bytes id = 1;
+	optional FileType type = 2;
+}
+
+message VCreateTxn {
+	repeated FileID created_files = 1;
+}
+
+message VMkdirTxn {
+	repeated FileID created_dirs = 1;
+}
+
+message VWriteTxn {
+	// Inside the backup directory of each transaction, the file will be
+	// named "txn_XXXX" where XXXX is the fileid in hex.
+	required string backup_dir_path = 1;
+	// A VWrite may create files, so |created_files| track the files have
+	// been created by the pending transaction. When undoing a VWrite that
+	// created files, the files inside |created_files| should be removed.
+	//
+	// For VWrite that does not create files, |created_files| will be
+	// empty.
+	repeated FileID created_files = 2;
+}
+
+message VRenameTxn {
+	message Rename {
+		required string src_path = 1;
+		required string dst_path = 2;
+		required FileID src_fileid = 3;
+		// Present only if destination file exists.
+		optional FileID dst_fileid = 4;
+		// The renamed file-system object is a directory or not?
+		optional bool is_directory = 5;
+	}
+	repeated Rename renamed_objs = 1;
+	optional string backup_dir = 2;
+}
+
+message VUnlinkTxn {
+	message Unlink {
+		required string original_path = 1;
+		required string backup_name = 2;
+	}
+	required string backup_dir_path = 1;
+	repeated Unlink unlinked_objs = 2;
+}
+
+message VSymlinkTxn {
+	message Symlink {
+		required string src_path = 1;
+		required string dst_path = 2;
+	}
+	repeated Symlink linked_objs = 1;
+}
+
+// A undo log of pending transactions. A TransactionLog should contain all
+// information needed for us to undo a pending transaction when the system
+// crashes. Upon successul commits and rollbacks of transactions, these logs
+// should be cleared.
+// 
+// TransactionLogs should be stored into a database, so that they are available
+// when we recover from a crash. To recover, we should iterate all
+// TransactionLogs in the database and undo all the pending transactions
+// according to information inside TransactionLogs.
+message TransactionLog {
+	required int64 id = 1;  // a unique transaction id
+
+	required TransactionType type = 2;
+
+	// Depending on the value of |type|, only one of the following field
+	// will present.
+	optional VCreateTxn creates = 3;
+	optional VMkdirTxn mkdirs = 4;
+	optional VWriteTxn writes = 5;
+	optional VRenameTxn renames = 6;
+	optional VUnlinkTxn unlinks = 7;
+	optional VSymlinkTxn symlinks = 8;
+}

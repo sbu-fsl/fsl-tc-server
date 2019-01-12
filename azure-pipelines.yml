@@ -51,12 +51,24 @@ steps:
     sudo apt-get install -y libboost-all-dev
     sudo apt-get install -y google-perftools
     sudo apt-get install -y libgoogle-perftools-dev
+    sudo apt-get install -y libprotobuf-dev protobuf-compiler
+    sudo apt-get install -y libleveldb-dev
     # install libgtest:
     sudo apt-get install -y libgtest-dev
     cd /usr/src/gtest
     sudo cmake CMakeLists.txt
     sudo make
     sudo cp libgtest.a libgtest_main.a /usr/lib/
+    # install google-benchmark
+    cd /tmp
+    git clone https://github.com/google/benchmark.git
+    cd benchmark
+    git checkout cmake-3_5_1
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_GTEST_TESTS=OFF../
+    make
+    sudo make install
   displayName: 'Setup Dependency'
 
 - script: |

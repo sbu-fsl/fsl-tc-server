@@ -306,7 +306,7 @@ if(USE_BLKIN)
 endif(USE_BLKIN)
 
 # GTest
-goption(USE_GTEST "Use Google Test test framework" OFF)
+goption(USE_GTEST "Use Google Test test framework" ON)
 gopt_test(USE_GTEST)
 if(USE_GTEST)
   enable_testing()
@@ -1032,9 +1032,6 @@ endif (USE_SYSTEM_NTIRPC)
 message(${NTIRPC_INCLUDE_DIR})
 include_directories(${NTIRPC_INCLUDE_DIR})
 
-# TC specific settings
-add_subdirectory(abseil-cpp)
-
 # All the plumbing in the basement
 set(SYSTEM_LIBRARIES
   ${NTIRPC_LIBRARY}
@@ -1466,3 +1463,8 @@ if(DOXYGEN_FOUND)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
 endif(DOXYGEN_FOUND)
+
+# TC specific settings
+add_subdirectory(abseil-cpp)
+add_subdirectory(lwrapper)
+add_subdirectory(txn)
