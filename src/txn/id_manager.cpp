@@ -5,8 +5,8 @@
 #include <mutex>
 #include <stdio.h>
 
-#include "absl/numeric/int128.h"
-#include "../txn/util/slice.h"
+#include <absl/numeric/int128.h>
+#include "util/slice.h"
 #include "id_manager.h"
 
 #define NEXT_FILE_ID_KEY ("__NEXT_FILE_ID__")

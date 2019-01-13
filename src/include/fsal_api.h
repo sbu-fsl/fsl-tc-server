@@ -416,6 +416,13 @@ struct req_op_context {
 	struct fsal_module *fsal_module;	/*< current fsal module */
 	struct fsal_pnfs_ds *fsal_pnfs_ds;	/*< current pNFS DS */
 	/* add new context members here */
+	char **uuids;           /*< The preallocated UUIDs to be used for the
+				next new FS object. */
+	int uuids_len;          /*< Number of allocated UUIDs to be used */
+	int uuid_index;         /*< The index of the above uuid among all
+				preallocated uuids; should be incremented if
+				uuid is consumed */
+
 };
 
 /**
@@ -1298,6 +1305,21 @@ struct fsal_io_arg {
 
 struct fsal_obj_ops {
 /**@{*/
+
+/**
+ * Compound events
+ */
+	fsal_status_t (*start_compound)(struct fsal_obj_handle *root_backup_hdl,
+					void *data);
+
+	fsal_status_t (*end_compound)(struct fsal_obj_handle *root_backup_hdl,
+				      void *data);
+
+	fsal_status_t (*clone)(struct fsal_obj_handle *src_hdl,
+			       char **dst_name,
+			       struct fsal_obj_handle *dir_hd,
+			       char *file_uuid);
+
 
 /**
  * Lifecycle management
@@ -2911,6 +2933,8 @@ struct fsal_obj_handle {
 				   the scope of the fsid, (e.g. inode number) */
 
 	struct state_hdl *state_hdl;	/*< State related to this handle */
+
+	char *absolute_path;    /*< For TXN */
 };
 
 /**
