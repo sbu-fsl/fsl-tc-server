@@ -37,10 +37,10 @@ steps:
     sudo apt-get install -y xfslibs-dev
     # - sudo apt-get install -y libcephfs-dev
     sudo apt-get install -y libwbclient-dev
-    sudo apt-get install -y lttng-tools
-    sudo apt-get install -y liblttng-ust-dev
-    sudo apt-get install -y liblttng-ctl-dev
-    sudo apt-get install -y lttng-modules-dkms
+    sudo apt-get install -y --allow-unauthenticated lttng-tools
+    sudo apt-get install -y --allow-unauthenticated liblttng-ust-dev
+    sudo apt-get install -y --allow-unauthenticated liblttng-ctl-dev
+    sudo apt-get install -y --allow-unauthenticated lttng-modules-dkms
     sudo apt-get install -y pyqt4-dev-tools
     sudo apt-get install -y rpm2cpio
     sudo apt-get install -y libaio-dev
