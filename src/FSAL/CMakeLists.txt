@@ -35,4 +35,4 @@ if(USE_FSAL_MEM)
   add_subdirectory(FSAL_MEM)
 endif(USE_FSAL_MEM)
 
-add_subdirectory(FSAL_CoWFS)
+# add_subdirectory(FSAL_CoWFS)

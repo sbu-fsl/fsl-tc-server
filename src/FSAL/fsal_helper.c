@@ -1563,4 +1563,66 @@ fsal_status_t get_optional_attrs(struct fsal_obj_handle *obj_hdl,
 	return status;
 }
 
+fsal_status_t fsal_copy(struct fsal_obj_handle *src_hdl,
+                        uint64_t src_offset,
+                        struct fsal_obj_handle *dst_hdl,
+                        uint64_t dst_offset,
+                        uint64_t count,
+                        uint64_t *copied)
+{
+	fsal_status_t fsal_status = { 0, 0 };
+	struct attrlist attrs;
+	
+	LogDebug(COMPONENT_FSAL, "Entered fsal_copy");
+	if (count == 0) {
+		fsal_prepare_attrs(&attrs, ATTR_SIZE);
+                fsal_status = src_hdl->obj_ops->getattrs(src_hdl, &attrs);
+                if (FSAL_IS_ERROR(fsal_status))
+                        return fsal_status;
+                count = attrs.filesize - src_offset;
+		fsal_release_attrs(&attrs);
+                LogDebug(COMPONENT_FSAL,
+                         "0-count has an effective value of %zu", count);
+        }
+	fsal_status = src_hdl->obj_ops->copy(src_hdl,
+                                             src_offset,
+                                             dst_hdl,
+                                             dst_offset,
+                                             count,
+                                             copied);
+
+	if (FSAL_IS_ERROR(fsal_status)) {
+		*copied = 0;
+		LogEvent(COMPONENT_FSAL,
+                         "File copy failed: major = %d, minor = %d",
+                         fsal_status.major, fsal_status.minor);
+	}
+	LogDebug(COMPONENT_FSAL, "Exited fsal_copy. Retval = %d", fsal_status.major);
+	return fsal_status;
+}
+
+
+fsal_status_t fsal_clone(struct fsal_obj_handle *src_hdl,
+			 char **dst_name,
+			 struct fsal_obj_handle *dir_hdl,
+			 char *uuid)
+{
+	fsal_status_t fsal_status = {0, 0};
+
+	LogDebug(COMPONENT_FSAL, "Entered fsal_clone");
+	fsal_status = src_hdl->obj_ops->clone(src_hdl,
+					      dst_name,
+					      dir_hdl,
+					      uuid);
+	if (FSAL_IS_ERROR(fsal_status)) {
+		LogDebug(COMPONENT_FSAL,
+			 "Cloning failed: major = %d, minor = %d",
+			 fsal_status.major, fsal_status.minor);
+	}
+	LogDebug(COMPONENT_FSAL, "Exited fsal_clone. Retval = %d",
+		 fsal_status.major);
+
+	return fsal_status;
+}
+
 /** @} */

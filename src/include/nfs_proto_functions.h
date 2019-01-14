@@ -164,6 +164,8 @@ int nfs4_op_close(struct nfs_argop4 *, compound_data_t *, struct nfs_resop4 *);
 int nfs4_op_commit(struct nfs_argop4 *, compound_data_t *,
 		   struct nfs_resop4 *);
 
+int nfs4_op_copy(struct nfs_argop4 *, compound_data_t *, struct nfs_resop4 *);
+
 int nfs4_op_create(struct nfs_argop4 *, compound_data_t *,
 		   struct nfs_resop4 *);
 
@@ -439,6 +441,7 @@ void nfs4_Compound_CopyRes(nfs_res_t *, nfs_res_t *);
 void nfs4_op_access_Free(nfs_resop4 *);
 void nfs4_op_close_Free(nfs_resop4 *);
 void nfs4_op_commit_Free(nfs_resop4 *);
+void nfs4_op_copy_Free(nfs_resop4 *);
 void nfs4_op_create_Free(nfs_resop4 *);
 void nfs4_op_delegreturn_Free(nfs_resop4 *);
 void nfs4_op_delegpurge_Free(nfs_resop4 *);

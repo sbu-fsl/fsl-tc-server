@@ -226,6 +226,13 @@ struct subfsal_args {
 int subfsal_commit(void *node, void *link_mem, void *self_struct,
 		   struct config_error_type *err_type);
 
+fsal_status_t fsal_copy(struct fsal_obj_handle *src_hdl,
+                        uint64_t src_offset,
+                        struct fsal_obj_handle *dst_hdl,
+                        uint64_t dst_offset,
+                        uint64_t count,
+                        uint64_t *copied);
+
 void destroy_fsals(void);
 void emergency_cleanup_fsals(void);
 void start_fsals(void);
@@ -373,6 +380,11 @@ fsal_status_t fsal_reopen2(struct fsal_obj_handle *obj,
 			   bool check_permission);
 fsal_status_t get_optional_attrs(struct fsal_obj_handle *obj_hdl,
 				 struct attrlist *attrs_out);
+
+fsal_status_t fsal_clone(struct fsal_obj_handle *src_hdl,
+			 char **dst_name,
+			 struct fsal_obj_handle *dir_hdl,
+			 char *uuid);
 /**
  * @brief Close a file
  *

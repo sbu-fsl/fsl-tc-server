@@ -100,8 +100,8 @@ static struct config_item cowfs_params[] = {
 		       fsal_staticfsinfo_t, umask),
 	CONF_ITEM_BOOL("auth_xdev_export", false,
 		       fsal_staticfsinfo_t, auth_exportpath_xdev),
-	CONF_ITEM_MODE("xattr_access_rights", 0400,
-		       fsal_staticfsinfo_t, xattr_access_rights),
+	CONF_ITEM_BOOL("only_one_user", false,
+		       fsal_staticfsinfo_t, only_one_user),
 	CONFIG_EOL
 };
 
@@ -189,7 +189,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_hdl,
 				      err_type);
 	if (!config_error_is_harmless(err_type))
 		return fsalstat(ERR_FSAL_INVAL, 0);
-	display_fsinfo(&cowfs_me->fs_info);
+	display_fsinfo(fsal_hdl);
 	LogFullDebug(COMPONENT_FSAL,
 		     "Supported attributes constant = 0x%" PRIx64,
 		     (uint64_t) CoWFS_SUPPORTED_ATTRIBUTES);
@@ -210,17 +210,6 @@ fsal_status_t cowfs_create_export(struct fsal_module *fsal_hdl,
 				struct config_error_type *err_type,
 				const struct fsal_up_vector *up_ops);
 
-
-/**
- * @brief Indicate support for extended operations.
- *
- * @retval true if extended operations are supported.
- */
-
-bool cowfs_support_ex(struct fsal_obj_handle *obj)
-{
-	return true;
-}
 
 /* Module initialization.
  * Called by dlopen() to register the module
@@ -248,7 +237,6 @@ MODULE_INIT void cowfs_init(void)
 	}
 	myself->m_ops.create_export = cowfs_create_export;
 	myself->m_ops.init_config = init_config;
-	myself->m_ops.support_ex = cowfs_support_ex;
 }
 
 MODULE_FINI void cowfs_unload(void)

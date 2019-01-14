@@ -42,6 +42,7 @@
 #include "vfs_methods.h"
 #include "os/subr.h"
 #include "sal_data.h"
+#include "splice_copy.h"
 
 fsal_status_t vfs_open_my_fd(struct vfs_fsal_obj_handle *myself,
 			     fsal_openflags_t openflags,
@@ -1390,6 +1391,79 @@ void vfs_write2(struct fsal_obj_handle *obj_hdl,
 	done_cb(obj_hdl, status, write_arg, caller_arg);
 }
 
+fsal_status_t vfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
+		       struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+		       uint64_t count, uint64_t *copied)
+{
+	struct vfs_fsal_obj_handle *src_vfs;
+	struct vfs_fsal_obj_handle *dst_vfs;
+	fsal_status_t st = {0, 0};
+	ssize_t ret;
+	int src_fd = -1;
+	int dst_fd = -1;
+        bool has_lock1 = false;
+	bool has_lock2 = false;
+        bool closefd1 = false;
+	bool closefd2 = false;
+
+	LogDebug(COMPONENT_FSAL, "vfs_copy: server-side copying");
+	src_vfs = container_of(src_hdl, struct vfs_fsal_obj_handle, obj_handle);
+	dst_vfs = container_of(dst_hdl, struct vfs_fsal_obj_handle, obj_handle);
+	if ((size_t)src_vfs < (size_t)dst_vfs) {
+		PTHREAD_RWLOCK_rdlock(&src_hdl->obj_lock);
+		PTHREAD_RWLOCK_rdlock(&dst_hdl->obj_lock);
+	} else {
+		PTHREAD_RWLOCK_rdlock(&dst_hdl->obj_lock);
+		PTHREAD_RWLOCK_rdlock(&src_hdl->obj_lock);
+	}
+	st = find_fd(&src_fd, src_hdl, false, NULL, FSAL_O_READ,
+                         &has_lock1, &closefd1, false);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "find_fd failed %s", msg_fsal_err(st.major));
+                goto out;
+        }
+	st = find_fd(&dst_fd, dst_hdl, false, NULL, FSAL_O_WRITE,
+                         &has_lock2, &closefd2, false);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "find_fd failed %s", msg_fsal_err(st.major));
+                goto out;
+        }
+
+	ret = splice_fcopy(src_fd, src_offset, dst_fd,
+			   dst_offset, count);
+	if (ret < 0) {
+		LogMajor(COMPONENT_FSAL, "Failed to copy file: (%s)",
+			 strerror(-ret));
+		st = fsalstat(-ret, 0);
+		*copied = 0;
+	}
+	*copied = ret;
+	LogDebug(COMPONENT_FSAL, "vfs_copy: %zu of %zu bytes copied", *copied,
+		 count);
+
+ out:
+	if (closefd1)
+		close(src_fd);
+	if (closefd2)
+		close(dst_fd);
+	if (has_lock1)
+                PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	if (has_lock2)
+                PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
+
+	if ((size_t)src_vfs < (size_t)dst_vfs) {
+		PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
+		PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	} else {
+		PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+		PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
+	}
+	LogDebug(COMPONENT_FSAL, "Exited vfs_copy");
+	return st;
+}
+
 /**
  * @brief Commit written data
  *
@@ -2078,4 +2152,24 @@ fsal_status_t vfs_close2(struct fsal_obj_handle *obj_hdl,
 	}
 
 	return vfs_close_my_fd(my_fd);
+}
+
+fsal_status_t vfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
+				 void *data)
+{
+	fsal_status_t fsal_status = {0, 0};
+
+	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_VFS layer.");
+	
+	return fsal_status;
+}
+
+fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
+			       void *data)
+{
+	fsal_status_t fsal_status = {0, 0};
+
+	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_VFS layer.");
+	
+	return fsal_status;
 }

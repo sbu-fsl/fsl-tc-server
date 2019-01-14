@@ -365,6 +365,16 @@ fsal_status_t vfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
 fsal_status_t vfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 					 const char *xattr_name);
 
+fsal_status_t vfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
+		       struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+		       uint64_t count, uint64_t *copied);
+
+fsal_status_t vfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
+				 void *data);
+
+fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
+			       void *data);
+
 fsal_status_t check_hsm_by_fd(int fd);
 
 fsal_status_t vfs_get_fs_locations(struct vfs_fsal_obj_handle *hdl,

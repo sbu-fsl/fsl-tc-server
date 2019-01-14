@@ -971,6 +971,16 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 	return fsalstat(ERR_FSAL_NOTSUPP, ENOTSUP);
 }
 
+static fsal_status_t file_copy(struct fsal_obj_handle *src_hdl,
+			       uint64_t src_offset,
+			       struct fsal_obj_handle *dst_hdl,
+			       uint64_t dst_offset,
+			       uint64_t count,
+			       uint64_t *copied)
+{
+	return fsalstat(ERR_FSAL_NOTSUPP, 0);
+}
+
 /* seek
  * default case not supported
  */
@@ -1473,6 +1483,7 @@ struct fsal_obj_ops def_handle_ops = {
 	.link = linkfile,
 	.rename = renamefile,
 	.unlink = file_unlink,
+	.copy = file_copy,
 	.seek = file_seek,
 	.io_advise = file_io_advise,
 	.fallocate = file_fallocate,

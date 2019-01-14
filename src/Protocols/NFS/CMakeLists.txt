@@ -15,6 +15,7 @@ SET(nfsproto_STAT_SRCS
    nfs4_op_bind_conn.c
    nfs4_op_close.c
    nfs4_op_commit.c
+   nfs4_op_copy.c
    nfs4_op_create.c
    nfs4_op_create_session.c
    nfs4_op_delegpurge.c
