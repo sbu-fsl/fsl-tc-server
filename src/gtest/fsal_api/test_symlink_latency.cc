@@ -51,8 +51,6 @@ void admin_halt(void);
 #define TEST_ROOT "symlink_latency"
 #define TEST_ROOT_LINK "symlink_to_symlink_latency"
 #define TEST_SYMLINK "test_symlink"
-#define FILE_COUNT 100000
-#define LOOP_COUNT 1000000
 
 namespace {
 

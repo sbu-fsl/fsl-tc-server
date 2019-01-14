@@ -71,16 +71,16 @@ static inline void bs_reset_all(bitset_t *bs) {
 }
 
 static inline int bs_ffs(bitset_t *bs) {
-        int i;
+        size_t i;
         int res = -1;
-        const int N = (bs->size + 7) / 8;
+        const size_t N = (bs->size + 7) / 8;
 
         for (i = 0; i < N; ++i) {
                 res = ffs(bs->bits[i]);
                 if (res > 0) {
                         assert(res <= 8);
                         res += ((i * 8) - 1);
-                        return res < bs->size ? res : -1;
+                        return static_cast<size_t>(res) < bs->size ? res : -1;
                 }
         }
 
@@ -164,7 +164,7 @@ static inline void fillslice(slice_t *sl, const char *d, size_t s) {
 }
 
 static inline slice_t *slice_lstrip(slice_t *sl, char c) {
-        int i;
+        size_t i;
 
         for (i = 0; i < sl->size && sl->data[i] == c; ++i)
                 ;
@@ -179,7 +179,7 @@ static inline slice_t *slice_rstrip(slice_t *sl, char c) {
 }
 
 static inline ssize_t slice_lindex(slice_t sl, char c) {
-        ssize_t i;
+        size_t i;
         for (i = 0; i < sl.size && sl.data[i] != c; ++i)
                 ;
         return i == sl.size ? -1 : i;
@@ -239,7 +239,7 @@ static inline char *asstr(buf_t *pbuf) {
 
 static inline char *buf_end(buf_t *pbuf) { return pbuf->data + pbuf->size; }
 
-static inline int buf_remaining(const buf_t *pbuf) {
+static inline size_t buf_remaining(const buf_t *pbuf) {
         return pbuf->capacity - pbuf->size;
 }
 
@@ -270,7 +270,7 @@ static inline int buf_appendf(buf_t *pbuf, const char *format, ...) {
         va_end(args);
         if (n < 0) {
                 return n;
-        } else if (n > buf_remaining(pbuf)) {
+        } else if (static_cast<size_t>(n) > buf_remaining(pbuf)) {
                 return -ENOMEM;
         }
 
@@ -281,7 +281,7 @@ static inline int buf_appendf(buf_t *pbuf, const char *format, ...) {
 }
 
 static inline int cmpslice(slice_t sa, slice_t sb) {
-        int i;
+        size_t i;
 
         for (i = 0; i < sa.size && i < sb.size; ++i) {
                 if (sa.data[i] != sb.data[i]) {

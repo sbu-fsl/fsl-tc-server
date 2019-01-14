@@ -50,8 +50,6 @@ void admin_halt(void);
 
 #define TEST_ROOT "mknode_latency"
 #define TEST_NODE "test_node"
-#define FILE_COUNT 100000
-#define LOOP_COUNT 1000000
 
 namespace {
 

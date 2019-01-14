@@ -49,8 +49,6 @@ void admin_halt(void);
 #include "gtest.hh"
 
 #define TEST_ROOT "lookup_latency"
-#define FILE_COUNT 100000
-#define LOOP_COUNT 1000000
 
 namespace {
 

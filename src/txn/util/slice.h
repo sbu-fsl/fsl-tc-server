@@ -82,7 +82,7 @@ class Slice {
         }
 
         Slice& ltrim(char c) {
-                int n = 0;
+                size_t n = 0;
                 while (n < size_ && data_[n] == c) ++n;
                 remove_prefix(n);
                 return *this;
