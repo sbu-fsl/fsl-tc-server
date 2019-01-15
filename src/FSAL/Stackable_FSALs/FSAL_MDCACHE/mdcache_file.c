@@ -851,3 +851,21 @@ fsal_status_t mdcache_fallocate(struct fsal_obj_handle *obj_hdl,
 
 	return status;
 }
+
+fsal_status_t mdcache_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
+                           struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+                           uint64_t count, uint64_t *copied)
+{
+	mdcache_entry_t *src_entry =
+		container_of(src_hdl, mdcache_entry_t, obj_handle);
+	mdcache_entry_t *dst_entry =
+		container_of(dst_hdl, mdcache_entry_t, obj_handle);
+	fsal_status_t status;
+
+        subcall(
+		status = src_entry->sub_handle->obj_ops->copy(
+                    src_entry->sub_handle, src_offset, dst_entry->sub_handle,
+                    dst_offset, count, copied);
+		);
+	return status;
+}

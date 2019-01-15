@@ -611,7 +611,7 @@ int iterate_txn_logs(
 		std::cerr << log_dir << " directory does not exist";
 		return -1;
 	}
-	while (d = readdir(dir)) {
+	while ((d = readdir(dir)) != NULL) {
 		if ((strlen(d->d_name) > 4) &&
 		    (strncmp(d->d_name, "txn_", 4) == 0)) {
 			const char* t = &(d->d_name[4]);
