@@ -1,6 +1,11 @@
 #!/bin/bash - 
 #=============================================================================
 # Hello world test. Create a simple file and export it; try mount and read it.
+#
+# To test remote servers, we need to enable RPC in iptables in the server:
+#
+# iptables -A INPUT -s 130.245.0.0/16 -p tcp -m multiport --ports 2049 -j ACCEPT
+# iptables -A INPUT -s 130.245.0.0/16 -p udp -m multiport --ports 2049 -j ACCEPT
 # 
 # by Ming Chen, v.mingchen@gmail.com
 #=============================================================================
@@ -16,7 +21,7 @@ hash -r                                 # clear the command path hash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 CONF="${DIR}/../src/config_samples/vfs-test.conf"
-NFSROOT='/nfsroot'
+NFSROOT='/vfs0'
 MNT='/tmp/mnt'
 LOG=`mktemp /tmp/log.XXXXXX`
 echo "NFS-Ganesha writing logs to ${LOG}."
