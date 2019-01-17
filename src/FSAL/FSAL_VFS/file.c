@@ -1308,6 +1308,7 @@ void vfs_write2(struct fsal_obj_handle *obj_hdl,
 	bool closefd = false;
 	fsal_openflags_t openflags = FSAL_O_WRITE;
 	struct vfs_fd *vfs_fd = NULL;
+	uint64_t offset = write_arg->offset;
 
 	if (write_arg->info != NULL) {
 		/* Currently we don't support WRITE_PLUS */
@@ -1353,8 +1354,25 @@ void vfs_write2(struct fsal_obj_handle *obj_hdl,
 		goto out;
 	}
 
+	/* Append start */
+	if (offset == SIZE_MAX) {
+		struct attrlist attrs;
+		fsal_prepare_attrs(&attrs, ATTR_SIZE);
+		status = obj_hdl->obj_ops->getattrs(obj_hdl, &attrs);
+		if (FSAL_IS_ERROR(status)) {
+			LogDebug(COMPONENT_FSAL,
+				 "Failed to get file size %s",
+				 msg_fsal_err(status.major));
+			return;
+		}
+		offset = attrs.filesize;
+		fsal_release_attrs(&attrs);
+		LogDebug(COMPONENT_FSAL, "Appending file from %zu", offset);
+	}
+	/* Append end */
+
 	nb_written = pwritev(my_fd, write_arg->iov, write_arg->iov_count,
-			     write_arg->offset);
+			     offset);
 
 	if (nb_written == -1) {
 		retval = errno;
