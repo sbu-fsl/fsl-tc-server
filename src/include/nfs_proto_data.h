@@ -283,6 +283,12 @@ typedef struct nfs_client_cred__ {
  * of a V4 compound request.
  */
 
+
+/**
+ * Maximum operations in a compound
+ */
+#define MAX_OPS 256
+
 /**
  * @brief Compound data
  *
