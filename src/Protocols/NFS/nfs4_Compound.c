@@ -570,7 +570,10 @@ static const struct nfs4_op_desc optabv4[] = {
  */
 nfs_opnum4 LastOpcode[] = {
 	NFS4_OP_RELEASE_LOCKOWNER,
-	NFS4_OP_RECLAIM_COMPLETE,
+	/* TODO: Our dev environment does not support V4.2 yet; hack to allow
+	 * COPY operation under NFSv4.1. */
+	/* NFS4_OP_RECLAIM_COMPLETE, */
+	NFS4_OP_COPY,
 	NFS4_OP_REMOVEXATTR
 };
 
