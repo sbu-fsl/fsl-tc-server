@@ -1468,6 +1468,11 @@ void mdcache_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->listxattrs = mdcache_listxattrs;
 
 	ops->is_referral = mdcache_is_referral;
+
+	/*transaction compound functions*/
+	ops->start_compound = mdcache_start_compound;
+	ops->end_compound = mdcache_end_compound;
+	ops->clone = mdcache_clone;
 }
 
 /*

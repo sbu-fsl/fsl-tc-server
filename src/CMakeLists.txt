@@ -1465,6 +1465,7 @@ if(DOXYGEN_FOUND)
 endif(DOXYGEN_FOUND)
 
 # TC specific settings
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(abseil-cpp)
 add_subdirectory(lwrapper)
 add_subdirectory(txn)

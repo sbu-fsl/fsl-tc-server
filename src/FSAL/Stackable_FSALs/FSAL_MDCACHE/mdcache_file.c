@@ -869,3 +869,53 @@ fsal_status_t mdcache_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 		);
 	return status;
 }
+
+fsal_status_t mdcache_start_compound(struct fsal_obj_handle *root_backup_hdl,
+				     void *data)
+{
+	fsal_status_t fsal_status;
+
+	mdcache_entry_t *entry =
+	    container_of(root_backup_hdl, mdcache_entry_t, obj_handle);
+
+	LogDebug(COMPONENT_FSAL,
+		 "Start Compound in MDCACHE layer "
+		 "Root backup = %p HANDLE = %p.",
+		 root_backup_hdl, entry);
+
+	subcall(fsal_status = entry->sub_handle->obj_ops->start_compound(
+		    entry->sub_handle, data););
+	return fsal_status;
+}
+
+fsal_status_t mdcache_end_compound(struct fsal_obj_handle *root_backup_hdl,
+				   void *data)
+{
+	fsal_status_t fsal_status;
+	mdcache_entry_t *entry =
+	    container_of(root_backup_hdl, mdcache_entry_t, obj_handle);
+
+	LogDebug(COMPONENT_FSAL,
+		 "End Compound in MDCACHE layer."
+		 " root_backup_hdl = %p",
+		 root_backup_hdl);
+
+	subcall(fsal_status = entry->sub_handle->obj_ops->end_compound(
+		    entry->sub_handle, data););
+
+	return fsal_status;
+}
+
+fsal_status_t mdcache_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
+			    struct fsal_obj_handle *dir_hdl, char *file_uuid)
+{
+	fsal_status_t fsal_status;
+	mdcache_entry_t *entry =
+	    container_of(src_hdl, mdcache_entry_t, obj_handle);
+
+	LogDebug(COMPONENT_FSAL, "Clone in MDCACHE layer");
+	subcall(fsal_status = entry->sub_handle->obj_ops->clone(
+		    entry->sub_handle, dst_name, dir_hdl, file_uuid););
+	LogDebug(COMPONENT_FSAL, "Returned to MDCACHE layer");
+	return fsal_status;
+}
