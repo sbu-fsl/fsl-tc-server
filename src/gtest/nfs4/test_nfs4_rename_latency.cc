@@ -47,6 +47,8 @@ void admin_halt(void);
 
 #define TEST_ROOT "nfs4_rename_latency"
 #define TEST_ROOT2 "nfs4_rename_latency2"
+#define FILE_COUNT 100000
+#define LOOP_COUNT 1000000
 
 namespace {
 

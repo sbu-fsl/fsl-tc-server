@@ -46,6 +46,8 @@ void admin_halt(void);
 }
 
 #define TEST_ROOT "nfs4_link_latency"
+#define DIR_COUNT 100000
+#define LOOP_COUNT 1000000
 
 namespace {
 

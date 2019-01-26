@@ -46,6 +46,8 @@ void admin_halt(void);
 }
 
 #define TEST_ROOT "nfs4_putfh_latency"
+#define FILE_COUNT 100000
+#define LOOP_COUNT 1000000
 
 namespace {
 

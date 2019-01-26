@@ -52,10 +52,6 @@ void admin_halt(void);
 	op_ctx->fsal_export = _saveexp; \
 } while (0)
 
-#define DIR_COUNT 10000
-#define FILE_COUNT 10000
-#define LOOP_COUNT 100000
-
 namespace gtest {
 
   class Environment* env;

@@ -51,6 +51,8 @@ void admin_halt(void);
 #define TEST_ROOT "test_root"
 #define TEST_FILE "original_name"
 #define TEST_FILE_NEW "new_name"
+#define FILE_COUNT 100000
+#define LOOP_COUNT 1000000
 
 namespace {
 
