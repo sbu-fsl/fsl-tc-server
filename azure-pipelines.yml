@@ -57,6 +57,7 @@ steps:
     cd /tmp
     git clone  https://github.com/google/googletest.git
     cd googletest
+    git checkout v1.8.x
     mkdir build
     cd build
     cmake ..
