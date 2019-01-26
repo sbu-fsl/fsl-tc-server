@@ -44,7 +44,7 @@ sudo apt-get install -y libaio-dev
 sudo apt-get install -y libibverbs-dev
 sudo apt-get install -y librdmacm-dev
 sudo apt-get install -y rpcbind
-sudo apt-get install -y libtest-dev
+sudo apt-get install -y nfs-common
 sudo apt-get install -y libboost-all-dev
 sudo apt-get install -y google-perftools
 sudo apt-get install -y libgoogle-perftools-dev
