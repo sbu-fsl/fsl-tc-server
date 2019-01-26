@@ -1,13 +1,15 @@
+#include <dirent.h>
+#include <stdlib.h>
+
+#include <algorithm>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <string>
+
 #include "txn_logger.h"
 #include "id_manager.h"
 #include "txn.pb.h"
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <dirent.h>
-#include <stdlib.h>
-#include <functional>
-
 #define MAX_LEN 64
 
 using namespace std;

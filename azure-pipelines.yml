@@ -54,11 +54,14 @@ steps:
     sudo apt-get install -y libprotobuf-dev protobuf-compiler
     sudo apt-get install -y libleveldb-dev
     # install libgtest:
-    sudo apt-get install -y libgtest-dev
-    cd /usr/src/gtest
-    sudo cmake CMakeLists.txt
-    sudo make
-    sudo cp libgtest.a libgtest_main.a /usr/lib/
+    cd /tmp
+    git clone  https://github.com/google/googletest.git
+    cd googletest
+    mkdir build
+    cd build
+    cmake ..
+    make
+    sudo make install
     # install google-benchmark
     cd /tmp
     git clone https://github.com/google/benchmark.git

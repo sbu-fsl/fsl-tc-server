@@ -102,23 +102,23 @@ TEST(CI_HASH_DIST1, INIT)
   op_ctx = &req_ctx;
 }
 
-//TEST(CI_HASH_DIST1, CREATE_ROOT)
-//{
-  //fsal_status_t status;
-  //struct attrlist *attrs_out = nullptr;
+TEST(CI_HASH_DIST1, CREATE_ROOT)
+{
+  fsal_status_t status;
+  struct attrlist *attrs_out = nullptr;
 
-  //// create root directory for test
-  //FSAL_SET_MASK(object_attributes.request_mask,
-		//ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-  //object_attributes.mode = 777; [> XXX <]
-  //object_attributes.owner = 667;
-  //object_attributes.group = 766;
+  // create root directory for test
+  FSAL_SET_MASK(object_attributes.request_mask,
+		ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+  object_attributes.mode = 777; /* XXX */
+  object_attributes.owner = 667;
+  object_attributes.group = 766;
 
-  //status = root_entry->obj_ops->mkdir(root_entry, "ci_hash_dist1",
-				    //&object_attributes, &test_root,
-				    //attrs_out);
-  //ASSERT_NE(test_root, nullptr);
-//}
+  status = root_entry->obj_ops->mkdir(root_entry, "ci_hash_dist1",
+				    &object_attributes, &test_root,
+				    attrs_out);
+  ASSERT_NE(test_root, nullptr);
+}
 
 int main(int argc, char *argv[])
 {

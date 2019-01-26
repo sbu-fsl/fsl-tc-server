@@ -19,7 +19,7 @@
 
 find_library(GPERFTOOLS_PROFILER
   NAMES profiler
-  HINTS ${Gperftools_ROOT_DIR}/lib)
+  HINTS ${Gperftools_ROOT_DIR}/lib /usr/lib/${CMAKE_C_LIBRARY_ARCHITECTURE})
 
 find_path(GPERFTOOLS_INCLUDE_DIR
   NAMES gperftools/heap-profiler.h
