@@ -12,6 +12,7 @@ cd "$ROOTDIR"
 git submodule update --init --recursive
 
 echo 'Install package'
+sudo apt-get install -y build-essential
 sudo apt-get install -y cmake
 sudo apt-add-repository -y ppa:lttng/ppa
 sudo apt-get update -q
