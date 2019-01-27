@@ -51,6 +51,12 @@ sudo apt-get install -y libgoogle-perftools-dev
 sudo apt-get install -y libprotobuf-dev protobuf-compiler
 sudo apt-get install -y libleveldb-dev
 
+# Open NFS port in iptables so that client can connect.
+for net in $(ip a | awk '($1 == "inet" && $2 != "127.0.0.1/8") {print $2;}');
+do
+  sudo iptables -A INPUT -s $net -p tcp -m multiport --ports 2049 -j ACCEPT
+done
+
 # install libgtest:
 cd /tmp
 git clone  https://github.com/google/googletest.git
