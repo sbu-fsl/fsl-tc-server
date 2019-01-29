@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
-#include <id_manager.h>
 #include <set>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 
 #include <gtest/gtest.h>
+
+#include "id_manager.h"
 
 namespace fs = boost::filesystem;
 
@@ -84,13 +85,13 @@ TEST_F(IdManagerTest, SimulateFailure) {
 
     srand(time(nullptr));
 
-    for (int i = 0; i < 1000; i++)
+    for (int i = 0; i < 100; i++)
     {
         if (rand() % 50 == 0) {
             // Simulate crash
             destroy_db_store(db);
 
-            db = init_db_store("testdb", false);
+            db = init_db_store(kTestDbPath, false);
             ASSERT_TRUE(db);
 
             ASSERT_TRUE(initialize_id_manager(db) == 0);

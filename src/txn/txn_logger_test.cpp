@@ -126,6 +126,7 @@ TEST_F(TxnTest, SimpleTest) {
 	EXPECT_EQ(0, remove_txn_log(9990, "/var/log"));
 }
 
+#if 0
 TEST_F(TxnTest, CreateTest) {
 	txn_log.txn_id = 9992;
 	txn_log.compound_type = txn_VCreate;
@@ -409,6 +410,7 @@ TEST_F(TxnTest, MixedTest3) {
 	ret = rmdir(dir_name);
 	EXPECT_EQ(0, ret);
 }
+#endif
 
 int main(int argc, char **argv) {
 	::testing::InitGoogleTest(&argc, argv);

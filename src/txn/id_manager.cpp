@@ -6,8 +6,10 @@
 #include <stdio.h>
 
 #include <absl/numeric/int128.h>
+
 #include "util/slice.h"
 #include "id_manager.h"
+#include "lwrapper.h"
 
 #define NEXT_FILE_ID_KEY ("__NEXT_FILE_ID__")
 #define NEXT_FILE_ID_KEY_LEN (sizeof(NEXT_FILE_ID_KEY) - 1)

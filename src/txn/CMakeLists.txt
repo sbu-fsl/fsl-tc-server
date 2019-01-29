@@ -28,7 +28,10 @@ link_directories(
 
 function(add_cpplib libname)
   add_library(${libname} STATIC "${libname}.cpp" util/path_utils.cpp)
-  set(testname "${libname}-test")
+  foreach(dep ${ARGN})
+    target_link_libraries(${libname} ${dep})
+  endforeach()
+  set(testname "${libname}_test")
   add_executable(${testname} "${testname}.cpp")
   # set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
   add_sanitizers(${testname})
@@ -57,6 +60,7 @@ SET(lock_manager-bench_SRCS
 add_executable(lock_manager-bench
   ${lock_manager-bench_SRCS}
 )
+target_link_libraries(lock_manager-bench ${benchmark_LIBRARIES} pthread)
 
 SET(id_manager-bench_SRCS
   lwrapper.cpp
@@ -68,54 +72,17 @@ add_executable(id_manager-bench
   ${id_manager-bench_SRCS}
 )
 
-SET(id_manager-lib_SRCS
-  lwrapper.cpp
-  id_manager.cpp
-)
+add_cpplib(lwrapper leveldb)
 
-add_library(idmanager STATIC ${id_manager-lib_SRCS})
+add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
-SET(id_manager-test_SRCS
-  lwrapper.cpp
-  id_manager.cpp
-  id_manager-test.cpp
-)
-
-add_executable(id_manager-test
-  ${id_manager-test_SRCS}
-)
-
-
-SET(lock_manager-lib_SRCS
-  lock_manager.cpp
-  util/path_utils.cpp
-)
-
-add_library(lockmanager STATIC ${lock_manager-lib_SRCS})
-
-
-add_cpplib(lwrapper)
-
+add_cpplib(lock_manager lwrapper)
 
 set(test_LIB pthread ${GTEST_LIBRARIES})
 
 target_link_libraries(id_manager-bench absl_numeric leveldb ${benchmark_LIBRARIES} pthread)
-target_link_libraries(idmanager absl_numeric leveldb pthread)
-target_link_libraries(id_manager-test absl_numeric leveldb ${test_LIB} pthread
-  ${Boost_FILESYSTEM_LIBRARY}
-  ${Boost_SYSTEM_LIBRARY})
-target_link_libraries(lock_manager-bench ${benchmark_LIBRARIES} pthread)
-# target_link_libraries(lock_manager-test ${test_LIB} pthread)
 
-set(pre_generate_uuid_SRC pre_generate_uuid.cpp)
-add_library(pre_generate_uuid STATIC ${pre_generate_uuid_SRC})
-target_link_libraries(pre_generate_uuid secnfs_proto protobuf pthread)
-
-add_executable(pre_generate_uuid-test pre_generate_uuid-test.cpp)
-target_link_libraries(pre_generate_uuid-test pre_generate_uuid protobuf pthread ${test_LIB})
-
-install(TARGETS idmanager DESTINATION ${LIB_INSTALL_DIR})
-install(TARGETS lockmanager DESTINATION ${LIB_INSTALL_DIR})
+add_cpplib(pre_generate_uuid protobuf)
 
 find_package(Protobuf REQUIRED)
 include_directories(${PROTOBUF_INCLUDE_DIRS})
@@ -130,9 +97,4 @@ add_library(secnfs_proto STATIC ${ProtoSources})
 
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
-set(txn_logger_SRC txn_logger.cpp)
-add_library(txn_logger STATIC ${txn_logger_SRC})
-target_link_libraries(txn_logger secnfs_proto protobuf pthread)
-
-add_executable(txn_logger_test txn_logger_test.cpp)
-target_link_libraries(txn_logger_test txn_logger protobuf pthread ${test_LIB})
+add_cpplib(txn_logger secnfs_proto protobuf)
