@@ -1,7 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
-#include <lwrapper.h>
 #include <gtest/gtest.h>
+
+#include "lwrapper.h"
 
 TEST(TestLWrapper, InitDbTest) {
   const db_store_t* db = init_db_store("test_db", true);

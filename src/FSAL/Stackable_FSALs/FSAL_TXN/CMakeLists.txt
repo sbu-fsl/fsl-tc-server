@@ -14,7 +14,6 @@ SET(fsaltxn_LIB_SRCS
    txnfs_methods.h
    main.c
    export.c
-   ../../../lwrapper/lwrapper.c
 )
 
 add_library(fsaltxn SHARED ${fsaltxn_LIB_SRCS})
@@ -25,6 +24,7 @@ include_directories(${PROJECT_SOURCE_DIR}/leveldb/include/)
 target_link_libraries(fsaltxn
   gos
   leveldb
+  lwrapper
   idmanager
   lockmanager
 )

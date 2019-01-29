@@ -26,23 +26,27 @@ link_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/../abseil-cpp/absl/utilities"
 )
 
-set(test_LIB
-  pthread
-  ${GTEST_LIBRARIES}
-)
+function(add_cpplib libname)
+  add_library(${libname} STATIC "${libname}.cpp" util/path_utils.cpp)
+  set(testname "${libname}-test")
+  add_executable(${testname} "${testname}.cpp")
+  # set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
+  add_sanitizers(${testname})
+  target_link_libraries(${testname}
+    ${libname}
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
+    ${GPERFTOOLS_LIBRARIES}
+    pthread
+    ${GTEST_LIBRARIES}
+    pthread
+    leveldb
+    )
+  add_test(${testname} ${testname})
+endfunction()
 
 find_package(benchmark REQUIRED)
 include_directories(${benchmark_INCLUDE_DIRS})
-
-SET(lock_manager-test_SRCS
-   lock_manager-test.cpp
-   lock_manager.cpp
-   util/path_utils.cpp
-)
-
-add_executable(lock_manager-test
-  ${lock_manager-test_SRCS}
-)
 
 SET(lock_manager-bench_SRCS
    lock_manager-bench.cpp
@@ -55,7 +59,7 @@ add_executable(lock_manager-bench
 )
 
 SET(id_manager-bench_SRCS
-  ../lwrapper/lwrapper.c
+  lwrapper.cpp
   id_manager.cpp
   id_manager-bench.cpp
 )
@@ -65,14 +69,14 @@ add_executable(id_manager-bench
 )
 
 SET(id_manager-lib_SRCS
-  ../lwrapper/lwrapper.c
+  lwrapper.cpp
   id_manager.cpp
 )
 
 add_library(idmanager STATIC ${id_manager-lib_SRCS})
 
 SET(id_manager-test_SRCS
-  ../lwrapper/lwrapper.c
+  lwrapper.cpp
   id_manager.cpp
   id_manager-test.cpp
 )
@@ -89,14 +93,19 @@ SET(lock_manager-lib_SRCS
 
 add_library(lockmanager STATIC ${lock_manager-lib_SRCS})
 
-target_link_libraries(lock_manager-test ${test_LIB} pthread )
+
+add_cpplib(lwrapper)
+
+
+set(test_LIB pthread ${GTEST_LIBRARIES})
+
 target_link_libraries(id_manager-bench absl_numeric leveldb ${benchmark_LIBRARIES} pthread)
 target_link_libraries(idmanager absl_numeric leveldb pthread)
 target_link_libraries(id_manager-test absl_numeric leveldb ${test_LIB} pthread
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY})
 target_link_libraries(lock_manager-bench ${benchmark_LIBRARIES} pthread)
-target_link_libraries(lock_manager-test ${test_LIB} pthread)
+# target_link_libraries(lock_manager-test ${test_LIB} pthread)
 
 set(pre_generate_uuid_SRC pre_generate_uuid.cpp)
 add_library(pre_generate_uuid STATIC ${pre_generate_uuid_SRC})

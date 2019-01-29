@@ -37,11 +37,11 @@ function(add_gtest testname)
     ${LTTNG_CTL_LIBRARIES}
     ${GPERFTOOLS_LIBRARIES}
     )
-  add_test(${testname}
-    ${testname}
-    "--logfile=/tmp/${testname}.log"
-    "--debug=Debug"
-    "--config=${ganesha_test_conf}")
+  # The tests take too long to run; uncomment after speed them up.
+  # add_test(${testname} ${testname}
+  # "--logfile=/tmp/${testname}.log"
+  # "--debug=Debug"
+  # "--config=${ganesha_test_conf}")
 endfunction()
 
 add_subdirectory(fsal_api)

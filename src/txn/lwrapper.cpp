@@ -33,7 +33,8 @@
 #define TR_PREFIX  "txn-"
 #define ID_PREFIX "id-"
 #define HDL_PREFIX "hdl-"
-#define ANCHOR "ldb-anchor\0"
+
+const char* ANCHOR = "ldb-anchor";
 
 static int insert_markers(const db_store_t* db_st)
 {
@@ -334,7 +335,7 @@ void static swap_key_values(db_kvpair_t* kvp, int nums)
     char *temp_val;
     temp_val = curr_kvp->key;
     temp_len = curr_kvp->key_len;
-    curr_kvp->key = curr_kvp->val;
+    curr_kvp->key = (char* )curr_kvp->val;
     curr_kvp->key_len = curr_kvp->val_len;
     curr_kvp->val = temp_val;
     curr_kvp->val_len = temp_len;
@@ -509,7 +510,8 @@ int iterate_transactions(db_kvpair_t*** recs, int* nrecs, const db_store_t*  db_
   {
     size_t key_len, value_len;
     char *key_ptr = (char*)leveldb_iter_key(iter, &key_len);
-    void *value_ptr = (void*)leveldb_iter_value(iter, &value_len);
+    // TODO: fix
+    char *value_ptr = (char*)leveldb_iter_value(iter, &value_len);
 
     char* prefix = strstr(key_ptr, TR_PREFIX);
 
