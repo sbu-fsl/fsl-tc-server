@@ -32,8 +32,6 @@ static vector<string> get_paths(int n) {
         return paths;
 }
 
-static vector<string> get_paths() { return get_paths(-1); }
-
 static void BM_insert_paths(benchmark::State &state) {
         vector<string> paths = get_paths(state.range(0));
         while (state.KeepRunning()) {

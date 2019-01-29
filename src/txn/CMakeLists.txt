@@ -26,11 +26,15 @@ link_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/../abseil-cpp/absl/utilities"
 )
 
+find_package(benchmark REQUIRED)
+include_directories(${benchmark_INCLUDE_DIRS})
+
 function(add_cpplib libname)
   add_library(${libname} STATIC "${libname}.cpp" util/path_utils.cpp)
   foreach(dep ${ARGN})
     target_link_libraries(${libname} ${dep})
   endforeach()
+  # Add unit test.
   set(testname "${libname}_test")
   add_executable(${testname} "${testname}.cpp")
   # set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
@@ -46,41 +50,22 @@ function(add_cpplib libname)
     leveldb
     )
   add_test(${testname} ${testname})
+  # Add benchmark if exists.
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${libname}_bench.cpp")
+    set(benchname "${libname}_bench")
+    add_executable(${benchname} "${benchname}.cpp")
+    target_link_libraries(${benchname}
+      ${libname}
+      ${benchmark_LIBRARIES}
+      pthread)
+  endif()
 endfunction()
-
-find_package(benchmark REQUIRED)
-include_directories(${benchmark_INCLUDE_DIRS})
-
-SET(lock_manager-bench_SRCS
-   lock_manager-bench.cpp
-   lock_manager.cpp
-   util/path_utils.cpp
-)
-
-add_executable(lock_manager-bench
-  ${lock_manager-bench_SRCS}
-)
-target_link_libraries(lock_manager-bench ${benchmark_LIBRARIES} pthread)
-
-SET(id_manager-bench_SRCS
-  lwrapper.cpp
-  id_manager.cpp
-  id_manager-bench.cpp
-)
-
-add_executable(id_manager-bench
-  ${id_manager-bench_SRCS}
-)
 
 add_cpplib(lwrapper leveldb)
 
 add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
 add_cpplib(lock_manager lwrapper)
-
-set(test_LIB pthread ${GTEST_LIBRARIES})
-
-target_link_libraries(id_manager-bench absl_numeric leveldb ${benchmark_LIBRARIES} pthread)
 
 add_cpplib(pre_generate_uuid protobuf)
 
@@ -94,7 +79,6 @@ message(STATUS "protocol sources: " ${ProtoSources})
 message(STATUS "protocol headers: " ${ProtoHeaders})
 
 add_library(secnfs_proto STATIC ${ProtoSources})
-
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
 add_cpplib(txn_logger secnfs_proto protobuf)
