@@ -1,6 +1,6 @@
+#include <gtest/gtest.h>
 #include <stdlib.h>
 #include <string.h>
-#include <gtest/gtest.h>
 
 #include "lwrapper.h"
 
@@ -26,48 +26,49 @@ TEST(TestLWrapper, InitDbTest) {
 }
 
 TEST(TestLWrapper, InsertAndLookupTest) {
-  const db_store_t* db =  init_db_store("test_db", true);
+  const db_store_t* db = init_db_store("test_db", true);
   int ret = -1;
   ASSERT_TRUE(db);
   size_t key_len = strlen("test_key");
   size_t val_len = strlen("test_value") + 1;
 
-  db_kvpair_t  record = { .key = "test_key",
-			  .val = (void*)"test_value\0",
-			  .key_len = key_len,
-			  .val_len = val_len,
-			};
+  db_kvpair_t record = {
+      .key = "test_key",
+      .val = (void*)"test_value\0",
+      .key_len = key_len,
+      .val_len = val_len,
+  };
 
-  db_kvpair_t  rev_record;
+  db_kvpair_t rev_record;
   rev_record.key = (char*)record.val;
   rev_record.key_len = record.val_len;
 
-  //put record
-  ret = put_id_handle(&record, 1, db);  
+  // put record
+  ret = put_id_handle(&record, 1, db);
   ASSERT_FALSE(ret);
 
-  //lookup record by id 
+  // lookup record by id
   record.val = NULL;
   record.val_len = 0;
 
-  ret  = get_id_handle(&record, 1, db, false);
+  ret = get_id_handle(&record, 1, db, false);
   ASSERT_FALSE(ret);
-  ASSERT_TRUE(record.val); 
+  ASSERT_TRUE(record.val);
   ASSERT_FALSE(strcmp((char*)record.val, rev_record.key));
-  ASSERT_TRUE(record.val_len = rev_record.key_len); 
+  ASSERT_TRUE(record.val_len = rev_record.key_len);
 
-  //lookup record by id 
+  // lookup record by id
   rev_record.val = NULL;
   rev_record.val_len = 0;
-  ret  = get_id_handle(&rev_record, 1, db, true);
+  ret = get_id_handle(&rev_record, 1, db, true);
   ASSERT_FALSE(ret);
   ASSERT_TRUE(rev_record.val);
   char* str_value = (char*)malloc(sizeof(char) * (rev_record.val_len + 1));
   strcpy(str_value, record.key);
   ASSERT_FALSE(strcmp(str_value, record.key));
-  ASSERT_TRUE(rev_record.val_len = record.key_len); 
- 
-  //delete record by id
+  ASSERT_TRUE(rev_record.val_len = record.key_len);
+
+  // delete record by id
   ret = delete_id_handle(&record, 1, db, false);
   ASSERT_FALSE(ret);
 
@@ -75,41 +76,42 @@ TEST(TestLWrapper, InsertAndLookupTest) {
 }
 
 TEST(TestLWrapper, InsertAndDeleteTest) {
-  const db_store_t* db =  init_db_store("test_db", true);
+  const db_store_t* db = init_db_store("test_db", true);
   int ret = -1;
   ASSERT_TRUE(db);
   size_t key_len = strlen("test_del_key");
   size_t val_len = strlen("test_del_value") + 1;
 
-  db_kvpair_t  record = { .key = "test_del_key",
-			  .val = (void*)"test_del_value\0",
-			  .key_len = key_len,
-			  .val_len = val_len,
-			};
+  db_kvpair_t record = {
+      .key = "test_del_key",
+      .val = (void*)"test_del_value\0",
+      .key_len = key_len,
+      .val_len = val_len,
+  };
 
-  db_kvpair_t  rev_record;
+  db_kvpair_t rev_record;
   rev_record.key = (char*)record.val;
   rev_record.key_len = record.val_len;
 
-  //put record
-  ret = put_id_handle(&record, 1, db);  
+  // put record
+  ret = put_id_handle(&record, 1, db);
   ASSERT_FALSE(ret);
 
   record.val = NULL;
   record.val_len = 0;
- 
-  //lookup record by id 
+
+  // lookup record by id
   ret = get_id_handle(&record, 1, db, false);
   ASSERT_FALSE(ret);
   ASSERT_TRUE(record.val);
   ASSERT_FALSE(strcmp((char*)record.val, rev_record.key));
-  ASSERT_TRUE(record.val_len = rev_record.key_len); 
+  ASSERT_TRUE(record.val_len = rev_record.key_len);
 
-  //delete record by id
+  // delete record by id
   ret = delete_id_handle(&record, 1, db, false);
   ASSERT_FALSE(ret);
-  
-  //lookup record by id 
+
+  // lookup record by id
   record.val = NULL;
   record.val_len = 0;
   ret = get_id_handle(&record, 1, db, false);
@@ -117,7 +119,7 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
   ASSERT_FALSE(record.val);
   ASSERT_FALSE(record.val_len);
 
-  //lookup record by handle 
+  // lookup record by handle
   rev_record.val = NULL;
   rev_record.val_len = 0;
   ret = get_id_handle(&rev_record, 1, db, true);
@@ -132,8 +134,8 @@ TEST(TestLWrapper, CommitTransactionTest) {
   ASSERT_TRUE(db);
 
   db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
-  char *key = "1234";
-  char *value = "/a/b/c/d\0";
+  char* key = "1234";
+  char* value = "/a/b/c/d\0";
   size_t key_len = strlen(key);
   size_t val_len = strlen(value) + 1;
   record->key = key;
@@ -141,7 +143,7 @@ TEST(TestLWrapper, CommitTransactionTest) {
   record->key_len = key_len;
   record->val_len = val_len;
 
-  //commit first transaction
+  // commit first transaction
   int ret = commit_transaction(record, 1, db);
   ASSERT_FALSE(ret);
 
@@ -155,11 +157,11 @@ TEST(TestLWrapper, CommitTransactionTest) {
   record->key_len = key_len;
   record->val_len = val_len;
 
-  //commit second transaction
+  // commit second transaction
   ret = commit_transaction(record, 1, db);
   ASSERT_FALSE(ret);
 
-  free(record);    
+  free(record);
 
   // now iterate over all the transactions
   db_kvpair_t** tr_records = NULL;
@@ -198,8 +200,8 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   ASSERT_TRUE(db);
 
   db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
-  char *key = "1234";
-  char *value = "/a/b/c/d\0";
+  char* key = "1234";
+  char* value = "/a/b/c/d\0";
   size_t key_len = strlen(key);
   size_t val_len = strlen(value) + 1;
 
@@ -208,7 +210,7 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   record->key_len = key_len;
   record->val_len = val_len;
 
-  //commit first transaction
+  // commit first transaction
   int ret = commit_transaction(record, 1, db);
   ASSERT_FALSE(ret);
 
@@ -225,7 +227,7 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   ret = put_id_handle(record, 1, db);
   ASSERT_FALSE(ret);
 
-  free(record);    
+  free(record);
 
   db_kvpair_t** tr_records = NULL;
   int nrecs = -1;
@@ -242,8 +244,7 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   destroy_db_store(db);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

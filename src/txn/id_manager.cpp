@@ -1,15 +1,15 @@
-#include <iostream>
 #include <iomanip>
-#include <sstream>
-#include <string.h>
+#include <iostream>
 #include <mutex>
+#include <sstream>
 #include <stdio.h>
+#include <string.h>
 
 #include <absl/numeric/int128.h>
 
-#include "util/slice.h"
 #include "id_manager.h"
 #include "lwrapper.h"
+#include "util/slice.h"
 
 #define NEXT_FILE_ID_KEY ("__NEXT_FILE_ID__")
 #define NEXT_FILE_ID_KEY_LEN (sizeof(NEXT_FILE_ID_KEY) - 1)
@@ -32,7 +32,7 @@ absl::uint128 buf_to_uint128(const char *buf) {
   return n;
 }
 
-uint64_t get_lower_half(const char* buf) {
+uint64_t get_lower_half(const char *buf) {
   return absl::Uint128Low64(buf_to_uint128(buf));
 }
 
@@ -41,7 +41,6 @@ uint64_t get_upper_half(const char *buf) {
 }
 
 char *uint128_to_buf(absl::uint128 n) {
-
   char *s = (char *)malloc(TXN_UUID_LEN);
   if (s == nullptr) {
     return nullptr;

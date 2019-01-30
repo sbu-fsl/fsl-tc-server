@@ -99,19 +99,22 @@ int delete_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
  * caller is owner of key, value pair memory. caller need to release the
  * memory, for transaction: key=> transaction ID, value=>absolute file path
  */
-int commit_transaction(db_kvpair_t* kvp, const int nums, const db_store_t* db_st);
- 
+int commit_transaction(db_kvpair_t* kvp, const int nums,
+		       const db_store_t* db_st);
+
 /*
  * LevelDB basic transaction iterator
  * This populates all txn records in a memory with <txn-id, backup_path> format
  */
-int iterate_transactions(db_kvpair_t*** recs, int *nrecs, const db_store_t* db_st);
- 
+int iterate_transactions(db_kvpair_t*** recs, int* nrecs,
+			 const db_store_t* db_st);
+
 /*
  * caller is the owner of 'kvp->key' memory, caller will release it. No mem
  * allocation required of 'val' for this routine from caller or callee itself.
  */
-int delete_transaction(db_kvpair_t* kvp, const int nums, const db_store_t* db_st);
+int delete_transaction(db_kvpair_t* kvp, const int nums,
+		       const db_store_t* db_st);
 
 /*
  * This must be called for memory cleanup. User of iterate_transaction
