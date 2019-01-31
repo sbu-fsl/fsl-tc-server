@@ -1,3 +1,4 @@
+// vim:noexpandtab:shiftwidth=8:tabstop=8:
 #ifndef _TXN_LOGGER_H
 #define _TXN_LOGGER_H
 

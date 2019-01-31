@@ -1,3 +1,4 @@
+// vim:expandtab:shiftwidth=2:tabstop=2:
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <set>
@@ -48,10 +49,11 @@ TEST_F(IdManagerTest, RootFileIdBasics) {
   char *first_id = generate_file_id(db);
   EXPECT_TRUE(comparator(root_id, first_id));
 
-  EXPECT_EQ(0x100000000ULL, get_lower_half(root_id));
-  EXPECT_EQ(0x0ULL, get_upper_half(root_id));
+  EXPECT_EQ(0ULL, get_lower_half(root_id));
+  EXPECT_EQ(1ULL, get_upper_half(root_id));
 
-  EXPECT_EQ(0x100000001ULL, get_lower_half(first_id));
+  EXPECT_EQ(1ULL, get_lower_half(first_id));
+  EXPECT_EQ(1ULL, get_upper_half(root_id));
 
   free(root_id);
   free(first_id);
@@ -76,6 +78,19 @@ TEST_F(IdManagerTest, SimpleTest) {
 
   for (auto &id : ids) {
     free(id);
+  }
+}
+
+TEST_F(IdManagerTest, UUIDBasics) {
+  uuid_t root = get_root_uuid();
+  EXPECT_EQ(0ULL, root.lo);
+  EXPECT_EQ(1ULL, root.hi);
+
+  uuid_t uuid = root;
+  for (uint64_t i = 0; i <= 100ULL; ++i) {
+    EXPECT_EQ(i, uuid.lo);
+    EXPECT_EQ(1ULL, root.hi);
+    uuid = get_next_uuid(uuid);
   }
 }
 

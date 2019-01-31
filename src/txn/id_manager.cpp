@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <absl/base/casts.h>
 #include <absl/numeric/int128.h>
 
 #include "id_manager.h"
@@ -15,12 +16,12 @@
 #define NEXT_FILE_ID_KEY_LEN (sizeof(NEXT_FILE_ID_KEY) - 1)
 #define KEY_RESERVE_AMOUNT 256
 
-// File ids starts with 0x100000000ULL, which is the root field id. This also
-// means that ids smaller than 0xFFFFFFFF are reserved.
-constexpr absl::uint128 root_file_id(0x100000000ULL);
+// File ids starts with a high component of 1, which is the root field id. This
+// also means that ids with high component of 0 are reserved.
+constexpr absl::uint128 root_file_id = absl::MakeUint128(/*high=*/1, 0);
 // We store a next_file_id and max_reserved_id in memory to prevent constantly
 // hitting the database.
-absl::uint128 next_file_id(0x100000001ULL);
+absl::uint128 next_file_id = absl::MakeUint128(1, 1);
 absl::uint128 max_reserved_id(0);
 std::mutex increment_mutex;
 
@@ -71,7 +72,7 @@ char *id_to_string(const char *buf) {
   return uint128_to_string(buf_to_uint128(buf));
 }
 
-int initialize_id_manager(const db_store_t *db) {
+int initialize_id_manager(db_store_t *db) {
   struct db_kvpair lookup;
 
   lookup.key = NEXT_FILE_ID_KEY;
@@ -124,3 +125,13 @@ char *generate_file_id(const db_store_t *db) {
 }
 
 char *get_root_id(const db_store_t *db) { return uint128_to_buf(root_file_id); }
+
+uuid_t get_root_uuid() {
+  return absl::bit_cast<uuid_t>(root_file_id);
+}
+
+uuid_t get_next_uuid(uuid_t current) {
+  absl::uint128 u128 = absl::bit_cast<absl::uint128>(current);
+  u128 += 1;
+  return absl::bit_cast<uuid_t>(u128);
+}

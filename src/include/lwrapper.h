@@ -1,5 +1,7 @@
+// vim:noexpandtab:shiftwidth=8:tabstop=8:
 # ifndef __LEVEL_DB_WRAPPER_H__
 # define __LEVEL_DB_WRAPPER_H__
+
 # include <leveldb/c.h>
 # include <stdbool.h>
 
