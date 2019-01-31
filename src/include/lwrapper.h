@@ -6,9 +6,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef union {
-  leveldb_t* ldb;
-} db_type_t;
 
 /* Contains default levelDB options */
 struct db_store {
@@ -18,7 +15,7 @@ struct db_store {
     leveldb_cache_t*            lru_cache;
     leveldb_env_t*              env;
     leveldb_filterpolicy_t*     filter;
-    db_type_t                   db;
+    leveldb_t*                  db;
 };
 typedef struct db_store db_store_t;
 
@@ -30,14 +27,14 @@ typedef struct db_store db_store_t;
  *
  * Input: Prefix of the DB files
  */
-const db_store_t* init_db_store(const char* db_dir_path, bool is_creation);
+db_store_t* init_db_store(const char* db_dir_path, bool is_creation);
 
 
 /*
  * Cleans up all the memory allocated during
  * init_db_store()
  */
-void destroy_db_store(const db_store_t*);
+void destroy_db_store(db_store_t*);
 
 /* Encapsulates the key and value together */
 struct db_kvpair {

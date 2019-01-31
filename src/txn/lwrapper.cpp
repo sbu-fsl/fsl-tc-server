@@ -42,22 +42,22 @@ const char* ANCHOR = "ldb-anchor";
 static int insert_markers(const db_store_t* db_st) {
   char* err = NULL;
 
-  leveldb_put((db_st->db).ldb, db_st->w_options, TR_PREFIX, strlen(TR_PREFIX),
+  leveldb_put(db_st->db, db_st->w_options, TR_PREFIX, strlen(TR_PREFIX),
               ANCHOR, strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
-  leveldb_put((db_st->db).ldb, db_st->w_options, ID_PREFIX, strlen(ID_PREFIX),
+  leveldb_put(db_st->db, db_st->w_options, ID_PREFIX, strlen(ID_PREFIX),
               ANCHOR, strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
-  leveldb_put((db_st->db).ldb, db_st->w_options, HDL_PREFIX, strlen(HDL_PREFIX),
+  leveldb_put(db_st->db, db_st->w_options, HDL_PREFIX, strlen(HDL_PREFIX),
               ANCHOR, strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
   return 0;
 }
 
-const db_store_t* init_db_store(const char* db_dir_path, bool is_creation) {
+db_store_t* init_db_store(const char* db_dir_path, bool is_creation) {
   char* err = NULL;
   db_store_t* db_st = (db_store_t*)malloc(sizeof(db_store_t));
   CHECK_SUCCESS(db_st,
@@ -122,7 +122,7 @@ const db_store_t* init_db_store(const char* db_dir_path, bool is_creation) {
   leveldb_readoptions_set_verify_checksums(db_st->r_options, 1);
 
   // Create levelDB handle
-  (db_st->db).ldb = leveldb_open(db_st->init_options, db_dir_path, &err);
+  db_st->db = leveldb_open(db_st->init_options, db_dir_path, &err);
 
   if (err != NULL) {
     CHECK_SUCCESS(NULL, "ERROR: Failed to open ldb handle");
@@ -142,10 +142,10 @@ const db_store_t* init_db_store(const char* db_dir_path, bool is_creation) {
   return db_st;
 }
 
-void destroy_db_store(const db_store_t* db_st) {
+void destroy_db_store(db_store_t* db_st) {
   // Close the ldb handle first to avoid any
   // requests accessing cache, if they were pending
-  leveldb_close((db_st->db).ldb);
+  leveldb_close(db_st->db);
   // Now free the cache
   leveldb_cache_destroy(db_st->lru_cache);
   // Do not delete the default env
@@ -229,7 +229,7 @@ int put_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
     curr++;
   }
 
-  leveldb_write(db_st->db.ldb, db_st->w_options, write_batch, &err);
+  leveldb_write(db_st->db, db_st->w_options, write_batch, &err);
   leveldb_writebatch_destroy(write_batch);
 
   CHECK_ERR(err);
@@ -251,7 +251,7 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
 
   if (nums == 1) {
     kvp->val =
-        (void*)leveldb_get(db_st->db.ldb, db_st->r_options, kvp->key,
+        (void*)leveldb_get(db_st->db, db_st->r_options, kvp->key,
                            kvp->key_len, (size_t*)(&(kvp->val_len)), &err);
     CHECK_ERR(err);
 
@@ -267,7 +267,7 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
 
     while (i < nums) {
       curr->val =
-          (void*)leveldb_get(db_st->db.ldb, db_st->r_options, curr->key,
+          (void*)leveldb_get(db_st->db, db_st->r_options, curr->key,
                              curr->key_len, (size_t*)(&(curr->val_len)), &err);
       if (err != NULL) {
         /* reset error var */
@@ -304,7 +304,7 @@ int delete_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
     curr++;
   }
 
-  leveldb_write(db_st->db.ldb, db_st->w_options, del_batch, &err);
+  leveldb_write(db_st->db, db_st->w_options, del_batch, &err);
   leveldb_writebatch_destroy(del_batch);
   return 0;
 }
@@ -479,7 +479,7 @@ int delete_transaction(db_kvpair_t* kvp, const int nums,
 int iterate_transactions(db_kvpair_t*** recs, int* nrecs,
                          const db_store_t* db_st) {
   leveldb_iterator_t* iter =
-      leveldb_create_iterator((db_st->db).ldb, db_st->r_options);
+      leveldb_create_iterator(db_st->db, db_st->r_options);
   char* err = NULL;
   int prefix_len = strlen(TR_PREFIX);
   db_kvpair_t** records =

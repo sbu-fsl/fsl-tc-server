@@ -5,7 +5,7 @@
 #include "lwrapper.h"
 
 TEST(TestLWrapper, InitDbTest) {
-  const db_store_t* db = init_db_store("test_db", true);
+  db_store_t* db = init_db_store("test_db", true);
   ASSERT_TRUE(db);
 
   // Check that reading a nonexistent key is not error.
@@ -26,7 +26,7 @@ TEST(TestLWrapper, InitDbTest) {
 }
 
 TEST(TestLWrapper, InsertAndLookupTest) {
-  const db_store_t* db = init_db_store("test_db", true);
+  db_store_t* db = init_db_store("test_db", true);
   int ret = -1;
   ASSERT_TRUE(db);
   size_t key_len = strlen("test_key");
@@ -76,7 +76,7 @@ TEST(TestLWrapper, InsertAndLookupTest) {
 }
 
 TEST(TestLWrapper, InsertAndDeleteTest) {
-  const db_store_t* db = init_db_store("test_db", true);
+  db_store_t* db = init_db_store("test_db", true);
   int ret = -1;
   ASSERT_TRUE(db);
   size_t key_len = strlen("test_del_key");
@@ -130,7 +130,7 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
 }
 
 TEST(TestLWrapper, CommitTransactionTest) {
-  const db_store_t* db = init_db_store("test_db", true);
+  db_store_t* db = init_db_store("test_db", true);
   ASSERT_TRUE(db);
 
   db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
@@ -196,7 +196,7 @@ TEST(TestLWrapper, CommitTransactionTest) {
 }
 
 TEST(TestLWrapper, CommitTransactionAndInsertTest) {
-  const db_store_t* db = init_db_store("test_db", true);
+  db_store_t* db = init_db_store("test_db", true);
   ASSERT_TRUE(db);
 
   db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));

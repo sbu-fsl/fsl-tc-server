@@ -38,7 +38,7 @@ class IdManagerTest : public ::testing::Test {
   }
 
  protected:
-  const db_store_t *db = nullptr;
+  db_store_t *db = nullptr;
 };
 
 TEST_F(IdManagerTest, RootFileIdBasics) {

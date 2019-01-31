@@ -1,14 +1,16 @@
-#include "txn_logger.h"
 #include <dirent.h>
+#include <stdlib.h>
+#include <string>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <fstream>
 #include <functional>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <set>
-#include <stdlib.h>
-#include <string>
-#include <sys/stat.h>
-#include <unistd.h>
+
+#include "txn_logger.h"
 
 using namespace std;
 

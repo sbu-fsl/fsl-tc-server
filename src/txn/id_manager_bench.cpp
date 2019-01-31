@@ -7,7 +7,7 @@
 #include "id_manager.h"
 
 static void BM_generate_ids(benchmark::State& state) {
-  const db_store_t* db = init_db_store("testdb", true);
+  db_store_t* db = init_db_store("testdb", true);
   initialize_id_manager(db);
 
   while (state.KeepRunning()) {

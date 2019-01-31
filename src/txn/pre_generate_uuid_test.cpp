@@ -1,12 +1,11 @@
 #include <set>
 #include <stdlib.h>
 #include <string.h>
-
-#include "pre_generate_uuid.h"
 #include <gtest/gtest.h>
 
-TEST(PreGenerateTest, SimplePassGuarded4) {
+#include "pre_generate_uuid.h"
 
+TEST(PreGenerateTest, SimplePassGuarded4) {
   open_claim4 cla;
   cla.claim = CLAIM_NULL;
   OPEN4args arg_OPEN4;
@@ -19,8 +18,8 @@ TEST(PreGenerateTest, SimplePassGuarded4) {
   arg_OPEN4.openhow = ol;
   EXPECT_EQ(1, pre_generate_open_flag_check(&arg_OPEN4));
 }
-TEST(PreGenerateTest, SimplePassUnchecked4) {
 
+TEST(PreGenerateTest, SimplePassUnchecked4) {
   open_claim4 cla;
   cla.claim = CLAIM_NULL;
   OPEN4args arg_OPEN4;
@@ -33,8 +32,8 @@ TEST(PreGenerateTest, SimplePassUnchecked4) {
   arg_OPEN4.openhow = ol;
   EXPECT_EQ(1, pre_generate_open_flag_check(&arg_OPEN4));
 }
-TEST(PreGenerateTest, SimpleFailCLAIM_PREVIOUS) {
 
+TEST(PreGenerateTest, SimpleFailCLAIM_PREVIOUS) {
   open_claim4 cla;
   cla.claim = CLAIM_PREVIOUS;
   OPEN4args arg_OPEN4;
@@ -47,8 +46,8 @@ TEST(PreGenerateTest, SimpleFailCLAIM_PREVIOUS) {
   arg_OPEN4.openhow = ol;
   EXPECT_EQ(0, pre_generate_open_flag_check(&arg_OPEN4));
 }
-TEST(PreGenerateTest, SimpleFailOPEN4_NOCREATE) {
 
+TEST(PreGenerateTest, SimpleFailOPEN4_NOCREATE) {
   open_claim4 cla;
   cla.claim = CLAIM_NULL;
   OPEN4args arg_OPEN4;
@@ -61,8 +60,8 @@ TEST(PreGenerateTest, SimpleFailOPEN4_NOCREATE) {
   arg_OPEN4.openhow = ol;
   EXPECT_EQ(0, pre_generate_open_flag_check(&arg_OPEN4));
 }
-TEST(PreGenerateTest, SimpleFailEXCLUSIVE4) {
 
+TEST(PreGenerateTest, SimpleFailEXCLUSIVE4) {
   open_claim4 cla;
   cla.claim = CLAIM_NULL;
   OPEN4args arg_OPEN4;
