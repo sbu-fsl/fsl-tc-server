@@ -25,8 +25,8 @@ target_link_libraries(fsaltxn
   gos
   leveldb
   lwrapper
-  idmanager
-  lockmanager
+  id_manager
+  lock_manager
 )
 
 set_target_properties(fsaltxn PROPERTIES VERSION 4.2.0 SOVERSION 4)
