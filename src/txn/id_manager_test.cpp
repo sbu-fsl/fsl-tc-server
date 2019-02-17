@@ -9,7 +9,7 @@
 
 #include "id_manager.h"
 
-namespace fs = boost::filesystem;
+namespace fs = ::boost::filesystem;
 
 struct IDCompare {
   bool operator()(const char *a, const char *b) const {

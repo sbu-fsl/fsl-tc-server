@@ -10,9 +10,14 @@
 #include <iostream>
 #include <set>
 
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
+
 #include "txn_logger.h"
 
 using namespace std;
+
+namespace fs = ::boost::filesystem;
 
 class TxnTest : public ::testing::Test {
  protected:
@@ -21,7 +26,7 @@ class TxnTest : public ::testing::Test {
   string id = "file_id_hardcode";  // TODO:generate_file_id();
   string original_path_str = "temp_original_path";
   string backup_name_str = "temp_backup_name";
-  string backup_dir_path = "/var/log/";
+  string backup_dir_path = "/tmp/log/";
   string src_path_str = "temp_src_path";
   string dst_path_str = "temp_dst_path";
   struct FileId created_file[1];
@@ -29,6 +34,7 @@ class TxnTest : public ::testing::Test {
   struct SymlinkId created_symlinks[1];
   struct RenameId created_renames[1];
   virtual void SetUp() {
+    fs::create_directories(backup_dir_path);
     created_file[0].data = id.c_str();
     created_file[0].file_type = ft_File;
     created_file[0].flags = 1;
@@ -54,6 +60,12 @@ class TxnTest : public ::testing::Test {
     txn_log.created_rename_ids = created_renames;
     txn_log.num_renames = 1;
   }
+  virtual void TearDown() {
+    if (fs::exists(backup_dir_path)) {
+      fs::remove_all(backup_dir_path);
+    }
+  }
+
   int compareStructsCommon(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->txn_id != txn_log.txn_id) return 1;
     if (txn_log_ret->compound_type != txn_log.compound_type) return 1;
@@ -71,8 +83,7 @@ class TxnTest : public ::testing::Test {
   }
   int compareStructsUnlinkId(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->num_unlinks != txn_log.num_unlinks) return 1;
-    struct UnlinkId *created_unlinks, *created_unlinks_ret;
-    created_unlinks = txn_log.created_unlink_ids;
+    struct UnlinkId *created_unlinks_ret;
     created_unlinks_ret = txn_log_ret->created_unlink_ids;
     if (original_path_str.compare(created_unlinks_ret->original_path) != 0)
       return 1;
@@ -82,8 +93,7 @@ class TxnTest : public ::testing::Test {
   }
   int compareStructsSymlinkId(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->num_symlinks != txn_log.num_symlinks) return 1;
-    struct SymlinkId *created_symlinks, *created_symlinks_ret;
-    created_symlinks = txn_log.created_symlink_ids;
+    struct SymlinkId *created_symlinks_ret;
     created_symlinks_ret = txn_log_ret->created_symlink_ids;
     if (src_path_str.compare(created_symlinks_ret->src_path) != 0) return 1;
     if (dst_path_str.compare(created_symlinks_ret->dst_path) != 0) return 1;
@@ -113,22 +123,22 @@ class TxnTest : public ::testing::Test {
 TEST_F(TxnTest, SimpleTest) {
   txn_log.txn_id = 9990;
   txn_log.compound_type = txn_VNone;
-  EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
-  EXPECT_EQ(0, remove_txn_log(9990, "/var/log"));
+  EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
+  EXPECT_EQ(0, remove_txn_log(9990, "/tmp/log"));
 }
 
 #if 0
 TEST_F(TxnTest, CreateTest) {
 	txn_log.txn_id = 9992;
 	txn_log.compound_type = txn_VCreate;
-	string txn_log_file = "/var/log/txn_" + to_string(9992);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9992);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9992, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9992, "/tmp/log");
 	result = compareStructsCommon(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
 	result = compareStructsFileID(txn_log, txn_log_ret);
@@ -139,14 +149,14 @@ TEST_F(TxnTest, CreateTest) {
 TEST_F(TxnTest, MkdirTest) {
 	txn_log.txn_id = 9993;
 	txn_log.compound_type = txn_VMkdir;
-	string txn_log_file = "/var/log/txn_" + to_string(9993);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9993);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9993, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9993, "/tmp/log");
 	result = compareStructsCommon(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
 	result = compareStructsFileID(txn_log, txn_log_ret);
@@ -158,14 +168,14 @@ TEST_F(TxnTest, WriteTest) {
 	txn_log.txn_id = 9994;
 	txn_log.compound_type = txn_VWrite;
 	txn_log.backup_dir_path = backup_dir_path.c_str();
-	string txn_log_file = "/var/log/txn_" + to_string(9994);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9994);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9994, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9994, "/tmp/log");
 	if (backup_dir_path.compare(txn_log_ret->backup_dir_path) != 0)
 		result = 1;
 	result = compareStructsCommon(txn_log, txn_log_ret);
@@ -179,14 +189,14 @@ TEST_F(TxnTest, UnlinkTest) {
 	txn_log.txn_id = 9995;
 	txn_log.compound_type = txn_VUnlink;
 	txn_log.backup_dir_path = backup_dir_path.c_str();
-	string txn_log_file = "/var/log/txn_" + to_string(9995);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9995);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9995, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9995, "/tmp/log");
 	if (backup_dir_path.compare(txn_log_ret->backup_dir_path) != 0)
 		result = 1;
 	result = compareStructsUnlinkId(txn_log, txn_log_ret);
@@ -197,14 +207,14 @@ TEST_F(TxnTest, UnlinkTest) {
 TEST_F(TxnTest, SymlinkTest) {
 	txn_log.txn_id = 9996;
 	txn_log.compound_type = txn_VSymlink;
-	string txn_log_file = "/var/log/txn_" + to_string(9996);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9996);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9996, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9996, "/tmp/log");
 	result = compareStructsCommon(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
 	result = compareStructsSymlinkId(txn_log, txn_log_ret);
@@ -216,25 +226,25 @@ TEST_F(TxnTest, RenameTest) {
 	txn_log.txn_id = 9997;
 	txn_log.compound_type = txn_VRename;
 	txn_log.backup_dir_path = backup_dir_path.c_str();
-	string txn_log_file = "/var/log/txn_" + to_string(9997);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9997);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9997, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9997, "/tmp/log");
 	if (backup_dir_path.compare(txn_log_ret->backup_dir_path) != 0)
 		result = 1;
 	result = compareStructsCommon(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
 	result = compareStructsRenameId(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
-	remove_txn_log(9997, "/var/log");
+	remove_txn_log(9997, "/tmp/log");
 }
 
 TEST_F(TxnTest, IterateTxnTest) {
-	const char *dir_name = "/var/log/testdir1";
+	const char *dir_name = "/tmp/log/testdir1";
 	int ret = mkdir(dir_name, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 	if (ret == -1) {
 		cout << "Error while creating directory" << endl;
@@ -283,46 +293,46 @@ TEST_F(TxnTest, IterateTxnTest) {
 TEST_F(TxnTest, MixedTest1) {
 	txn_log.compound_type = txn_VCreate;
 	txn_log.txn_id = 9998;
-	string txn_log_file = "/var/log/txn_" + to_string(9998);
+	string txn_log_file = "/tmp/log/txn_" + to_string(9998);
 	FILE *fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	txn_log.txn_id = 9999;
-	txn_log_file = "/var/log/txn_" + to_string(9999);
+	txn_log_file = "/tmp/log/txn_" + to_string(9999);
 	fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
 	txn_log.txn_id = 10000;
-	txn_log_file = "/var/log/txn_" + to_string(10000);
+	txn_log_file = "/tmp/log/txn_" + to_string(10000);
 	fp = fopen(txn_log_file.c_str(), "r");
 	if (fp) {
 		remove(txn_log_file.c_str());
 	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/var/log"));
-	remove_txn_log(9999, "/var/log");
+	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
+	remove_txn_log(9999, "/tmp/log");
 	result = 0;
 	txn_log.txn_id = 9998;
-	TxnLog *txn_log_ret = read_txn_log(9998, "/var/log");
+	TxnLog *txn_log_ret = read_txn_log(9998, "/tmp/log");
 	result = compareStructsCommon(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
 	result = compareStructsFileID(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
-	remove_txn_log(9998, "/var/log");
+	remove_txn_log(9998, "/tmp/log");
 	txn_log.txn_id = 10000;
-	txn_log_ret = read_txn_log(10000, "/var/log");
+	txn_log_ret = read_txn_log(10000, "/tmp/log");
 	result = compareStructsCommon(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
 	result = compareStructsFileID(txn_log, txn_log_ret);
 	EXPECT_EQ(0, result);
-	remove_txn_log(10000, "/var/log");
+	remove_txn_log(10000, "/tmp/log");
 }
 
 TEST_F(TxnTest, MixedTest2) {
-	const char *dir_name = "/var/log/testdir2";
+	const char *dir_name = "/tmp/log/testdir2";
 	int ret = mkdir(dir_name, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 	if (ret == -1) {
 		cout << "Error while creating directory" << endl;
@@ -364,7 +374,7 @@ TEST_F(TxnTest, MixedTest2) {
 }
 
 TEST_F(TxnTest, MixedTest3) {
-	const char *dir_name = "/var/log/testdir1";
+	const char *dir_name = "/tmp/log/testdir1";
 	int ret = mkdir(dir_name, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 	if (ret == -1) {
 		cout << "Error while creating directory" << endl;
@@ -405,11 +415,5 @@ TEST_F(TxnTest, MixedTest3) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  DIR *dir = opendir("/var/log");
-  if (!dir) {
-    std::cerr << "/var/log"
-              << " directory does not exist";
-    return -1;
-  }
   return RUN_ALL_TESTS();
 }
