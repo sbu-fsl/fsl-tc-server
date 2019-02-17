@@ -82,7 +82,7 @@ TEST_F(IdManagerTest, SimpleTest) {
 }
 
 TEST_F(IdManagerTest, UUIDBasics) {
-  uuid_t root = get_root_uuid();
+  uuid_t root = uuid_root();
   EXPECT_EQ(0ULL, root.lo);
   EXPECT_EQ(1ULL, root.hi);
 
@@ -90,7 +90,7 @@ TEST_F(IdManagerTest, UUIDBasics) {
   for (uint64_t i = 0; i <= 100ULL; ++i) {
     EXPECT_EQ(i, uuid.lo);
     EXPECT_EQ(1ULL, root.hi);
-    uuid = get_next_uuid(uuid);
+    uuid = uuid_next(uuid);
   }
 }
 
