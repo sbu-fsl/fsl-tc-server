@@ -34,7 +34,7 @@ TEST(TestLWrapper, InsertAndLookupTest) {
 
   db_kvpair_t record = {
       .key = "test_key",
-      .val = (void*)"test_value\0",
+      .val = "test_value",
       .key_len = key_len,
       .val_len = val_len,
   };
@@ -54,7 +54,7 @@ TEST(TestLWrapper, InsertAndLookupTest) {
   ret = get_id_handle(&record, 1, db, false);
   ASSERT_FALSE(ret);
   ASSERT_TRUE(record.val);
-  ASSERT_FALSE(strcmp((char*)record.val, rev_record.key));
+  ASSERT_FALSE(strcmp(record.val, rev_record.key));
   ASSERT_TRUE(record.val_len = rev_record.key_len);
 
   // lookup record by id
@@ -80,17 +80,17 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
   int ret = -1;
   ASSERT_TRUE(db);
   size_t key_len = strlen("test_del_key");
-  size_t val_len = strlen("test_del_value") + 1;
+  size_t val_len = strlen("test_del_value");
 
   db_kvpair_t record = {
       .key = "test_del_key",
-      .val = (void*)"test_del_value\0",
+      .val = "test_del_value",
       .key_len = key_len,
       .val_len = val_len,
   };
 
   db_kvpair_t rev_record;
-  rev_record.key = (char*)record.val;
+  rev_record.key = record.val;
   rev_record.key_len = record.val_len;
 
   // put record
@@ -104,7 +104,7 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
   ret = get_id_handle(&record, 1, db, false);
   ASSERT_FALSE(ret);
   ASSERT_TRUE(record.val);
-  ASSERT_FALSE(strcmp((char*)record.val, rev_record.key));
+  ASSERT_FALSE(strcmp(record.val, rev_record.key));
   ASSERT_TRUE(record.val_len = rev_record.key_len);
 
   // delete record by id
@@ -134,10 +134,10 @@ TEST(TestLWrapper, CommitTransactionTest) {
   ASSERT_TRUE(db);
 
   db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
-  char* key = "1234";
-  char* value = "/a/b/c/d\0";
+  const char* key = "1234";
+  const char* value = "/a/b/c/d";
   size_t key_len = strlen(key);
-  size_t val_len = strlen(value) + 1;
+  size_t val_len = strlen(value);
   record->key = key;
   record->val = value;
   record->key_len = key_len;
@@ -148,9 +148,9 @@ TEST(TestLWrapper, CommitTransactionTest) {
   ASSERT_FALSE(ret);
 
   key = "5678";
-  value = "/a/b/c/d/e\0";
+  value = "/a/b/c/d/e";
   key_len = strlen(key);
-  val_len = strlen(value) + 1;
+  val_len = strlen(value);
 
   record->key = key;
   record->val = value;
@@ -171,10 +171,12 @@ TEST(TestLWrapper, CommitTransactionTest) {
   // verify the commited transaction
   ASSERT_FALSE(ret);
   ASSERT_TRUE(nrecs == 2);
-  ASSERT_FALSE(strcmp("1234", tr_records[0]->key));
-  ASSERT_FALSE(strcmp("/a/b/c/d", (char*)tr_records[0]->val));
-  ASSERT_FALSE(strcmp("5678", tr_records[1]->key));
-  ASSERT_FALSE(strcmp("/a/b/c/d/e", (char*)tr_records[1]->val));
+  EXPECT_EQ(std::string(tr_records[0]->key, tr_records[0]->key_len), "1234");
+  EXPECT_EQ(std::string(tr_records[0]->val, tr_records[0]->val_len),
+            "/a/b/c/d");
+  EXPECT_EQ(std::string(tr_records[1]->key, tr_records[1]->key_len), "5678");
+  EXPECT_EQ(std::string(tr_records[1]->val, tr_records[1]->val_len),
+            "/a/b/c/d/e");
 
   // now delete all transacations
   ret = delete_transaction(tr_records[0], 1, db);
@@ -200,10 +202,10 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   ASSERT_TRUE(db);
 
   db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
-  char* key = "1234";
-  char* value = "/a/b/c/d\0";
+  const char* key = "1234";
+  const char* value = "/a/b/c/d";
   size_t key_len = strlen(key);
-  size_t val_len = strlen(value) + 1;
+  size_t val_len = strlen(value);
 
   record->key = key;
   record->val = value;
@@ -215,9 +217,9 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   ASSERT_FALSE(ret);
 
   key = "5678";
-  value = "/a/b/c/d/e\0";
+  value = "/a/b/c/d/e";
   key_len = strlen(key);
-  val_len = strlen(value) + 1;
+  val_len = strlen(value);
 
   record->key = key;
   record->val = value;
@@ -236,8 +238,9 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   ASSERT_FALSE(ret);
   // only one transaction commit should be present
   ASSERT_TRUE(nrecs == 1);
-  ASSERT_FALSE(strcmp("1234", (char*)tr_records[0]->key));
-  ASSERT_FALSE(strcmp("/a/b/c/d", (char*)tr_records[0]->val));
+  EXPECT_EQ(std::string(tr_records[0]->key, tr_records[0]->key_len), "1234");
+  EXPECT_EQ(std::string(tr_records[0]->val, tr_records[0]->val_len),
+            "/a/b/c/d");
 
   cleanup_transaction_iterator(tr_records, nrecs);
 

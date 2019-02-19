@@ -40,8 +40,8 @@ void destroy_db_store(db_store_t*);
 
 /* Encapsulates the key and value together */
 struct db_kvpair {
-    char* key;  // TODO: make this const
-    void* val;
+    const char* key;
+    const char* val;
     size_t key_len;
     size_t val_len;
 };

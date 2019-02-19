@@ -29,7 +29,7 @@
 #define SAFE_FREE(ptr)   \
   do {                   \
     if ((ptr) != NULL) { \
-      free((ptr));       \
+      free((void *)(ptr));       \
       (ptr) = NULL;      \
     }                    \
   } while (0);
@@ -39,6 +39,12 @@
 #define HDL_PREFIX "hdl-"
 
 const char* ANCHOR = "ldb-anchor";
+
+char* memdup(const char* buf, size_t len) {
+  char* b = (char *)malloc(len);
+  memcpy(b, buf, len);
+  return b;
+}
 
 static int insert_markers(const db_store_t* db_st) {
   char* err = NULL;
@@ -160,7 +166,7 @@ void destroy_db_store(db_store_t* db_st) {
   return;
 }
 
-static void generate_db_keys(db_kvpair_t* kvp, char* prefix,
+static void generate_db_keys(db_kvpair_t* kvp, const char* prefix,
                              db_kvpair_t* new_kvp, int nums,
                              bool alloc_val_mem) {
   int i = 0;
@@ -179,8 +185,7 @@ static void generate_db_keys(db_kvpair_t* kvp, char* prefix,
     curr_new_kvp->key = temp;
     curr_new_kvp->key_len = strlen(temp);
     if (alloc_val_mem) {
-      curr_new_kvp->val = (void*)malloc(curr_kvp->val_len);
-      memcpy(curr_new_kvp->val, curr_kvp->val, curr_kvp->val_len);
+      curr_new_kvp->val = memdup(curr_kvp->val, curr_kvp->val_len);
       curr_new_kvp->val_len = curr_kvp->val_len;
     }
 
@@ -194,11 +199,8 @@ static void generate_db_keys(db_kvpair_t* kvp, char* prefix,
 }
 
 static void cleanup_allocated_kvps(db_kvpair_t* kvp, int nums) {
-  int i = 0;
   db_kvpair_t* curr;
-
-  while (i < nums) {
-    i++;
+  for (int i = 0; i < nums; ++i) {
     curr = kvp;
     kvp++;
     SAFE_FREE(curr->key);
@@ -225,7 +227,7 @@ int put_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
 
   while (i < nums) {
     leveldb_writebatch_put(write_batch, curr->key, curr->key_len,
-                           (char*)curr->val, curr->val_len);
+                           curr->val, curr->val_len);
     i++;
     curr++;
   }
@@ -251,9 +253,8 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
   if (nums == 0) return 0;
 
   if (nums == 1) {
-    kvp->val =
-        (void*)leveldb_get(db_st->db, db_st->r_options, kvp->key,
-                           kvp->key_len, (size_t*)(&(kvp->val_len)), &err);
+    kvp->val = leveldb_get(db_st->db, db_st->r_options, kvp->key, kvp->key_len,
+                           &(kvp->val_len), &err);
     CHECK_ERR(err);
 
 #ifdef DEBUG
@@ -267,9 +268,8 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
     db_kvpair_t* curr = kvp;
 
     while (i < nums) {
-      curr->val =
-          (void*)leveldb_get(db_st->db, db_st->r_options, curr->key,
-                             curr->key_len, (size_t*)(&(curr->val_len)), &err);
+      curr->val = leveldb_get(db_st->db, db_st->r_options, curr->key,
+                              curr->key_len, &(curr->val_len), &err);
       if (err != NULL) {
         /* reset error var */
         leveldb_free(err);
@@ -316,10 +316,10 @@ void static swap_key_values(db_kvpair_t* kvp, int nums) {
 
   while (i < nums) {
     int temp_len;
-    char* temp_val;
+    const char* temp_val;
     temp_val = curr_kvp->key;
     temp_len = curr_kvp->key_len;
-    curr_kvp->key = (char*)curr_kvp->val;
+    curr_kvp->key = curr_kvp->val;
     curr_kvp->key_len = curr_kvp->val_len;
     curr_kvp->val = temp_val;
     curr_kvp->val_len = temp_len;
@@ -366,7 +366,7 @@ int put_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
 int get_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
                   bool lookup_by_handle) {
   int ret = -1;
-  char* prefix = ID_PREFIX;
+  const char* prefix = ID_PREFIX;
   int i = 0;
   db_kvpair_t* curr_kvp = kvp;
 
@@ -384,8 +384,7 @@ int get_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
   while (i < nums) {
     int len = curr_kvp->val_len = new_kvp->val_len;
     if (len) {
-      curr_kvp->val = (void*)malloc(len);
-      memcpy(curr_kvp->val, new_kvp->val, len);
+      curr_kvp->val = memdup(new_kvp->val, len);
     }
     i++;
     curr_kvp++;
@@ -403,7 +402,7 @@ int get_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
 int delete_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
                      bool delete_by_handle) {
   int ret = -1;
-  char* prefix = ID_PREFIX;
+  const char* prefix = ID_PREFIX;
 
   if (delete_by_handle) prefix = HDL_PREFIX;
 
@@ -508,16 +507,12 @@ int iterate_transactions(db_kvpair_t*** recs, int* nrecs,
     char* temp = key_ptr;
     // since this is char pointer, it is okay to add directly length
     temp = temp + prefix_len;
-    int new_key_len = key_len - strlen(TR_PREFIX);
-    record->key = (char*)malloc(new_key_len + 1);
-    memcpy(record->key, temp, new_key_len);
-    record->key[new_key_len] = '\0';
+    record->key_len = key_len - strlen(TR_PREFIX);
+    record->key = memdup(temp, record->key_len);
 
-    record->val = malloc(value_len);
-    memcpy(record->val, value_ptr, value_len);
-
-    record->key_len = strlen(record->key);
     record->val_len = value_len;
+    record->val = memdup(value_ptr, value_len);
+
     records[count++] = record;
 
 #ifdef DEBUG

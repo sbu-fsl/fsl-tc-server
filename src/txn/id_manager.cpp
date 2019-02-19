@@ -50,11 +50,12 @@ int uuid_batch_reserve(const db_store_t *db) {
   lookup.key_len = NEXT_FILE_ID_KEY_LEN;
 
   max_reserved_id += kUUIDReserveBatchSize;
-  lookup.val = uint128_to_buf(max_reserved_id);
+  char* buf = uint128_to_buf(max_reserved_id);
+  lookup.val = buf;
   lookup.val_len = NEXT_FILE_ID_KEY_LEN;
 
   int ret = put_keys(&lookup, 1, db);
-  free(lookup.val);
+  free(buf);
   return ret;
 }
 
