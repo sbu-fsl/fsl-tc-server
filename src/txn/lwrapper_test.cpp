@@ -1,8 +1,16 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "lwrapper.h"
+
+MATCHER_P2(IsPair, key, value,
+           std::string(negation ? "isn't" : "is") + "<" + std::string(key) +
+               ", " + std::string(value) = ">") {
+  return std::string(arg->key, arg->key_len) == key &&
+         std::string(arg->val, arg->val_len) == value;
+}
 
 TEST(TestLWrapper, InitDbTest) {
   db_store_t* db = init_db_store("test_db", true);
@@ -170,13 +178,9 @@ TEST(TestLWrapper, CommitTransactionTest) {
 
   // verify the commited transaction
   ASSERT_FALSE(ret);
-  ASSERT_TRUE(nrecs == 2);
-  EXPECT_EQ(std::string(tr_records[0]->key, tr_records[0]->key_len), "1234");
-  EXPECT_EQ(std::string(tr_records[0]->val, tr_records[0]->val_len),
-            "/a/b/c/d");
-  EXPECT_EQ(std::string(tr_records[1]->key, tr_records[1]->key_len), "5678");
-  EXPECT_EQ(std::string(tr_records[1]->val, tr_records[1]->val_len),
-            "/a/b/c/d/e");
+  EXPECT_EQ(2, nrecs);
+  EXPECT_THAT(tr_records[0], IsPair("1234", "/a/b/c/d"));
+  EXPECT_THAT(tr_records[1], IsPair("5678", "/a/b/c/d/e"));
 
   // now delete all transacations
   ret = delete_transaction(tr_records[0], 1, db);
@@ -237,10 +241,8 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
 
   ASSERT_FALSE(ret);
   // only one transaction commit should be present
-  ASSERT_TRUE(nrecs == 1);
-  EXPECT_EQ(std::string(tr_records[0]->key, tr_records[0]->key_len), "1234");
-  EXPECT_EQ(std::string(tr_records[0]->val, tr_records[0]->val_len),
-            "/a/b/c/d");
+  ASSERT_EQ(1, nrecs);
+  EXPECT_THAT(tr_records[0], IsPair("1234", "/a/b/c/d"));
 
   cleanup_transaction_iterator(tr_records, nrecs);
 

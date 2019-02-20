@@ -1,6 +1,5 @@
 set( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++14" )
 
-
 find_package(Boost COMPONENTS filesystem system REQUIRED)
 if(Boost_FOUND)
   message(STATUS "Found Boost headers in: " ${Boost_INCLUDE_DIRS})
@@ -45,7 +44,8 @@ function(add_cpplib libname)
     ${Boost_SYSTEM_LIBRARY}
     ${GPERFTOOLS_LIBRARIES}
     pthread
-    ${GTEST_LIBRARIES}
+    ${GTEST}
+    ${GMOCK_LIBRARIES}
     pthread
     leveldb
     )
@@ -67,7 +67,7 @@ add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
 add_cpplib(lock_manager lwrapper)
 
-add_cpplib(pre_generate_uuid protobuf)
+# add_cpplib(pre_generate_uuid protobuf)
 
 find_package(Protobuf REQUIRED)
 include_directories(${PROTOBUF_INCLUDE_DIRS})

@@ -838,8 +838,9 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 
 	/* call to subfsal lookup with the good context. */
 	fsal_status_t status;
-	LogDebug(COMPONENT_FSAL, "Received file ID %s. ID Length = %zu", (char *) hdl_desc->addr, hdl_desc->len);
-	kvpair.key = (char *) hdl_desc->addr;
+	LogDebug(COMPONENT_FSAL, "Received file ID %s. ID Length = %zu",
+		 (char *)hdl_desc->addr, hdl_desc->len);
+	kvpair.key = hdl_desc->addr;
 	kvpair.key_len = hdl_desc->len;
 	kvpair.val = NULL;
 	int res = get_keys(&kvpair, 1, db);
@@ -848,7 +849,7 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 		LogCrit(COMPONENT_FSAL, "No entry in DB for file ID %s", kvpair.key);
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
-	keybuf.addr = kvpair.val;
+	keybuf.addr = (char *)kvpair.val;
 	keybuf.len = kvpair.val_len;
 	op_ctx->fsal_export = export->export.sub_export;
 
