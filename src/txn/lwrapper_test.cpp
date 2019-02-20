@@ -8,8 +8,8 @@
 MATCHER_P2(IsPair, key, value,
            std::string(negation ? "isn't" : "is") + "<" + std::string(key) +
                ", " + std::string(value) = ">") {
-  return std::string(arg->key, arg->key_len) == key &&
-         std::string(arg->val, arg->val_len) == value;
+  return std::string(arg.key, arg.key_len) == key &&
+         std::string(arg.val, arg.val_len) == value;
 }
 
 TEST(TestLWrapper, InitDbTest) {
@@ -38,7 +38,7 @@ TEST(TestLWrapper, InsertAndLookupTest) {
   int ret = -1;
   ASSERT_TRUE(db);
   size_t key_len = strlen("test_key");
-  size_t val_len = strlen("test_value") + 1;
+  size_t val_len = strlen("test_value");
 
   db_kvpair_t record = {
       .key = "test_key",
@@ -47,34 +47,26 @@ TEST(TestLWrapper, InsertAndLookupTest) {
       .val_len = val_len,
   };
 
-  db_kvpair_t rev_record;
-  rev_record.key = (char*)record.val;
-  rev_record.key_len = record.val_len;
-
   // put record
   ret = put_id_handle(&record, 1, db);
   ASSERT_FALSE(ret);
 
-  // lookup record by id
+  // Lookup record by id.
   record.val = NULL;
   record.val_len = 0;
 
-  ret = get_id_handle(&record, 1, db, false);
-  ASSERT_FALSE(ret);
-  ASSERT_TRUE(record.val);
-  ASSERT_FALSE(strcmp(record.val, rev_record.key));
-  ASSERT_TRUE(record.val_len = rev_record.key_len);
+  EXPECT_EQ(0, get_id_handle(&record, 1, db, false));
+  EXPECT_THAT(record, IsPair("test_key", "test_value"));
 
-  // lookup record by id
-  rev_record.val = NULL;
-  rev_record.val_len = 0;
-  ret = get_id_handle(&rev_record, 1, db, true);
-  ASSERT_FALSE(ret);
-  ASSERT_TRUE(rev_record.val);
-  char* str_value = (char*)malloc(sizeof(char) * (rev_record.val_len + 1));
-  strcpy(str_value, record.key);
-  ASSERT_FALSE(strcmp(str_value, record.key));
-  ASSERT_TRUE(rev_record.val_len = record.key_len);
+  // Reverse lookup record by handle.
+  db_kvpair_t rev_record = {
+      .key = record.val,
+      .val = NULL,
+      .key_len = record.val_len,
+      .val_len = 0,
+  };
+  EXPECT_EQ(0, get_id_handle(&rev_record, 1, db, true));
+  EXPECT_THAT(rev_record, IsPair("test_value", "test_key"));
 
   // delete record by id
   ret = delete_id_handle(&record, 1, db, false);
@@ -97,10 +89,6 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
       .val_len = val_len,
   };
 
-  db_kvpair_t rev_record;
-  rev_record.key = record.val;
-  rev_record.key_len = record.val_len;
-
   // put record
   ret = put_id_handle(&record, 1, db);
   ASSERT_FALSE(ret);
@@ -109,11 +97,8 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
   record.val_len = 0;
 
   // lookup record by id
-  ret = get_id_handle(&record, 1, db, false);
-  ASSERT_FALSE(ret);
-  ASSERT_TRUE(record.val);
-  ASSERT_FALSE(strcmp(record.val, rev_record.key));
-  ASSERT_TRUE(record.val_len = rev_record.key_len);
+  EXPECT_EQ(0, get_id_handle(&record, 1, db, false));
+  EXPECT_THAT(record, IsPair("test_del_key", "test_del_value"));
 
   // delete record by id
   ret = delete_id_handle(&record, 1, db, false);
@@ -122,15 +107,19 @@ TEST(TestLWrapper, InsertAndDeleteTest) {
   // lookup record by id
   record.val = NULL;
   record.val_len = 0;
-  ret = get_id_handle(&record, 1, db, false);
+  EXPECT_EQ(0, get_id_handle(&record, 1, db, false));
   ASSERT_FALSE(ret);
   ASSERT_FALSE(record.val);
   ASSERT_FALSE(record.val_len);
 
   // lookup record by handle
-  rev_record.val = NULL;
-  rev_record.val_len = 0;
-  ret = get_id_handle(&rev_record, 1, db, true);
+  db_kvpair_t rev_record = {
+      rev_record.key = "test_del_value",
+      rev_record.val = NULL,
+      rev_record.key_len = val_len,
+      rev_record.val_len = 0,
+  };
+  EXPECT_EQ(0, get_id_handle(&rev_record, 1, db, true));
   ASSERT_FALSE(ret);
   ASSERT_FALSE(rev_record.val);
   ASSERT_FALSE(rev_record.val_len);
@@ -179,8 +168,8 @@ TEST(TestLWrapper, CommitTransactionTest) {
   // verify the commited transaction
   ASSERT_FALSE(ret);
   EXPECT_EQ(2, nrecs);
-  EXPECT_THAT(tr_records[0], IsPair("1234", "/a/b/c/d"));
-  EXPECT_THAT(tr_records[1], IsPair("5678", "/a/b/c/d/e"));
+  EXPECT_THAT(*tr_records[0], IsPair("1234", "/a/b/c/d"));
+  EXPECT_THAT(*tr_records[1], IsPair("5678", "/a/b/c/d/e"));
 
   // now delete all transacations
   ret = delete_transaction(tr_records[0], 1, db);
@@ -242,7 +231,7 @@ TEST(TestLWrapper, CommitTransactionAndInsertTest) {
   ASSERT_FALSE(ret);
   // only one transaction commit should be present
   ASSERT_EQ(1, nrecs);
-  EXPECT_THAT(tr_records[0], IsPair("1234", "/a/b/c/d"));
+  EXPECT_THAT(*tr_records[0], IsPair("1234", "/a/b/c/d"));
 
   cleanup_transaction_iterator(tr_records, nrecs);
 
