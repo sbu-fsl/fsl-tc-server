@@ -1,4 +1,5 @@
 syntax = "proto2";
+package txnfs.proto;
 
 enum TransactionType {
 	NONE = 0;

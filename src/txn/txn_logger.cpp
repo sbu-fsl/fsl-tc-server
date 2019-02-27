@@ -13,7 +13,7 @@
 #define MAX_LEN 64
 
 using namespace std;
-
+using namespace txnfs;
 /**
  * @brief returns FileType from txn FSObjectType
  *
@@ -21,7 +21,8 @@ using namespace std;
  *
  * @retval -1 FileType
  */
-FileType get_file_type_txn(FSObjectType newType) {
+proto::FileType get_file_type_txn(FSObjectType newType) {
+  using FileType = proto::FileType;
   switch (newType) {
     case ft_None:
       return FileType::FT_NONE;
@@ -45,7 +46,8 @@ FileType get_file_type_txn(FSObjectType newType) {
  *
  * @retval -1 FSObjectType from txn_logger.h
  */
-FSObjectType get_file_type(FileType newType) {
+FSObjectType get_file_type(proto::FileType newType) {
+  using FileType = proto::FileType;
   switch (newType) {
     case FileType::FT_NONE:
       return ft_None;
@@ -79,14 +81,14 @@ char* bytes_to_hex(const char* uuid_str) {
 
 /**
  * @brief helper function to write_txn_log
- * This function fills TransactionLog for transaction involving VCreate
+ * This function fills proto::TransactionLog for transaction involving VCreate
  */
-void write_create_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
-  txn_log_obj->set_type(TransactionType::VCREATE);
+void write_create_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj) {
+  txn_log_obj->set_type(proto::TransactionType::VCREATE);
   for (int i = 0; i < txn_log->num_files; i++) {
-    VCreateTxn* create_txn = txn_log_obj->mutable_creates();
+    proto::VCreateTxn* create_txn = txn_log_obj->mutable_creates();
     if (txn_log->created_file_ids[i].flags) {
-      FileID* file_id = create_txn->add_created_files();
+      proto::FileID* file_id = create_txn->add_created_files();
       file_id->set_id(txn_log->created_file_ids[i].data);
       if (ENABLE_NORMAL_TEXT_LOGGING &&
           txn_log->created_file_ids[i].data != NULL) {
@@ -101,14 +103,14 @@ void write_create_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
 
 /**
  * @brief helper function to write_txn_log
- * This function fills TransactionLog for transaction involving VMkdir
+ * This function fills proto::TransactionLog for transaction involving VMkdir
  */
-void write_mkdir_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
-  txn_log_obj->set_type(TransactionType::VMKDIR);
+void write_mkdir_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj) {
+  txn_log_obj->set_type(proto::TransactionType::VMKDIR);
   for (int i = 0; i < txn_log->num_files; i++) {
-    VMkdirTxn* mkdir_txn = txn_log_obj->mutable_mkdirs();
+    proto::VMkdirTxn* mkdir_txn = txn_log_obj->mutable_mkdirs();
     if (txn_log->created_file_ids[i].flags) {
-      FileID* file_id = mkdir_txn->add_created_dirs();
+      proto::FileID* file_id = mkdir_txn->add_created_dirs();
       file_id->set_id(txn_log->created_file_ids[i].data);
       if (ENABLE_NORMAL_TEXT_LOGGING &&
           txn_log->created_file_ids[i].data != NULL) {
@@ -123,15 +125,15 @@ void write_mkdir_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
 
 /**
  * @brief helper function to write_txn_log
- * This function fills TransactionLog for transaction involving VMkdir
+ * This function fills proto::TransactionLog for transaction involving VMkdir
  */
-void write_write_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
-  txn_log_obj->set_type(TransactionType::VWRITE);
+void write_write_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj) {
+  txn_log_obj->set_type(proto::TransactionType::VWRITE);
   for (int i = 0; i < txn_log->num_files; i++) {
-    VWriteTxn* write_txn = txn_log_obj->mutable_writes();
+    proto::VWriteTxn* write_txn = txn_log_obj->mutable_writes();
     write_txn->set_backup_dir_path(txn_log->backup_dir_path);
     if (txn_log->created_file_ids[i].flags) {
-      FileID* file_id = write_txn->add_created_files();
+      proto::FileID* file_id = write_txn->add_created_files();
       file_id->set_id(txn_log->created_file_ids[i].data);
       if (ENABLE_NORMAL_TEXT_LOGGING &&
           txn_log->created_file_ids[i].data != NULL) {
@@ -146,14 +148,14 @@ void write_write_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
 
 /**
  * @brief helper function to write_txn_log
- * This function fills TransactionLog for transaction involving Unlink
+ * This function fills proto::TransactionLog for transaction involving Unlink
  */
-void write_unlink_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
-  txn_log_obj->set_type(TransactionType::VUNLINK);
-  VUnlinkTxn* unlink_txn = txn_log_obj->mutable_unlinks();
+void write_unlink_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj) {
+  txn_log_obj->set_type(proto::TransactionType::VUNLINK);
+  proto::VUnlinkTxn* unlink_txn = txn_log_obj->mutable_unlinks();
   unlink_txn->set_backup_dir_path(txn_log->backup_dir_path);
   for (int i = 0; i < txn_log->num_unlinks; i++) {
-    VUnlinkTxn_Unlink* unlink_obj = unlink_txn->add_unlinked_objs();
+    proto::VUnlinkTxn_Unlink* unlink_obj = unlink_txn->add_unlinked_objs();
     unlink_obj->set_original_path(txn_log->created_unlink_ids[i].original_path);
     unlink_obj->set_backup_name(txn_log->created_unlink_ids[i].backup_name);
   }
@@ -161,13 +163,13 @@ void write_unlink_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
 
 /**
  * @brief helper function to write_txn_log
- * This function fills TransactionLog for transaction involving Symlink
+ * This function fills proto::TransactionLog for transaction involving Symlink
  */
-void write_symlink_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
-  txn_log_obj->set_type(TransactionType::VSYMLINK);
-  VSymlinkTxn* symlink_txn = txn_log_obj->mutable_symlinks();
+void write_symlink_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj) {
+  txn_log_obj->set_type(proto::TransactionType::VSYMLINK);
+  proto::VSymlinkTxn* symlink_txn = txn_log_obj->mutable_symlinks();
   for (int i = 0; i < txn_log->num_unlinks; i++) {
-    VSymlinkTxn_Symlink* symlink_obj = symlink_txn->add_linked_objs();
+    proto::VSymlinkTxn_Symlink* symlink_obj = symlink_txn->add_linked_objs();
     symlink_obj->set_src_path(txn_log->created_symlink_ids[i].src_path);
     symlink_obj->set_dst_path(txn_log->created_symlink_ids[i].dst_path);
   }
@@ -175,21 +177,21 @@ void write_symlink_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
 
 /**
  * @brief helper function to write_txn_log
- * This function fills TransactionLog for transaction involving VRename
+ * This function fills proto::TransactionLog for transaction involving VRename
  */
-void write_rename_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
-  txn_log_obj->set_type(TransactionType::VRENAME);
-  VRenameTxn* rename_txn = txn_log_obj->mutable_renames();
+void write_rename_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj) {
+  txn_log_obj->set_type(proto::TransactionType::VRENAME);
+  proto::VRenameTxn* rename_txn = txn_log_obj->mutable_renames();
   for (int i = 0; i < txn_log->num_renames; i++) {
-    VRenameTxn_Rename* rename_obj = rename_txn->add_renamed_objs();
+    proto::VRenameTxn_Rename* rename_obj = rename_txn->add_renamed_objs();
     rename_obj->set_src_path(txn_log->created_rename_ids[i].src_path);
     rename_obj->set_dst_path(txn_log->created_rename_ids[i].dst_path);
     rename_obj->set_is_directory(txn_log->created_rename_ids[i].is_directory);
-    FileID* src_fileid = rename_obj->mutable_src_fileid();
+    proto::FileID* src_fileid = rename_obj->mutable_src_fileid();
     src_fileid->set_id(txn_log->created_rename_ids[i].src_fileid.data);
     src_fileid->set_type(
         get_file_type_txn(txn_log->created_rename_ids[i].src_fileid.file_type));
-    FileID* dst_fileid = rename_obj->mutable_dst_fileid();
+    proto::FileID* dst_fileid = rename_obj->mutable_dst_fileid();
     dst_fileid->set_id(txn_log->created_rename_ids[i].dst_fileid.data);
     dst_fileid->set_type(
         get_file_type_txn(txn_log->created_rename_ids[i].dst_fileid.file_type));
@@ -198,18 +200,18 @@ void write_rename_txn(struct TxnLog* txn_log, TransactionLog* txn_log_obj) {
 
 /**
  * @brief helper function to read_txn_log
- * This function fills struct TxnLog from TransactionLog for transaction
+ * This function fills struct TxnLog from proto::TransactionLog for transaction
  * involving VCreate
  */
-void read_create_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
+void read_create_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->txn_id = txn_log_obj->id();
   struct FileId created_files[MAX_LEN];
   int num_created_files = 0;
   txn_log->compound_type = txn_VCreate;
   if (txn_log_obj->has_creates()) {
-    VCreateTxn create_txn = txn_log_obj->creates();
+    proto::VCreateTxn create_txn = txn_log_obj->creates();
     for (int i = 0; i < create_txn.created_files_size(); i++) {
-      FileID file_id = create_txn.created_files(i);
+      proto::FileID file_id = create_txn.created_files(i);
       created_files[num_created_files].data = file_id.id().c_str();
       if (file_id.has_type())
         created_files[num_created_files].file_type =
@@ -224,19 +226,19 @@ void read_create_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
 
 /**
  * @brief helper function to read_txn_log
- * This function fills struct TxnLog from TransactionLog for transaction
+ * This function fills struct TxnLog from proto::TransactionLog for transaction
  * involving VMkdir
  */
-void read_mkdir_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
+void read_mkdir_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->txn_id = txn_log_obj->id();
   struct FileId created_files[MAX_LEN];
   int num_created_files = 0;
   txn_log->compound_type = txn_VMkdir;
 
   if (txn_log_obj->has_mkdirs()) {
-    VMkdirTxn mkdir_txn = txn_log_obj->mkdirs();
+    proto::VMkdirTxn mkdir_txn = txn_log_obj->mkdirs();
     for (int i = 0; i < mkdir_txn.created_dirs_size(); i++) {
-      FileID file_id = mkdir_txn.created_dirs(i);
+      proto::FileID file_id = mkdir_txn.created_dirs(i);
       created_files[num_created_files].data = file_id.id().c_str();
       if (file_id.has_type())
         created_files[num_created_files].file_type =
@@ -251,20 +253,20 @@ void read_mkdir_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
 
 /**
  * @brief helper function to read_txn_log
- * This function fills struct TxnLog from TransactionLog for transaction
+ * This function fills struct TxnLog from proto::TransactionLog for transaction
  * involving VWrite
  */
-void read_write_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
+void read_write_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->txn_id = txn_log_obj->id();
   struct FileId created_files[MAX_LEN];
   int num_created_files = 0;
   txn_log->compound_type = txn_VWrite;
 
   if (txn_log_obj->has_writes()) {
-    VWriteTxn write_txn = txn_log_obj->writes();
+    proto::VWriteTxn write_txn = txn_log_obj->writes();
     txn_log->backup_dir_path = write_txn.backup_dir_path().c_str();
     for (int i = 0; i < write_txn.created_files_size(); i++) {
-      FileID file_id = write_txn.created_files(i);
+      proto::FileID file_id = write_txn.created_files(i);
       created_files[num_created_files].data = file_id.id().c_str();
       if (file_id.has_type())
         created_files[num_created_files].file_type =
@@ -279,20 +281,20 @@ void read_write_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
 
 /**
  * @brief helper function to read_txn_log
- * This function fills struct TxnLog from TransactionLog for transaction
+ * This function fills struct TxnLog from proto::TransactionLog for transaction
  * involving VUnlink
  */
-void read_unlink_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
+void read_unlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->txn_id = txn_log_obj->id();
   struct UnlinkId created_unlinks[MAX_LEN];
   int num_created_unlinks = 0;
   txn_log->compound_type = txn_VUnlink;
 
   if (txn_log_obj->has_unlinks()) {
-    VUnlinkTxn unlink_txn = txn_log_obj->unlinks();
+    proto::VUnlinkTxn unlink_txn = txn_log_obj->unlinks();
     txn_log->backup_dir_path = unlink_txn.backup_dir_path().c_str();
     for (int i = 0; i < unlink_txn.unlinked_objs_size(); i++) {
-      VUnlinkTxn_Unlink unlink_obj = unlink_txn.unlinked_objs(i);
+      proto::VUnlinkTxn_Unlink unlink_obj = unlink_txn.unlinked_objs(i);
       created_unlinks[num_created_unlinks].original_path =
           unlink_obj.original_path().c_str();
       created_unlinks[num_created_unlinks].backup_name =
@@ -306,19 +308,19 @@ void read_unlink_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
 
 /**
  * @brief helper function to read_txn_log
- * This function fills struct TxnLog from TransactionLog for transaction
+ * This function fills struct TxnLog from proto::TransactionLog for transaction
  * involving VSymlink
  */
-void read_symlink_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
+void read_symlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->txn_id = txn_log_obj->id();
   struct SymlinkId created_symlinks[MAX_LEN];
   int num_created_symlinks = 0;
   txn_log->compound_type = txn_VSymlink;
 
   if (txn_log_obj->has_symlinks()) {
-    VSymlinkTxn symlink_txn = txn_log_obj->symlinks();
+    proto::VSymlinkTxn symlink_txn = txn_log_obj->symlinks();
     for (int i = 0; i < symlink_txn.linked_objs_size(); i++) {
-      VSymlinkTxn_Symlink link_obj = symlink_txn.linked_objs(i);
+      proto::VSymlinkTxn_Symlink link_obj = symlink_txn.linked_objs(i);
       created_symlinks[num_created_symlinks].src_path =
           link_obj.src_path().c_str();
       created_symlinks[num_created_symlinks].dst_path =
@@ -332,20 +334,20 @@ void read_symlink_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
 
 /**
  * @brief helper function to read_txn_log
- * This function fills struct TxnLog from TransactionLog for transaction
+ * This function fills struct TxnLog from proto::TransactionLog for transaction
  * involving VRename
  */
-void read_rename_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
+void read_rename_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->txn_id = txn_log_obj->id();
   struct RenameId created_renames[MAX_LEN];
   int num_created_renames = 0;
   txn_log->compound_type = txn_VRename;
 
   if (txn_log_obj->has_renames()) {
-    VRenameTxn rename_txn = txn_log_obj->renames();
+    proto::VRenameTxn rename_txn = txn_log_obj->renames();
     txn_log->backup_dir_path = rename_txn.backup_dir().c_str();
     for (int i = 0; i < rename_txn.renamed_objs_size(); i++) {
-      VRenameTxn_Rename rename_obj = rename_txn.renamed_objs(i);
+      proto::VRenameTxn_Rename rename_obj = rename_txn.renamed_objs(i);
       created_renames[num_created_renames].src_path =
           rename_obj.src_path().c_str();
       created_renames[num_created_renames].dst_path =
@@ -353,13 +355,13 @@ void read_rename_txn(TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
       if (rename_obj.has_is_directory())
         created_renames[num_created_renames].is_directory =
             rename_obj.is_directory();
-      FileID src_fileid = rename_obj.src_fileid();
+      proto::FileID src_fileid = rename_obj.src_fileid();
       created_renames[num_created_renames].src_fileid.data =
           src_fileid.id().c_str();
       created_renames[num_created_renames].src_fileid.file_type =
           get_file_type(src_fileid.type());
       if (rename_obj.has_dst_fileid()) {
-        FileID dst_fileid = rename_obj.dst_fileid();
+        proto::FileID dst_fileid = rename_obj.dst_fileid();
         created_renames[num_created_renames].dst_fileid.data =
             dst_fileid.id().c_str();
         created_renames[num_created_renames].dst_fileid.file_type =
@@ -389,7 +391,7 @@ int write_txn_log(struct TxnLog* txn_log, const char* inputdir) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   if (txn_log == nullptr) return -1;
   int ret = 0;
-  TransactionLog* txn_log_obj = new TransactionLog();
+  proto::TransactionLog* txn_log_obj = new proto::TransactionLog();
   string txn_log_file_name(inputdir);
   string txn_log_txt_file_name(inputdir);
   if (strcmp(inputdir, "") == 0) {
@@ -426,7 +428,7 @@ int write_txn_log(struct TxnLog* txn_log, const char* inputdir) {
 
   switch (txn_log->compound_type) {
     case txn_VNone:
-      txn_log_obj->set_type(TransactionType::NONE);
+      txn_log_obj->set_type(proto::TransactionType::NONE);
       break;
     case txn_VCreate:
       write_create_txn(txn_log, txn_log_obj);
@@ -448,7 +450,7 @@ int write_txn_log(struct TxnLog* txn_log, const char* inputdir) {
       write_symlink_txn(txn_log, txn_log_obj);
       break;
     default:
-      txn_log_obj->set_type(TransactionType::NONE);
+      txn_log_obj->set_type(proto::TransactionType::NONE);
       return -1;
   }
 
@@ -488,7 +490,7 @@ struct TxnLog* read_txn_log(uint64_t txn_id, const char* inputdir) {
     txn_log_file_name += "/txn_" + to_string(txn_id);
 
   fstream input(txn_log_file_name.c_str(), ios::in | ios::binary);
-  TransactionLog* txn_log_obj = new TransactionLog();
+  proto::TransactionLog* txn_log_obj = new proto::TransactionLog();
   struct TxnLog* txn_log = (struct TxnLog*)calloc(1, sizeof(struct TxnLog));
 
   if (!input) {
@@ -500,25 +502,25 @@ struct TxnLog* read_txn_log(uint64_t txn_id, const char* inputdir) {
   }
 
   switch (txn_log_obj->type()) {
-    case TransactionType::NONE:
+    case proto::TransactionType::NONE:
       txn_log->compound_type = txn_VNone;
       break;
-    case TransactionType::VCREATE:
+    case proto::TransactionType::VCREATE:
       read_create_txn(txn_log_obj, txn_log);
       break;
-    case TransactionType::VMKDIR:
+    case proto::TransactionType::VMKDIR:
       read_mkdir_txn(txn_log_obj, txn_log);
       break;
-    case TransactionType::VWRITE:
+    case proto::TransactionType::VWRITE:
       read_write_txn(txn_log_obj, txn_log);
       break;
-    case TransactionType::VRENAME:
+    case proto::TransactionType::VRENAME:
       read_rename_txn(txn_log_obj, txn_log);
       break;
-    case TransactionType::VUNLINK:
+    case proto::TransactionType::VUNLINK:
       read_unlink_txn(txn_log_obj, txn_log);
       break;
-    case TransactionType::VSYMLINK:
+    case proto::TransactionType::VSYMLINK:
       read_symlink_txn(txn_log_obj, txn_log);
       break;
     default:
