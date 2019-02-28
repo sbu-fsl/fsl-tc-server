@@ -11,12 +11,13 @@ void txn_processor(struct TxnLog* txn)
 
 TEST(TxnBackend, SimpleTest) {
   struct txn_backend* backend;
-
-  init_ldbtxn_backend(&backend);
+  struct TxnLog txn_log;
+  txn_log.txn_id = 92;
+  init_fstxn_backend(&backend);
 
   backend->backend_init();
 
-  backend->add_txn(42, NULL);
+  backend->add_txn(42, &txn_log);
   backend->enumerate_txn(&txn_processor);
   backend->get_txn(42, NULL);
 

@@ -3,7 +3,17 @@
 #define _TXN_LOGGER_H
 
 #include "nfsv41.h"
+//#include "txn.pb.h"
 
+namespace txnfs
+{
+  namespace proto 
+  {
+    class TransactionLog;
+  }
+}
+
+using namespace txnfs;
 #define ENABLE_NORMAL_TEXT_LOGGING 1
 
 #ifdef __cplusplus
@@ -84,6 +94,8 @@ int iterate_txn_logs(const char* log_dir,
 		     int (*log_processor)(struct TxnLog* log));
 char *bytes_to_hex(const char *uuid_str);
 
+int txn_log_from_pb(proto::TransactionLog* txnpb, struct TxnLog* txn_log);
+int txn_log_to_pb(struct TxnLog* txn_log, proto::TransactionLog* txnpb);
 #ifdef __cplusplus
 }
 #endif

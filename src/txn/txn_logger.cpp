@@ -8,8 +8,8 @@
 #include <string>
 
 #include "id_manager.h"
-#include "txn.pb.h"
 #include "txn_logger.h"
+#include "txn.pb.h"
 #define MAX_LEN 64
 
 using namespace std;
@@ -613,3 +613,74 @@ int iterate_txn_logs(const char* log_dir,
   closedir(dir);
   return count;
 }
+
+int txn_log_to_pb(struct TxnLog* txn_log, proto::TransactionLog *txnpb) {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+  txnpb->set_id(txn_log->txn_id);
+  int ret = 0;
+  switch (txn_log->compound_type) {
+    case txn_VNone:
+      txnpb->set_type(proto::TransactionType::NONE);
+      break;
+    case txn_VCreate:
+      write_create_txn(txn_log, txnpb);
+      break;
+    case txn_VMkdir:
+      write_mkdir_txn(txn_log, txnpb);
+      break;
+    case txn_VWrite:
+      write_write_txn(txn_log, txnpb);
+      break;
+    case txn_VRename:
+      write_rename_txn(txn_log, txnpb);
+      break;
+    case txn_VUnlink:
+      write_unlink_txn(txn_log, txnpb);
+      break;
+    case txn_VSymlink:
+      write_symlink_txn(txn_log, txnpb);
+      break;
+    default:
+      txnpb->set_type(proto::TransactionType::NONE);
+      ret = -1;
+  }
+
+  google::protobuf::ShutdownProtobufLibrary();
+  return ret;
+}
+
+int txn_log_from_pb(proto::TransactionLog* txnpb, struct TxnLog* txn_log) {
+  int ret = 0;
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+  
+  switch (txnpb->type()) {
+    case proto::TransactionType::NONE:
+      txn_log->compound_type = txn_VNone;
+      break;
+    case proto::TransactionType::VCREATE:
+      read_create_txn(txnpb, txn_log);
+      break;
+    case proto::TransactionType::VMKDIR:
+      read_mkdir_txn(txnpb, txn_log);
+      break;
+    case proto::TransactionType::VWRITE:
+      read_write_txn(txnpb, txn_log);
+      break;
+    case proto::TransactionType::VRENAME:
+      read_rename_txn(txnpb, txn_log);
+      break;
+    case proto::TransactionType::VUNLINK:
+      read_unlink_txn(txnpb, txn_log);
+      break;
+    case proto::TransactionType::VSYMLINK:
+      read_symlink_txn(txnpb, txn_log);
+      break;
+    default:
+      ret = -1;
+  }
+
+  google::protobuf::ShutdownProtobufLibrary();
+
+  return ret;
+}
+

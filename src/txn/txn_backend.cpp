@@ -1,7 +1,11 @@
+#include <algorithm>
 #include <iostream>
+#include <string>
+
 #include <lwrapper.h>
 #include "txn_logger.h"
 #include "txn_backend.h"
+#include "txn.pb.h"
 
 using namespace std;
 
@@ -44,23 +48,14 @@ void fstxn_backend_init(void)
 
 void fstxn_add_txn(uint64_t txn_id, struct TxnLog* txn)
 {
-  cout << "get txn " << txn_id <<  endl;
+  proto::TransactionLog txnpb;
+  txn_log_to_pb(txn, &txnpb);
+  
+  cout << "add txn " << txnpb.id() <<  endl;
 }
 
 void fstxn_get_txn(uint64_t txn_id, struct TxnLog* txn)
 {
-  //char path[256];
-  //get_tx_path(txn_id, path);
-  
-  //db_kvpair_t record = {
-      //.key = "test_del_key",
-      //.val = "test_del_value",
-      //.key_len = key_len,
-      //.val_len = val_len,
-  //};
-
-  //// put record
-  //ret = put_id_handle(&record, 1, db);
   cout << "get txn " << txn_id <<  endl;
 }
 
