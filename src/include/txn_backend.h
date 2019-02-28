@@ -14,7 +14,7 @@ struct txn_backend {
 
   //
   // enumerate transactions
-  void (*enumerate_txns)(void (*callback)(struct TxnLog* txn));
+  void (*enumerate_txn)(void (*callback)(struct TxnLog* txn));
 
   //
   // remove transaction

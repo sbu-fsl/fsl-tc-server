@@ -84,4 +84,4 @@ target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
 add_cpplib(txn_logger secnfs_proto protobuf)
 
-add_cpplib(txn_backend txn_logger)
+add_cpplib(txn_backend txn_logger lwrapper)
