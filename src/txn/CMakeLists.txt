@@ -67,6 +67,7 @@ add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
 add_cpplib(lock_manager lwrapper)
 
+
 # add_cpplib(pre_generate_uuid protobuf)
 
 find_package(Protobuf REQUIRED)
@@ -82,3 +83,5 @@ add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
 add_cpplib(txn_logger secnfs_proto protobuf)
+
+add_cpplib(txn_backend txn_logger)

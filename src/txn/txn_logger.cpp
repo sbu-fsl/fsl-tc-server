@@ -432,7 +432,6 @@ int write_txn_log(struct TxnLog* txn_log, const char* inputdir) {
       break;
     case txn_VCreate:
       write_create_txn(txn_log, txn_log_obj);
-
       break;
     case txn_VMkdir:
       write_mkdir_txn(txn_log, txn_log_obj);
