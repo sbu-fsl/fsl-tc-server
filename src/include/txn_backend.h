@@ -20,7 +20,7 @@ struct txn_backend {
   // remove transaction
   void (*remove_txn)(uint64_t txn_id);
 
-  int (*add_txn)(uint64_t txn_id, struct TxnLog* txn);
+  int (*create_txn)(uint64_t txn_id, struct TxnLog* txn);
   //
   // shutdown transaction backend storage
   void (*backend_shutdown)(void);

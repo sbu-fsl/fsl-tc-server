@@ -20,7 +20,7 @@ void ldbtxn_init(void)
   db = init_db_store("test_db", true);
 }
 
-int ldbtxn_add_txn(uint64_t txn_id, struct TxnLog* txn)
+int ldbtxn_create_txn(uint64_t txn_id, struct TxnLog* txn)
 {
   return 0;
 }
@@ -65,20 +65,13 @@ fs::path fstxn_get_or_create_txndir(uint64_t txn_id)
   return txndir;
 }
 
-fs::path fstxn_get_txnpath(uint64_t txn_id)
-{
-  auto txnpath = fstxn_get_txndir(txn_id);
-  txnpath /= "txn.data";
-  return txnpath;
-}
-
 void fstxn_backend_init(void)
 {
   // create root directory
-  fs::create_directory(fstxn_backend_root);
+  (void)fs::create_directory(fstxn_backend_root);
 }
 
-int fstxn_add_txn(uint64_t txn_id, struct TxnLog* txn)
+int fstxn_create_txn(uint64_t txn_id, struct TxnLog* txn)
 {
   proto::TransactionLog txnpb;
   auto txnpath = fstxn_get_or_create_txndir(txn_id);
@@ -145,7 +138,10 @@ void fstxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
         std::string dir = p.path().filename();
         uint64_t txn_id = stoull(dir);
         struct TxnLog txn;
-        fstxn_get_txn(txn_id, &txn);
+        if (fstxn_get_txn(txn_id, &txn) < 0)
+        {
+          std::cerr << "Failed to read transaction" << txn_id << endl;
+        }
         callback(&txn);
      }
    }
@@ -167,7 +163,7 @@ static struct txn_backend ldbtxn_backend = {
   .get_txn = ldbtxn_get_txn,
   .enumerate_txn = ldbtxn_enumerate_txn,
   .remove_txn = ldbtxn_remove_txn,
-  .add_txn = ldbtxn_add_txn,
+  .create_txn = ldbtxn_create_txn,
   .backend_shutdown = ldbtxn_shutdown
 };
 
@@ -181,7 +177,7 @@ static struct txn_backend fstxn_backend = {
   .get_txn = fstxn_get_txn,
   .enumerate_txn = fstxn_enumerate_txn,
   .remove_txn = fstxn_remove_txn,
-  .add_txn = fstxn_add_txn,
+  .create_txn = fstxn_create_txn,
   .backend_shutdown = fstxn_shutdown
 };
 

@@ -19,13 +19,13 @@ TEST(TxnBackend, SimpleTest) {
   backend->backend_init();
 
   txn_write.txn_id = 42;
-  backend->add_txn(42, &txn_write);
+  backend->create_txn(42, &txn_write);
 
   txn_write.txn_id = 52;
-  backend->add_txn(52, &txn_write);
+  backend->create_txn(52, &txn_write);
   
   txn_write.txn_id = 92;
-  backend->add_txn(92, &txn_write);
+  backend->create_txn(92, &txn_write);
   
   backend->get_txn(42, &txn_read);
   ASSERT_EQ(42, txn_read.txn_id);
