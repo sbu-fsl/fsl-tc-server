@@ -6,25 +6,39 @@
 
 void txn_processor(struct TxnLog* txn)
 {
-  std::cout << txn->txn_id << std::endl;
+  std::cout << "enumerating txn_id=" << txn->txn_id << std::endl;
 }
 
 TEST(TxnBackend, SimpleTest) {
   struct txn_backend* backend;
-  struct TxnLog txn_log1;
-  struct TxnLog txn_log2;
-  txn_log1.txn_id = 42;
-  txn_log1.compound_type = txn_VNone;
+  struct TxnLog txn_write;
+  struct TxnLog txn_read;
+  txn_write.compound_type = txn_VNone;
   init_fstxn_backend(&backend);
 
   backend->backend_init();
 
-  backend->add_txn(42, &txn_log1);
-  backend->get_txn(42, &txn_log2);
-  ASSERT_EQ(txn_log2.txn_id, txn_log1.txn_id);
+  txn_write.txn_id = 42;
+  backend->add_txn(42, &txn_write);
 
-  //backend->enumerate_txn(&txn_processor);
+  txn_write.txn_id = 52;
+  backend->add_txn(52, &txn_write);
+  
+  txn_write.txn_id = 92;
+  backend->add_txn(92, &txn_write);
+  
+  backend->get_txn(42, &txn_read);
+  ASSERT_EQ(42, txn_read.txn_id);
+
+  backend->get_txn(52, &txn_read);
+  ASSERT_EQ(52, txn_read.txn_id);
+  
+  backend->get_txn(92, &txn_read);
+  ASSERT_EQ(92, txn_read.txn_id);
+  
+  backend->enumerate_txn(&txn_processor);
   backend->remove_txn(42);
+  backend->enumerate_txn(&txn_processor);
   backend->backend_shutdown();
 }
 

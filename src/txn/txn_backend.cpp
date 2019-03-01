@@ -138,18 +138,22 @@ int fstxn_get_txn(uint64_t txn_id, struct TxnLog* txn)
 
 void fstxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
 {
-  // enumerate root directory
-  struct TxnLog txn;
-  txn.txn_id = 42;
-  for(int i = 0; i < 3; i++)
-  {
-    callback(&txn);
-  }
+   for(auto& p: fs::directory_iterator(fstxn_backend_root))
+   {
+     if (fs::is_directory(p))
+     {
+        std::string dir = p.path().filename();
+        uint64_t txn_id = stoull(dir);
+        struct TxnLog txn;
+        fstxn_get_txn(txn_id, &txn);
+        callback(&txn);
+     }
+   }
 }
 
 void fstxn_remove_txn(uint64_t txn_id)
 {
-  auto txn_path = fstxn_get_txnpath(txn_id);
+  auto txn_path = fstxn_get_txndir(txn_id);
 
   fs::remove_all(txn_path);
 }
