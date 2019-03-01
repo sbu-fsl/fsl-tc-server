@@ -156,7 +156,6 @@ void fstxn_remove_txn(uint64_t txn_id)
 
 void fstxn_shutdown(void)
 {
-  cout << "shutdown fs backend" << endl;
 }
 
 static struct txn_backend ldbtxn_backend = {

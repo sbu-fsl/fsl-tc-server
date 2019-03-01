@@ -204,7 +204,6 @@ void write_rename_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj
  * involving VCreate
  */
 void read_create_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  txn_log->txn_id = txn_log_obj->id();
   struct FileId created_files[MAX_LEN];
   int num_created_files = 0;
   txn_log->compound_type = txn_VCreate;
@@ -230,7 +229,6 @@ void read_create_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log)
  * involving VMkdir
  */
 void read_mkdir_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  txn_log->txn_id = txn_log_obj->id();
   struct FileId created_files[MAX_LEN];
   int num_created_files = 0;
   txn_log->compound_type = txn_VMkdir;
@@ -257,7 +255,6 @@ void read_mkdir_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) 
  * involving VWrite
  */
 void read_write_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  txn_log->txn_id = txn_log_obj->id();
   struct FileId created_files[MAX_LEN];
   int num_created_files = 0;
   txn_log->compound_type = txn_VWrite;
@@ -285,7 +282,6 @@ void read_write_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) 
  * involving VUnlink
  */
 void read_unlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  txn_log->txn_id = txn_log_obj->id();
   struct UnlinkId created_unlinks[MAX_LEN];
   int num_created_unlinks = 0;
   txn_log->compound_type = txn_VUnlink;
@@ -312,7 +308,6 @@ void read_unlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log)
  * involving VSymlink
  */
 void read_symlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  txn_log->txn_id = txn_log_obj->id();
   struct SymlinkId created_symlinks[MAX_LEN];
   int num_created_symlinks = 0;
   txn_log->compound_type = txn_VSymlink;
@@ -338,7 +333,6 @@ void read_symlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log
  * involving VRename
  */
 void read_rename_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  txn_log->txn_id = txn_log_obj->id();
   struct RenameId created_renames[MAX_LEN];
   int num_created_renames = 0;
   txn_log->compound_type = txn_VRename;
