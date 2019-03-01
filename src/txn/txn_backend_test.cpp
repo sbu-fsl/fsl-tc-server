@@ -11,16 +11,19 @@ void txn_processor(struct TxnLog* txn)
 
 TEST(TxnBackend, SimpleTest) {
   struct txn_backend* backend;
-  struct TxnLog txn_log;
-  txn_log.txn_id = 92;
+  struct TxnLog txn_log1;
+  struct TxnLog txn_log2;
+  txn_log1.txn_id = 42;
+  txn_log1.compound_type = txn_VNone;
   init_fstxn_backend(&backend);
 
   backend->backend_init();
 
-  backend->add_txn(42, &txn_log);
-  backend->enumerate_txn(&txn_processor);
-  backend->get_txn(42, NULL);
+  backend->add_txn(42, &txn_log1);
+  backend->get_txn(42, &txn_log2);
+  ASSERT_EQ(txn_log2.txn_id, txn_log1.txn_id);
 
+  //backend->enumerate_txn(&txn_processor);
   backend->remove_txn(42);
   backend->backend_shutdown();
 }

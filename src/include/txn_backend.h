@@ -10,7 +10,7 @@ struct txn_backend {
   
   //
   // get transaction
-  void (*get_txn)(uint64_t txn_id, struct TxnLog* txn);
+  int (*get_txn)(uint64_t txn_id, struct TxnLog* txn);
 
   //
   // enumerate transactions
@@ -20,7 +20,7 @@ struct txn_backend {
   // remove transaction
   void (*remove_txn)(uint64_t txn_id);
 
-  void (*add_txn)(uint64_t txn_id, struct TxnLog* txn);
+  int (*add_txn)(uint64_t txn_id, struct TxnLog* txn);
   //
   // shutdown transaction backend storage
   void (*backend_shutdown)(void);

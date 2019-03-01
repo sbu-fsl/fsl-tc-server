@@ -652,7 +652,7 @@ int txn_log_to_pb(struct TxnLog* txn_log, proto::TransactionLog *txnpb) {
 int txn_log_from_pb(proto::TransactionLog* txnpb, struct TxnLog* txn_log) {
   int ret = 0;
   GOOGLE_PROTOBUF_VERIFY_VERSION;
-  
+  txn_log->txn_id = txnpb->id();
   switch (txnpb->type()) {
     case proto::TransactionType::NONE:
       txn_log->compound_type = txn_VNone;
