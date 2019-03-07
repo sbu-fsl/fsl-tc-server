@@ -3,7 +3,6 @@
 #define _TXN_LOGGER_H
 
 #include "nfsv41.h"
-//#include "txn.pb.h"
 
 namespace txnfs
 {
@@ -14,7 +13,7 @@ namespace txnfs
 }
 
 using namespace txnfs;
-#define ENABLE_NORMAL_TEXT_LOGGING 1
+#define ENABLE_NORMAL_TEXT_LOGGING 0
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +31,7 @@ enum FSObjectType {
  * This struct assumes |data| is NULL-ended.
  */
 struct FileId {
-	const char* data;
+	char* data;
 	enum FSObjectType file_type; /* File or Directory */
 	int flags;		     /* created or not */
 };

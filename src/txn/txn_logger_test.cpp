@@ -10,14 +10,10 @@
 #include <iostream>
 #include <set>
 
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
-
 #include "txn_logger.h"
+#include "txn.pb.h"
 
 using namespace std;
-
-namespace fs = ::boost::filesystem;
 
 class TxnTest : public ::testing::Test {
  protected:
@@ -34,36 +30,39 @@ class TxnTest : public ::testing::Test {
   struct SymlinkId created_symlinks[1];
   struct RenameId created_renames[1];
   virtual void SetUp() {
-    fs::create_directories(backup_dir_path);
-    created_file[0].data = id.c_str();
+    // create
+    created_file[0].data = (char*)id.c_str();
     created_file[0].file_type = ft_File;
     created_file[0].flags = 1;
     txn_log.created_file_ids = created_file;
     txn_log.num_files = 1;
+    
+    // unlinks
     created_unlinks[0].original_path = original_path_str.c_str();
     created_unlinks[0].backup_name = backup_name_str.c_str();
     txn_log.created_unlink_ids = created_unlinks;
     txn_log.num_unlinks = 1;
+
+    // symlinks
     created_symlinks[0].src_path = src_path_str.c_str();
     created_symlinks[0].dst_path = dst_path_str.c_str();
     txn_log.created_symlink_ids = created_symlinks;
     txn_log.num_symlinks = 1;
+
+    // renames
     created_renames[0].is_directory = true;
     created_renames[0].src_path = src_path_str.c_str();
     created_renames[0].dst_path = dst_path_str.c_str();
-    created_renames[0].src_fileid.data = id.c_str();
+    created_renames[0].src_fileid.data = (char*) id.c_str();
     created_renames[0].src_fileid.file_type = ft_Directory;
     created_renames[0].src_fileid.flags = 1;
-    created_renames[0].dst_fileid.data = id.c_str();
+    created_renames[0].dst_fileid.data = (char*) id.c_str();
     created_renames[0].dst_fileid.file_type = ft_Directory;
     created_renames[0].dst_fileid.flags = 1;
     txn_log.created_rename_ids = created_renames;
     txn_log.num_renames = 1;
   }
   virtual void TearDown() {
-    if (fs::exists(backup_dir_path)) {
-      fs::remove_all(backup_dir_path);
-    }
   }
 
   int compareStructsCommon(TxnLog txn_log, TxnLog *txn_log_ret) {
@@ -71,6 +70,7 @@ class TxnTest : public ::testing::Test {
     if (txn_log_ret->compound_type != txn_log.compound_type) return 1;
     return 0;
   }
+  
   int compareStructsFileID(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->num_files != txn_log.num_files) return 1;
     struct FileId *created_files, *created_files_ret;
@@ -81,6 +81,7 @@ class TxnTest : public ::testing::Test {
     if (id.compare(created_files_ret->data) != 0) return 1;
     return 0;
   }
+  
   int compareStructsUnlinkId(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->num_unlinks != txn_log.num_unlinks) return 1;
     struct UnlinkId *created_unlinks_ret;
@@ -91,6 +92,7 @@ class TxnTest : public ::testing::Test {
       return 1;
     return 0;
   }
+  
   int compareStructsSymlinkId(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->num_symlinks != txn_log.num_symlinks) return 1;
     struct SymlinkId *created_symlinks_ret;
@@ -121,31 +123,31 @@ class TxnTest : public ::testing::Test {
 };
 
 TEST_F(TxnTest, SimpleTest) {
+  proto::TransactionLog txnpb;
   txn_log.txn_id = 9990;
   txn_log.compound_type = txn_VNone;
-  EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-  EXPECT_EQ(0, remove_txn_log(9990, "/tmp/log"));
+  
+  txn_log_to_pb(&txn_log, &txnpb);
+
+  EXPECT_EQ(txn_log.txn_id, txnpb.id());
+  EXPECT_EQ(txn_log.compound_type, txnpb.type());
 }
 
-#if 0
 TEST_F(TxnTest, CreateTest) {
 	txn_log.txn_id = 9992;
 	txn_log.compound_type = txn_VCreate;
-	string txn_log_file = "/tmp/log/txn_" + to_string(9992);
-	FILE *fp = fopen(txn_log_file.c_str(), "r");
-	if (fp) {
-		remove(txn_log_file.c_str());
-	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-	result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9992, "/tmp/log");
-	result = compareStructsCommon(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	result = compareStructsFileID(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	remove(txn_log_file.c_str());
+  
+  proto::TransactionLog txnpb;
+  TxnLog deserialized_txn_log;
+  txn_log_to_pb(&txn_log, &txnpb);
+  txn_log_from_pb(&txnpb, &deserialized_txn_log);
+	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
+	EXPECT_EQ(0, compareStructsFileID(txn_log, &deserialized_txn_log));
+  free(deserialized_txn_log.created_file_ids[0].data);
+  free(deserialized_txn_log.created_file_ids);
 }
 
+#if 0
 TEST_F(TxnTest, MkdirTest) {
 	txn_log.txn_id = 9993;
 	txn_log.compound_type = txn_VMkdir;

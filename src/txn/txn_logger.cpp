@@ -204,22 +204,20 @@ void write_rename_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log_obj
  * involving VCreate
  */
 void read_create_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  struct FileId created_files[MAX_LEN];
-  int num_created_files = 0;
   txn_log->compound_type = txn_VCreate;
   if (txn_log_obj->has_creates()) {
     proto::VCreateTxn create_txn = txn_log_obj->creates();
+    txn_log->num_files = create_txn.created_files_size();
+    txn_log->created_file_ids = (FileId*) malloc(sizeof(struct FileId) * txn_log->num_files);
+    
     for (int i = 0; i < create_txn.created_files_size(); i++) {
       proto::FileID file_id = create_txn.created_files(i);
-      created_files[num_created_files].data = file_id.id().c_str();
+      txn_log->created_file_ids[i].data = strdup(file_id.id().c_str());
       if (file_id.has_type())
-        created_files[num_created_files].file_type =
+        txn_log->created_file_ids[i].file_type =
             get_file_type(file_id.type());
-      created_files[num_created_files].flags = 1;
-      num_created_files++;
+      txn_log->created_file_ids[i].flags = 1;
     }
-    txn_log->created_file_ids = created_files;
-    txn_log->num_files = num_created_files;
   }
 }
 
@@ -237,7 +235,7 @@ void read_mkdir_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) 
     proto::VMkdirTxn mkdir_txn = txn_log_obj->mkdirs();
     for (int i = 0; i < mkdir_txn.created_dirs_size(); i++) {
       proto::FileID file_id = mkdir_txn.created_dirs(i);
-      created_files[num_created_files].data = file_id.id().c_str();
+      created_files[num_created_files].data = strdup(file_id.id().c_str());
       if (file_id.has_type())
         created_files[num_created_files].file_type =
             get_file_type(file_id.type());
@@ -264,7 +262,7 @@ void read_write_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) 
     txn_log->backup_dir_path = write_txn.backup_dir_path().c_str();
     for (int i = 0; i < write_txn.created_files_size(); i++) {
       proto::FileID file_id = write_txn.created_files(i);
-      created_files[num_created_files].data = file_id.id().c_str();
+      created_files[num_created_files].data = strdup(file_id.id().c_str());
       if (file_id.has_type())
         created_files[num_created_files].file_type =
             get_file_type(file_id.type());
@@ -351,13 +349,13 @@ void read_rename_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log)
             rename_obj.is_directory();
       proto::FileID src_fileid = rename_obj.src_fileid();
       created_renames[num_created_renames].src_fileid.data =
-          src_fileid.id().c_str();
+          strdup(src_fileid.id().c_str());
       created_renames[num_created_renames].src_fileid.file_type =
           get_file_type(src_fileid.type());
       if (rename_obj.has_dst_fileid()) {
         proto::FileID dst_fileid = rename_obj.dst_fileid();
         created_renames[num_created_renames].dst_fileid.data =
-            dst_fileid.id().c_str();
+            strdup(dst_fileid.id().c_str());
         created_renames[num_created_renames].dst_fileid.file_type =
             get_file_type(dst_fileid.type());
       }
