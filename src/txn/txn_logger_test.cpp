@@ -101,6 +101,7 @@ class TxnTest : public ::testing::Test {
     if (dst_path_str.compare(created_symlinks_ret->dst_path) != 0) return 1;
     return 0;
   }
+  
   int compareStructsRenameId(TxnLog txn_log, TxnLog *txn_log_ret) {
     if (txn_log_ret->num_renames != txn_log.num_renames) return 1;
     struct RenameId *created_renames, *created_renames_ret;
