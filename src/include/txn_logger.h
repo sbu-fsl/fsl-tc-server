@@ -85,13 +85,6 @@ struct TxnLog {
 };
 
 typedef struct TxnLog TxnLog;
-struct TxnLog* read_txn_log(uint64_t txn_id, const char* inputdir);
-int write_txn_log(struct TxnLog* txn_log, const char* inputdir);
-int log_processor(struct TxnLog* log);
-int remove_txn_log(uint64_t txn_id, const char* inputdir);
-int iterate_txn_logs(const char* log_dir,
-		     int (*log_processor)(struct TxnLog* log));
-char *bytes_to_hex(const char *uuid_str);
 
 int txn_log_from_pb(proto::TransactionLog* txnpb, struct TxnLog* txn_log);
 int txn_log_to_pb(struct TxnLog* txn_log, proto::TransactionLog* txnpb);
