@@ -204,13 +204,13 @@ void serialize_rename_txn(struct TxnLog* txn_log, proto::TransactionLog* txn_log
 void deserialize_create_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
   txn_log->compound_type = txn_VCreate;
   if (txn_log_obj->has_creates()) {
-    proto::VCreateTxn create_txn = txn_log_obj->creates();
+    const proto::VCreateTxn& create_txn = txn_log_obj->creates();
     txn_log->num_files = create_txn.created_files_size();
-    txn_log->created_file_ids = (FileId*) malloc(sizeof(struct FileId) * txn_log->num_files);
+    txn_log->created_file_ids = (struct FileId*) malloc(sizeof(struct FileId) * txn_log->num_files);
     
     for (int i = 0; i < create_txn.created_files_size(); i++) {
-      proto::FileID file_id = create_txn.created_files(i);
-      txn_log->created_file_ids[i].data = strdup(file_id.id().c_str());
+      const proto::FileID& file_id = create_txn.created_files(i);
+      txn_log->created_file_ids[i].data = file_id.id().c_str();
       if (file_id.has_type())
         txn_log->created_file_ids[i].file_type =
             get_file_type(file_id.type());
@@ -225,24 +225,22 @@ void deserialize_create_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* t
  * involving VMkdir
  */
 void deserialize_mkdir_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  struct FileId created_files[MAX_LEN];
-  int num_created_files = 0;
   txn_log->compound_type = txn_VMkdir;
 
   if (txn_log_obj->has_mkdirs()) {
-    proto::VMkdirTxn mkdir_txn = txn_log_obj->mkdirs();
+    const proto::VMkdirTxn& mkdir_txn = txn_log_obj->mkdirs();
+    txn_log->num_files = mkdir_txn.created_dirs_size();
+    txn_log->created_file_ids = (struct FileId*) malloc(sizeof(struct FileId) * txn_log->num_files);
+    
     for (int i = 0; i < mkdir_txn.created_dirs_size(); i++) {
-      proto::FileID file_id = mkdir_txn.created_dirs(i);
-      created_files[num_created_files].data = strdup(file_id.id().c_str());
+      const proto::FileID& file_id = mkdir_txn.created_dirs(i);
+      txn_log->created_file_ids[i].data = file_id.id().c_str();
       if (file_id.has_type())
-        created_files[num_created_files].file_type =
+        txn_log->created_file_ids[i].file_type =
             get_file_type(file_id.type());
-      created_files[num_created_files].flags = 1;
-      num_created_files++;
+      txn_log->created_file_ids[i].flags = 1;
     }
   }
-  txn_log->created_file_ids = created_files;
-  txn_log->num_files = num_created_files;
 }
 
 /**
@@ -251,25 +249,23 @@ void deserialize_mkdir_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* tx
  * involving VWrite
  */
 void deserialize_write_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  struct FileId created_files[MAX_LEN];
-  int num_created_files = 0;
   txn_log->compound_type = txn_VWrite;
 
   if (txn_log_obj->has_writes()) {
-    proto::VWriteTxn write_txn = txn_log_obj->writes();
+    const proto::VWriteTxn& write_txn = txn_log_obj->writes();
     txn_log->backup_dir_path = write_txn.backup_dir_path().c_str();
+    txn_log->num_files = write_txn.created_files_size();
+    txn_log->created_file_ids = (struct FileId*) malloc(sizeof(struct FileId) * txn_log->num_files);
+    
     for (int i = 0; i < write_txn.created_files_size(); i++) {
-      proto::FileID file_id = write_txn.created_files(i);
-      created_files[num_created_files].data = strdup(file_id.id().c_str());
+      const proto::FileID& file_id = write_txn.created_files(i);
+      txn_log->created_file_ids[i].data = file_id.id().c_str();
       if (file_id.has_type())
-        created_files[num_created_files].file_type =
+        txn_log->created_file_ids[i].file_type =
             get_file_type(file_id.type());
-      created_files[num_created_files].flags = 1;
-      num_created_files++;
+      txn_log->created_file_ids[i].flags = 1;
     }
   }
-  txn_log->created_file_ids = created_files;
-  txn_log->num_files = num_created_files;
 }
 
 /**
@@ -278,24 +274,22 @@ void deserialize_write_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* tx
  * involving VUnlink
  */
 void deserialize_unlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  struct UnlinkId created_unlinks[MAX_LEN];
-  int num_created_unlinks = 0;
   txn_log->compound_type = txn_VUnlink;
 
   if (txn_log_obj->has_unlinks()) {
-    proto::VUnlinkTxn unlink_txn = txn_log_obj->unlinks();
+    const proto::VUnlinkTxn& unlink_txn = txn_log_obj->unlinks();
     txn_log->backup_dir_path = unlink_txn.backup_dir_path().c_str();
+    txn_log->num_unlinks = unlink_txn.unlinked_objs_size();
+    txn_log->created_unlink_ids = (struct UnlinkId*) malloc(sizeof(struct UnlinkId) * txn_log->num_unlinks);
+    
     for (int i = 0; i < unlink_txn.unlinked_objs_size(); i++) {
-      proto::VUnlinkTxn_Unlink unlink_obj = unlink_txn.unlinked_objs(i);
-      created_unlinks[num_created_unlinks].original_path =
+      const proto::VUnlinkTxn_Unlink& unlink_obj = unlink_txn.unlinked_objs(i);
+      txn_log->created_unlink_ids[i].original_path =
           unlink_obj.original_path().c_str();
-      created_unlinks[num_created_unlinks].backup_name =
+      txn_log->created_unlink_ids[i].backup_name =
           unlink_obj.backup_name().c_str();
-      num_created_unlinks++;
     }
   }
-  txn_log->created_unlink_ids = created_unlinks;
-  txn_log->num_unlinks = num_created_unlinks;
 }
 
 /**
@@ -304,23 +298,19 @@ void deserialize_unlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* t
  * involving VSymlink
  */
 void deserialize_symlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  struct SymlinkId created_symlinks[MAX_LEN];
-  int num_created_symlinks = 0;
   txn_log->compound_type = txn_VSymlink;
 
   if (txn_log_obj->has_symlinks()) {
-    proto::VSymlinkTxn symlink_txn = txn_log_obj->symlinks();
+    const proto::VSymlinkTxn& symlink_txn = txn_log_obj->symlinks();
+    txn_log->num_symlinks = symlink_txn.linked_objs_size();
+    txn_log->created_symlink_ids = (struct SymlinkId*) malloc(sizeof(struct SymlinkId) * txn_log->num_symlinks);
+    
     for (int i = 0; i < symlink_txn.linked_objs_size(); i++) {
-      proto::VSymlinkTxn_Symlink link_obj = symlink_txn.linked_objs(i);
-      created_symlinks[num_created_symlinks].src_path =
-          link_obj.src_path().c_str();
-      created_symlinks[num_created_symlinks].dst_path =
-          link_obj.dst_path().c_str();
-      num_created_symlinks++;
+      const proto::VSymlinkTxn_Symlink& link_obj = symlink_txn.linked_objs(i);
+      txn_log->created_symlink_ids[i].src_path = link_obj.src_path().c_str();
+      txn_log->created_symlink_ids[i].dst_path = link_obj.dst_path().c_str();
     }
   }
-  txn_log->created_symlink_ids = created_symlinks;
-  txn_log->num_symlinks = num_created_symlinks;
 }
 
 /**
@@ -329,39 +319,33 @@ void deserialize_symlink_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* 
  * involving VRename
  */
 void deserialize_rename_txn(proto::TransactionLog* txn_log_obj, struct TxnLog* txn_log) {
-  struct RenameId created_renames[MAX_LEN];
-  int num_created_renames = 0;
   txn_log->compound_type = txn_VRename;
 
   if (txn_log_obj->has_renames()) {
-    proto::VRenameTxn rename_txn = txn_log_obj->renames();
+    const proto::VRenameTxn& rename_txn = txn_log_obj->renames();
+    txn_log->num_renames = rename_txn.renamed_objs_size();
+    txn_log->created_rename_ids = (struct RenameId*) malloc(sizeof(struct RenameId) * txn_log->num_renames);
+  
     txn_log->backup_dir_path = rename_txn.backup_dir().c_str();
+    
     for (int i = 0; i < rename_txn.renamed_objs_size(); i++) {
-      proto::VRenameTxn_Rename rename_obj = rename_txn.renamed_objs(i);
-      created_renames[num_created_renames].src_path =
-          rename_obj.src_path().c_str();
-      created_renames[num_created_renames].dst_path =
-          rename_obj.dst_path().c_str();
+      const proto::VRenameTxn_Rename& rename_obj = rename_txn.renamed_objs(i);
+      txn_log->created_rename_ids[i].src_path = rename_obj.src_path().c_str();
+      txn_log->created_rename_ids[i].dst_path = rename_obj.dst_path().c_str();
       if (rename_obj.has_is_directory())
-        created_renames[num_created_renames].is_directory =
-            rename_obj.is_directory();
-      proto::FileID src_fileid = rename_obj.src_fileid();
-      created_renames[num_created_renames].src_fileid.data =
-          strdup(src_fileid.id().c_str());
-      created_renames[num_created_renames].src_fileid.file_type =
-          get_file_type(src_fileid.type());
+        txn_log->created_rename_ids[i].is_directory = rename_obj.is_directory();
+      const proto::FileID& src_fileid = rename_obj.src_fileid();
+      txn_log->created_rename_ids[i].src_fileid.data = src_fileid.id().c_str();
+      txn_log->created_rename_ids[i].src_fileid.file_type = get_file_type(src_fileid.type());
       if (rename_obj.has_dst_fileid()) {
-        proto::FileID dst_fileid = rename_obj.dst_fileid();
-        created_renames[num_created_renames].dst_fileid.data =
-            strdup(dst_fileid.id().c_str());
-        created_renames[num_created_renames].dst_fileid.file_type =
+        const proto::FileID& dst_fileid = rename_obj.dst_fileid();
+        txn_log->created_rename_ids[i].dst_fileid.data =
+            dst_fileid.id().c_str();
+        txn_log->created_rename_ids[i].dst_fileid.file_type =
             get_file_type(dst_fileid.type());
       }
-      num_created_renames++;
     }
   }
-  txn_log->created_rename_ids = created_renames;
-  txn_log->num_renames = num_created_renames;
 }
 
 int txn_log_to_pb(struct TxnLog* txn_log, proto::TransactionLog *txnpb) {
@@ -432,5 +416,33 @@ int txn_log_from_pb(proto::TransactionLog* txnpb, struct TxnLog* txn_log) {
   google::protobuf::ShutdownProtobufLibrary();
 
   return ret;
+}
+
+
+void txn_log_free(struct TxnLog* txn_log)
+{
+    if (!txn_log)
+    {
+      return;
+    }
+    
+    switch (txn_log->compound_type) {
+      case txn_VNone:
+        break;
+      case txn_VWrite:
+      case txn_VMkdir:
+      case txn_VCreate:
+        free(txn_log->created_file_ids);
+        break;
+      case txn_VRename:
+        free(txn_log->created_rename_ids);
+        break;
+      case txn_VUnlink:
+        free(txn_log->created_unlink_ids);
+        break;
+      case txn_VSymlink:
+        free(txn_log->created_symlink_ids);
+        break;
+  }
 }
 

@@ -31,7 +31,7 @@ enum FSObjectType {
  * This struct assumes |data| is NULL-ended.
  */
 struct FileId {
-	char* data;
+	const char* data;
 	enum FSObjectType file_type; /* File or Directory */
 	int flags;		     /* created or not */
 };
@@ -88,6 +88,8 @@ typedef struct TxnLog TxnLog;
 
 int txn_log_from_pb(proto::TransactionLog* txnpb, struct TxnLog* txn_log);
 int txn_log_to_pb(struct TxnLog* txn_log, proto::TransactionLog* txnpb);
+
+void txn_log_free(struct TxnLog* txn_log);
 #ifdef __cplusplus
 }
 #endif

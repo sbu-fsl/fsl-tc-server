@@ -144,108 +144,77 @@ TEST_F(TxnTest, CreateTest) {
   txn_log_from_pb(&txnpb, &deserialized_txn_log);
 	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
 	EXPECT_EQ(0, compareStructsFileID(txn_log, &deserialized_txn_log));
-  free(deserialized_txn_log.created_file_ids[0].data);
-  free(deserialized_txn_log.created_file_ids);
+  txn_log_free(&deserialized_txn_log);
 }
 
-#if 0
 TEST_F(TxnTest, MkdirTest) {
 	txn_log.txn_id = 9993;
 	txn_log.compound_type = txn_VMkdir;
-	string txn_log_file = "/tmp/log/txn_" + to_string(9993);
-	FILE *fp = fopen(txn_log_file.c_str(), "r");
-	if (fp) {
-		remove(txn_log_file.c_str());
-	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-	result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9993, "/tmp/log");
-	result = compareStructsCommon(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	result = compareStructsFileID(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	remove(txn_log_file.c_str());
+  
+  proto::TransactionLog txnpb;
+  TxnLog deserialized_txn_log;
+  txn_log_to_pb(&txn_log, &txnpb);
+  txn_log_from_pb(&txnpb, &deserialized_txn_log);
+	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
+	EXPECT_EQ(0, compareStructsFileID(txn_log, &deserialized_txn_log));
+  txn_log_free(&deserialized_txn_log);
 }
 
 TEST_F(TxnTest, WriteTest) {
 	txn_log.txn_id = 9994;
 	txn_log.compound_type = txn_VWrite;
 	txn_log.backup_dir_path = backup_dir_path.c_str();
-	string txn_log_file = "/tmp/log/txn_" + to_string(9994);
-	FILE *fp = fopen(txn_log_file.c_str(), "r");
-	if (fp) {
-		remove(txn_log_file.c_str());
-	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9994, "/tmp/log");
-	if (backup_dir_path.compare(txn_log_ret->backup_dir_path) != 0)
-		result = 1;
-	result = compareStructsCommon(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	result = compareStructsFileID(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	remove(txn_log_file.c_str());
+  
+  proto::TransactionLog txnpb;
+  TxnLog deserialized_txn_log;
+  txn_log_to_pb(&txn_log, &txnpb);
+  txn_log_from_pb(&txnpb, &deserialized_txn_log);
+	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
+	EXPECT_EQ(0, compareStructsFileID(txn_log, &deserialized_txn_log));
+  txn_log_free(&deserialized_txn_log);
 }
 
 TEST_F(TxnTest, UnlinkTest) {
 	txn_log.txn_id = 9995;
 	txn_log.compound_type = txn_VUnlink;
 	txn_log.backup_dir_path = backup_dir_path.c_str();
-	string txn_log_file = "/tmp/log/txn_" + to_string(9995);
-	FILE *fp = fopen(txn_log_file.c_str(), "r");
-	if (fp) {
-		remove(txn_log_file.c_str());
-	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9995, "/tmp/log");
-	if (backup_dir_path.compare(txn_log_ret->backup_dir_path) != 0)
-		result = 1;
-	result = compareStructsUnlinkId(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	remove(txn_log_file.c_str());
+  
+  proto::TransactionLog txnpb;
+  TxnLog deserialized_txn_log;
+  txn_log_to_pb(&txn_log, &txnpb);
+  txn_log_from_pb(&txnpb, &deserialized_txn_log);
+	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
+	EXPECT_EQ(0, compareStructsUnlinkId(txn_log, &deserialized_txn_log));
+  txn_log_free(&deserialized_txn_log);
 }
 
 TEST_F(TxnTest, SymlinkTest) {
 	txn_log.txn_id = 9996;
 	txn_log.compound_type = txn_VSymlink;
-	string txn_log_file = "/tmp/log/txn_" + to_string(9996);
-	FILE *fp = fopen(txn_log_file.c_str(), "r");
-	if (fp) {
-		remove(txn_log_file.c_str());
-	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9996, "/tmp/log");
-	result = compareStructsCommon(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	result = compareStructsSymlinkId(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	remove(txn_log_file.c_str());
+  
+  proto::TransactionLog txnpb;
+  TxnLog deserialized_txn_log;
+  txn_log_to_pb(&txn_log, &txnpb);
+  txn_log_from_pb(&txnpb, &deserialized_txn_log);
+	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
+	EXPECT_EQ(0, compareStructsSymlinkId(txn_log, &deserialized_txn_log));
+  txn_log_free(&deserialized_txn_log);
 }
 
 TEST_F(TxnTest, RenameTest) {
 	txn_log.txn_id = 9997;
 	txn_log.compound_type = txn_VRename;
 	txn_log.backup_dir_path = backup_dir_path.c_str();
-	string txn_log_file = "/tmp/log/txn_" + to_string(9997);
-	FILE *fp = fopen(txn_log_file.c_str(), "r");
-	if (fp) {
-		remove(txn_log_file.c_str());
-	}
-	EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
-	int result = 0;
-	TxnLog *txn_log_ret = read_txn_log(9997, "/tmp/log");
-	if (backup_dir_path.compare(txn_log_ret->backup_dir_path) != 0)
-		result = 1;
-	result = compareStructsCommon(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	result = compareStructsRenameId(txn_log, txn_log_ret);
-	EXPECT_EQ(0, result);
-	remove_txn_log(9997, "/tmp/log");
+  
+  proto::TransactionLog txnpb;
+  TxnLog deserialized_txn_log;
+  txn_log_to_pb(&txn_log, &txnpb);
+  txn_log_from_pb(&txnpb, &deserialized_txn_log);
+	EXPECT_EQ(0, compareStructsCommon(txn_log, &deserialized_txn_log));
+	EXPECT_EQ(0, compareStructsRenameId(txn_log, &deserialized_txn_log));
 }
 
+#if 0
 TEST_F(TxnTest, IterateTxnTest) {
 	const char *dir_name = "/tmp/log/testdir1";
 	int ret = mkdir(dir_name, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
