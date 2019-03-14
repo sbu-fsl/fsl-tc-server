@@ -1,4 +1,5 @@
 // vim:expandtab:shiftwidth=2:tabstop=2:
+#include <glib.h>
 #include <lwrapper.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -40,10 +41,8 @@
 
 const char* ANCHOR = "ldb-anchor";
 
-char* memdup(const char* buf, size_t len) {
-  char* b = (char *)malloc(len);
-  memcpy(b, buf, len);
-  return b;
+static char* memdup(const char* buf, size_t len) {
+  return (char*)g_memdup(buf, len);
 }
 
 static int insert_markers(const db_store_t* db_st) {
