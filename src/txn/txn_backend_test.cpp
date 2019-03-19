@@ -9,12 +9,45 @@ void txn_processor(struct TxnLog* txn)
   std::cout << "enumerating txn_id=" << txn->txn_id << std::endl;
 }
 
-TEST(TxnBackend, SimpleTest) {
+TEST(TxnBackend, SimpleFsBackend) {
   struct txn_backend* backend;
   struct TxnLog txn_write;
   struct TxnLog txn_read;
   txn_write.compound_type = txn_VNone;
   init_fstxn_backend(&backend);
+
+  backend->backend_init();
+
+  txn_write.txn_id = 42;
+  backend->create_txn(42, &txn_write);
+
+  txn_write.txn_id = 52;
+  backend->create_txn(52, &txn_write);
+  
+  txn_write.txn_id = 92;
+  backend->create_txn(92, &txn_write);
+  
+  backend->get_txn(42, &txn_read);
+  ASSERT_EQ(42, txn_read.txn_id);
+
+  backend->get_txn(52, &txn_read);
+  ASSERT_EQ(52, txn_read.txn_id);
+  
+  backend->get_txn(92, &txn_read);
+  ASSERT_EQ(92, txn_read.txn_id);
+  
+  backend->enumerate_txn(&txn_processor);
+  backend->remove_txn(42);
+  backend->enumerate_txn(&txn_processor);
+  backend->backend_shutdown();
+}
+
+TEST(TxnBackend, SimpleLDbBackend) {
+  struct txn_backend* backend;
+  struct TxnLog txn_write;
+  struct TxnLog txn_read;
+  txn_write.compound_type = txn_VNone;
+  init_ldbtxn_backend(&backend);
 
   backend->backend_init();
 

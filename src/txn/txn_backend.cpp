@@ -35,6 +35,7 @@ void ldbtxn_init(void)
 
 int ldbtxn_create_txn(uint64_t txn_id, struct TxnLog* txn)
 {
+  proto::TransactionLog txnpb;
   std::string value;
   // serialize to protobuf
   if (txn_log_to_pb(txn, &txnpb))
@@ -43,14 +44,13 @@ int ldbtxn_create_txn(uint64_t txn_id, struct TxnLog* txn)
     return -1;
   }
 
-  string value;
   if (!txnpb.SerializeToString(&value))
   {
     std::cerr << "Failed to serialize protbuf to string" << std::endl;
     return -1;
   }
   
-  leveldb::Status s = db->Put(leveldb::WriteOptions(), ldbtxn_get_key(txn_id), &value);
+  leveldb::Status status = db->Put(leveldb::WriteOptions(), ldbtxn_get_key(txn_id), value);
   if (!status.ok())
   {
     std::cerr << "Failed to write txn to leveldb" << std::endl;
@@ -63,13 +63,15 @@ int ldbtxn_create_txn(uint64_t txn_id, struct TxnLog* txn)
 int ldbtxn_get_txn(uint64_t txn_id, struct TxnLog* txn)
 {
   std::string value;
-  leveldb::Status s = db->Get(leveldb::ReadOptions(), ldbtxn_get_key(txn_id), &value);
+  leveldb::Status status = db->Get(leveldb::ReadOptions(), ldbtxn_get_key(txn_id), &value);
   if (!status.ok())
   {
     std::cerr << "Failed to read txn to leveldb" << std::endl;
     return -1;
   }
-  
+    
+  proto::TransactionLog txnpb;
+
   // parse protobuf
   if (!txnpb.ParseFromString(value)) 
   {
@@ -93,18 +95,18 @@ void ldbtxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
       cout << it->key().ToString() << ": "  << it->value().ToString() << endl;
   }
   
-  if (!status.ok())
+  /*if (!status.ok())
   {
     std::cerr << "Failed to read txn to leveldb" << std::endl;
     return -1;
-  }
+  }*/
   
   delete it;
 }
 
 int ldbtxn_remove_txn(uint64_t txn_id)
 {
-  leveldb::Status s = db->Delete(leveldb::WriteOptions(), ldbtxn_get_key(txn_id));
+  leveldb::Status status = db->Delete(leveldb::WriteOptions(), ldbtxn_get_key(txn_id));
   
   if (!status.ok())
   {
@@ -222,11 +224,13 @@ void fstxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
    }
 }
 
-void fstxn_remove_txn(uint64_t txn_id)
+int fstxn_remove_txn(uint64_t txn_id)
 {
   auto txn_path = fstxn_get_txndir(txn_id);
 
   fs::remove_all(txn_path);
+
+  return 0;
 }
 
 void fstxn_shutdown(void)
