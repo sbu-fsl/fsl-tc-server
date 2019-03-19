@@ -6,8 +6,8 @@
 struct txn_backend {
   //
   // initialize transaction backend storage
-  void (*backend_init)(void);
-  
+  int (*backend_init)(void);
+
   //
   // get transaction
   int (*get_txn)(uint64_t txn_id, struct TxnLog* txn);
@@ -26,7 +26,16 @@ struct txn_backend {
   void (*backend_shutdown)(void);
 };
 
-void init_ldbtxn_backend(struct txn_backend** txn_backend);
+// TxnBackend using LevelDB
+// Database is stored at `root`
+// Keys use prefix `prefix`
+//
+void init_ldbtxn_backend(const char* root, const char* prefix,
+                         struct txn_backend** txn_backend);
 
-void init_fstxn_backend(struct txn_backend** txn_backend);
+//  TxnBackend using std::fileystem
+//  Files are created at `root`
+//  Transaction file is stored at /{root}/txn_{id}/{filename}
+void init_fstxn_backend(const char* root, const char* filename,
+                        struct txn_backend** txn_backend);
 #endif

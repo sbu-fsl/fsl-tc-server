@@ -1,5 +1,6 @@
 ---
 # BasedOnStyle:  Google
+SortIncludes: false
 AccessModifierOffset: -1
 ConstructorInitializerIndentWidth: 4
 AlignEscapedNewlinesLeft: true
