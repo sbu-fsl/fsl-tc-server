@@ -3,46 +3,121 @@
 #include <fstream>
 #include <string>
 #include <experimental/filesystem>
-#include <lwrapper.h>
+#include <cassert>
+#include <leveldb/db.h>
 #include "txn_logger.h"
 #include "txn_backend.h"
 #include "txn.pb.h"
 
 using namespace std;
 namespace fs = std::experimental::filesystem;
-static db_store_t* db = NULL;
+leveldb::DB* db;
 
 static const char* fstxn_backend_root = "/tmp/fstxn/";
 static const char* fstxn_txnfilename = "txn.data";
 
+static const char* ldbtxn_key_prefix = "txn_";
+
+std::string ldbtxn_get_key(uint64_t txn_id)
+{
+  stringstream ss;
+  ss << ldbtxn_key_prefix << txn_id;
+  return ss.str();
+}
+
 void ldbtxn_init(void)
 {
-  db = init_db_store("test_db", true);
+  leveldb::Options options;
+  options.create_if_missing = true;
+  leveldb::Status status = leveldb::DB::Open(options, "/tmp/testdb", &db);
+  assert(status.ok());
 }
 
 int ldbtxn_create_txn(uint64_t txn_id, struct TxnLog* txn)
 {
+  std::string value;
+  // serialize to protobuf
+  if (txn_log_to_pb(txn, &txnpb))
+  {
+    std::cerr << "Failed to serialize to protobuf" << std::endl;
+    return -1;
+  }
+
+  string value;
+  if (!txnpb.SerializeToString(&value))
+  {
+    std::cerr << "Failed to serialize protbuf to string" << std::endl;
+    return -1;
+  }
+  
+  leveldb::Status s = db->Put(leveldb::WriteOptions(), ldbtxn_get_key(txn_id), &value);
+  if (!status.ok())
+  {
+    std::cerr << "Failed to write txn to leveldb" << std::endl;
+    return -1;
+  }
+
   return 0;
 }
 
 int ldbtxn_get_txn(uint64_t txn_id, struct TxnLog* txn)
 {
+  std::string value;
+  leveldb::Status s = db->Get(leveldb::ReadOptions(), ldbtxn_get_key(txn_id), &value);
+  if (!status.ok())
+  {
+    std::cerr << "Failed to read txn to leveldb" << std::endl;
+    return -1;
+  }
+  
+  // parse protobuf
+  if (!txnpb.ParseFromString(value)) 
+  {
+    std::cerr << "Failed to parse protbuf" << std::endl;
+    return -1;
+  }
+  
+  // convert to TxnLog
+  if (txn_log_from_pb(&txnpb, txn) < 0)
+  {
+    std::cerr << "Failed to deserialize from protobuf" << std::endl;
+  }
   return 0;
 }
 
 void ldbtxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
 {
-
+  leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+  // TODO - Read only prefix keys
+  for (it->SeekToFirst(); it->Valid(); it->Next()) {
+      cout << it->key().ToString() << ": "  << it->value().ToString() << endl;
+  }
+  
+  if (!status.ok())
+  {
+    std::cerr << "Failed to read txn to leveldb" << std::endl;
+    return -1;
+  }
+  
+  delete it;
 }
 
-void ldbtxn_remove_txn(uint64_t txn_id)
+int ldbtxn_remove_txn(uint64_t txn_id)
 {
+  leveldb::Status s = db->Delete(leveldb::WriteOptions(), ldbtxn_get_key(txn_id));
+  
+  if (!status.ok())
+  {
+    std::cerr << "Failed to read txn to leveldb" << std::endl;
+    return -1;
+  }
 
+  return 0;
 }
 
 void ldbtxn_shutdown(void)
 {
-  destroy_db_store(db);
+  delete db;
 }
 
 fs::path fstxn_get_txndir(uint64_t txn_id)
