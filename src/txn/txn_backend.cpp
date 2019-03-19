@@ -90,16 +90,16 @@ int ldbtxn_get_txn(uint64_t txn_id, struct TxnLog* txn)
 void ldbtxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
 {
   leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-  // TODO - Read only prefix keys
-  for (it->SeekToFirst(); it->Valid(); it->Next()) {
-      cout << it->key().ToString() << ": "  << it->value().ToString() << endl;
+
+  for (it->SeekToFirst(); it->Valid() && it->key().starts_with(ldbtxn_key_prefix); it->Next()) {
+      struct TxnLog txn;
+      uint64_t txn_id = stoull(it->key().ToString().substr(strlen(ldbtxn_key_prefix)));
+      if (ldbtxn_get_txn(txn_id, &txn) < 0)
+      {
+        std::cerr << "Failed to read transaction" << txn_id << endl;
+      }
+      callback(&txn);
   }
-  
-  /*if (!status.ok())
-  {
-    std::cerr << "Failed to read txn to leveldb" << std::endl;
-    return -1;
-  }*/
   
   delete it;
 }
@@ -107,7 +107,6 @@ void ldbtxn_enumerate_txn(void (*callback)(struct TxnLog* txn))
 int ldbtxn_remove_txn(uint64_t txn_id)
 {
   leveldb::Status status = db->Delete(leveldb::WriteOptions(), ldbtxn_get_key(txn_id));
-  
   if (!status.ok())
   {
     std::cerr << "Failed to read txn to leveldb" << std::endl;
