@@ -612,3 +612,16 @@ int iterate_txn_logs(const char* log_dir,
   closedir(dir);
   return count;
 }
+
+uint64_t create_txn_log(COMPOUND4args* arg) {
+  nfs_argop4* const ops = arg->argarray.argarray_val;
+  const int ops_len = arg->argarray.argarray_len;
+  TransactionType txn_type = TransactionType::NONE;
+  for (int i = 0; i < ops_len; ++i) {
+    if (ops[i].argop == NFS4_OP_CREATE) {
+      txn_type = VCREATE;
+      break;
+    }
+  }
+  return 0;
+}

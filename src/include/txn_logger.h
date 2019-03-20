@@ -84,6 +84,8 @@ int iterate_txn_logs(const char* log_dir,
 		     int (*log_processor)(struct TxnLog* log));
 char *bytes_to_hex(const char *uuid_str);
 
+uint64_t create_txn_log(COMPOUND4args* arg);
+
 #ifdef __cplusplus
 }
 #endif

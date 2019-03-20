@@ -24,6 +24,12 @@ constexpr int kUUIDReserveBatchSize = 4096;
 // also means that ids with high component of 0 are reserved.
 constexpr absl::uint128 root_file_id = absl::MakeUint128(/*high=*/1, 0);
 
+// This is an abstract id that represents the id of the current file handle.
+constexpr absl::uint128 current_file_id = absl::MakeUint128(/*high=*/0, 1);
+
+// This is an abstract id that represents the id of the saved file handle.
+constexpr absl::uint128 saved_file_id = absl::MakeUint128(/*high=*/0, 2);
+
 // We store a next_file_id and max_reserved_id in memory to prevent constantly
 // hitting the database.
 absl::uint128 next_file_id = absl::MakeUint128(1, 1);

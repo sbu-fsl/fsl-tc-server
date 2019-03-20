@@ -24,12 +24,45 @@ message FileID {
 	optional FileType type = 2;
 }
 
+message ObjectId {
+	required uint64 id_low = 1;
+	required uint64 id_high = 2;
+	optional FileType type = 3;
+}
+
+// A CreatedObject represents a file or directory to be created in a compound.
+// When recovering from a partially executed compound that may have created
+// some objects, the created objects do not have mapping entries in the
+// database. This is because establishing mapping between UUID and FH is the
+// last step of the transaction execution. Therefore, we need to locate the
+// created files by following |base| and |path|. For example, |base| may be the
+// parent directory whereas |path| is the name of the created file; also |base|
+// may be the root directory whereas |path| is the absolute path file of the
+// created file. |base| and |path| can be easily retrieved from the NFS
+// compound and |base| will exist for sure for any valid compound.
+//
+// Note that it is possible that |path| pre-existed before the compound (e.g.,
+// open a file with O_CREATE) and we should not delete it during the recovery.
+// We can check this by looking into the database: if the FH of |path| has a
+// mapping in the database, then we know it pre-existed before the compound was
+// executed.
+message CreatedObject {
+	// The base directory of this object. Its type must be FT_DIRECTORY.
+	optional ObjectId base = 1;
+	// The path from the base directory to the created object.
+	optional string path = 2;
+	// The pre-allocated ID for the object to be created.
+	optional ObjectId allocated_id = 3;
+}
+
 message VCreateTxn {
-	repeated FileID created_files = 1;
+	repeated FileID created_files = 1;  // deprecated
+	repeated CreatedObject objects = 2;
 }
 
 message VMkdirTxn {
-	repeated FileID created_dirs = 1;
+	repeated FileID created_dirs = 1;  // deprecated
+	repeated CreatedObject dirs = 2;
 }
 
 message VWriteTxn {
@@ -43,6 +76,7 @@ message VWriteTxn {
 	// For VWrite that does not create files, |created_files| will be
 	// empty.
 	repeated FileID created_files = 2;
+	repeated CreatedObject files = 3;
 }
 
 message VRenameTxn {
