@@ -38,6 +38,8 @@ uint64_t get_upper_half(const char* id);
 // Returns the root |UUID|.
 uuid_t uuid_root();
 
+uuid_t uuid_null();
+
 // Returns the next UUID after |current|.
 uuid_t uuid_next(uuid_t current);
 

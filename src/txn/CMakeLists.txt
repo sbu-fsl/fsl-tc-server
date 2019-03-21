@@ -87,4 +87,4 @@ message(STATUS "protocol headers: " ${ProtoHeaders})
 add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
-add_cpplib(txn_logger secnfs_proto protobuf)
+add_cpplib(txn_logger secnfs_proto id_manager protobuf)

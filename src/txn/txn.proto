@@ -60,6 +60,7 @@ message VCreateTxn {
 	repeated CreatedObject objects = 2;
 }
 
+// deprecated. Use VCreateTxn.
 message VMkdirTxn {
 	repeated FileID created_dirs = 1;  // deprecated
 	repeated CreatedObject dirs = 2;
