@@ -1,34 +1,6 @@
-// -*- mode:C; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
-// vim: ts=8 sw=2 smarttab
-/*
- * Copyright (C) 2018 Red Hat, Inc.
- * Contributor : Girjesh Rajoria <grajoria@redhat.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301 USA
- *
- * -------------
- */
-
 #include <sys/types.h>
 #include <iostream>
-#include <vector>
-#include <map>
-#include <chrono>
 #include <thread>
-#include <random>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
@@ -50,8 +22,7 @@ void admin_halt(void);
 
 #define TEST_ROOT "clone"
 #define TEST_FILE "original_name"
-#define TEST_FILE_NEW "new_name"
-#define TEST_FILE_NEW_S 9 
+#define TEST_FILE_CLONE "clone_name"
 
 namespace {
 
@@ -79,24 +50,31 @@ namespace {
 TEST_F(CloneTest, SIMPLE)
 {
   fsal_status_t status;
-  struct fsal_obj_handle *obj = nullptr;
+  struct fsal_obj_handle *src_obj = nullptr;
+  struct fsal_obj_handle *dst_obj = nullptr;
   char *dst_name = nullptr;
-  char *new_name = (char *)malloc(TEST_FILE_NEW_S*sizeof(char));
-  memset(new_name, 0, TEST_FILE_NEW_S);
-  strncpy(new_name, TEST_FILE_NEW, TEST_FILE_NEW_S);
-  struct fsal_obj_handle *lookup = nullptr;
+  char *name = nullptr;
+  //struct fsal_obj_handle *lookup = nullptr;
 
-  /* Create file for the the test */
-  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &obj,
+  /* Create src file for the test */
+  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &src_obj,
                   NULL);
   ASSERT_EQ(status.major, 0);
-  ASSERT_NE(obj, nullptr);
+  ASSERT_NE(src_obj, nullptr);
 
-  status = test_root->obj_ops->clone(obj, &dst_name, test_root, new_name);
+  //TODO Write some dummy data to src file
+
+  /* Create dst file for the test */
+  status = fsal_create(test_root, TEST_FILE_CLONE, REGULAR_FILE, &attrs, NULL, &dst_obj,
+                  NULL);
+  ASSERT_EQ(status.major, 0);
+  ASSERT_NE(dst_obj, nullptr);
+
+  /* Clone the src file */
+  status = test_root->obj_ops->clone(src_obj, &dst_name, dst_obj, name);
   EXPECT_EQ(status.major, 0);
-  free(new_name);
-  status = test_root->obj_ops->lookup(test_root, TEST_FILE_NEW, &lookup, NULL);
-  EXPECT_EQ(status.major, 0);
+  //status = test_root->obj_ops->lookup(test_root, TEST_FILE_NEW, &lookup, NULL);
+  //EXPECT_EQ(status.major, 0);
 
   /* Remove directory created while running test */
   //status = fsal_remove(test_root, TEST_ROOT);
