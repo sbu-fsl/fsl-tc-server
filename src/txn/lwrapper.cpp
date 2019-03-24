@@ -1,10 +1,11 @@
 // vim:expandtab:shiftwidth=2:tabstop=2:
 #include <glib.h>
-#include <lwrapper.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "lwrapper.h"
 
 #define DEBUG 1
 #undef DEBUG

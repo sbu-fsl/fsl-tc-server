@@ -6,7 +6,11 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <string>
+
+#include <absl/strings/str_cat.h>
+#include <absl/strings/str_join.h>
 
 #include "id_manager.h"
 #include "txn.pb.h"
@@ -14,6 +18,8 @@
 #define MAX_LEN 64
 
 using namespace std;
+
+constexpr uint64_t kInvalidTxnId = 0;
 
 /**
  * @brief returns FileType from txn FSObjectType
@@ -431,7 +437,6 @@ int write_txn_log(struct TxnLog* txn_log, const char* inputdir) {
       break;
     case txn_VCreate:
       write_create_txn(txn_log, txn_log_obj);
-
       break;
     case txn_VMkdir:
       write_mkdir_txn(txn_log, txn_log_obj);
@@ -649,9 +654,9 @@ uint64_t get_txn_id() {
   return next_txn_id++;
 }
 
+// TODO: Test this.
 uuid_t extract_uuid_from_fh(const nfs_fh4& fh) {
- // TODO: implement this
- return uuid_null();
+ return buf_to_uuid(fh.nfs_fh4_val);
 }
 
 string nfs4_string(const utf8string& us) {
@@ -674,19 +679,57 @@ int build_vcreate_txn(const COMPOUND4args* arg, VCreateTxn* create_txn) {
     } else if (ops[i].argop == NFS4_OP_LOOKUPP) {
       path_components.push_back("..");
     } else if (ops[i].argop == NFS4_OP_CREATE) {
-     // TODO
+      CreatedObject* obj = create_txn->add_objects();
+      ObjectId* base_id = obj->mutable_base();
+      base_id->set_id_low(base.lo);
+      base_id->set_id_high(base.lo);
+      base_id->set_type(FileType::FT_DIRECTORY);
+      *obj->mutable_path() = absl::StrJoin(path_components, "/");
+    } else {
+      std::cerr << "Unknow operation for VCreate: " << ops[i].argop;
     }
   }
   return 0;
 }
 
 int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
+  const nfs_argop4* const ops = arg->argarray.argarray_val;
+  const int ops_len = arg->argarray.argarray_len;
+  uuid_t base = uuid_null();
+  std::vector<string> path_components;
+  for (int i = 0; i < ops_len; ++i) {
+    if (ops[i].argop == NFS4_OP_PUTROOTFH) {
+      base = uuid_root();
+    } else if (ops[i].argop == NFS4_OP_PUTFH) {
+      base = extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object);
+    } else if (ops[i].argop == NFS4_OP_LOOKUP) {
+      path_components.emplace_back(
+          nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
+    } else if (ops[i].argop == NFS4_OP_LOOKUPP) {
+      path_components.push_back("..");
+    } else if (ops[i].argop == NFS4_OP_OPEN) {
+      const OPEN4args* open_args = &ops[i].nfs_argop4_u.opopen;
+      path_components.emplace_back(
+          nfs4_string(open_args->claim.open_claim4_u.file));
+      CreatedObject* file = write_txn->add_files();
+      ObjectId* base_id = file->mutable_base();
+      base_id->set_id_low(base.lo);
+      base_id->set_id_high(base.lo);
+      base_id->set_type(FileType::FT_DIRECTORY);
+      *file->mutable_path() = absl::StrJoin(path_components, "/");
+      if (open_args->openhow.opentype == OPEN4_CREATE) {
+        // TODO: Set allocated_id.
+      }
+    } else {
+      std::cerr << "Unknow operation for VWrite: " << ops[i].argop;
+    }
+  }
   return 0;
 }
 
 }  // namespace internal
 
-uint64_t create_txn_log(const COMPOUND4args* arg) {
+uint64_t create_txn_log(const db_store_t* db, const COMPOUND4args* arg) {
   TransactionLog txn_log;
   txn_log.set_id(internal::get_txn_id());
   txn_log.set_type(internal::get_txn_type(arg));
@@ -695,6 +738,25 @@ uint64_t create_txn_log(const COMPOUND4args* arg) {
   } else if (txn_log.type() == TransactionType::VWRITE) {
     internal::build_vwrite_txn(arg, txn_log.mutable_writes());
   }
+
+  const string key = absl::StrCat("txn-", txn_log.id());
+
   // Write txn_log to database.
+  std::ostringstream output;
+  if (!txn_log.SerializeToOstream(&output)) {
+    std::cerr << "Failed to serialize txn log.";
+    return kInvalidTxnId;
+  }
+  const string value = output.str();
+
+  char* err_msg = nullptr;
+  leveldb_put(db->db, db->w_options, key.data(), key.size(), value.data(),
+              value.size(), &err_msg);
+  if (err_msg != nullptr) {
+    std::cerr << "Failed to write txn log: " << err_msg;
+    free(err_msg);
+    return kInvalidTxnId;
+  }
+
   return txn_log.id();
 }

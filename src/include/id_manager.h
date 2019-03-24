@@ -38,6 +38,7 @@ uint64_t get_upper_half(const char* id);
 // Returns the root |UUID|.
 uuid_t uuid_root();
 
+// Returns a special value that represents an invalid UUID.
 uuid_t uuid_null();
 
 // Returns the next UUID after |current|.
@@ -45,6 +46,13 @@ uuid_t uuid_next(uuid_t current);
 
 // Pre-allocates |n| consecutive UUIDs and returns the value of the first one.
 uuid_t uuid_allocate(const db_store_t *db, int n);
+
+// Returns a buf that encodes the given |id|. The size of the buf is fixed to
+// TXN_UUID_LEN.
+char* uuid_to_buf(uuid_t id);
+
+// Decodes uuid in |buf| whose size is fixed to TXN_UUID_LEN.
+uuid_t buf_to_uuid(const char* buf);
 
 #ifdef __cplusplus
 }

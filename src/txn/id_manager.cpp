@@ -67,8 +67,6 @@ int uuid_batch_reserve(const db_store_t *db) {
   return ret;
 }
 
-}  // namespace
-
 absl::uint128 buf_to_uint128(const char *buf) {
   absl::uint128 n(0);
 
@@ -76,6 +74,8 @@ absl::uint128 buf_to_uint128(const char *buf) {
 
   return n;
 }
+
+}  // namespace
 
 uint64_t get_lower_half(const char *buf) {
   return absl::Uint128Low64(buf_to_uint128(buf));
@@ -159,4 +159,12 @@ uuid_t uuid_allocate(db_store_t *db, int n) {
     if (uuid_batch_reserve(db) != 0) std::abort();
   }
   return absl::bit_cast<uuid_t>(std::exchange(next_file_id, new_next));
+}
+
+char *uuid_to_buf(uuid_t id) {
+  return uint128_to_buf(absl::bit_cast<absl::uint128>(id));
+}
+
+uuid_t buf_to_uuid(const char* buf) {
+  return absl::bit_cast<uuid_t>(buf_to_uint128(buf));
 }
