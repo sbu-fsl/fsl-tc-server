@@ -54,22 +54,22 @@ target_link_libraries(test_mkdir_latency
 set_target_properties(test_mkdir_latency PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
-set(test_clone_SRCS
-  test_clone.cc
+set(test_clone2_SRCS
+  test_clone2.cc
   )
 
-add_executable(test_clone
-  ${test_clone_SRCS})
-add_sanitizers(test_clone)
+add_executable(test_clone2
+  ${test_clone2_SRCS})
+add_sanitizers(test_clone2)
 
-target_link_libraries(test_clone
+target_link_libraries(test_clone2
   ${GANESHA_LIBRARIES}
   ${UNITTEST_LIBS}
   ${LTTNG_LIBRARIES}
   ${LTTNG_CTL_LIBRARIES}
   ${GPERFTOOLS_LIBRARIES}
   )
-set_target_properties(test_clone PROPERTIES COMPILE_FLAGS
+set_target_properties(test_clone2 PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
 

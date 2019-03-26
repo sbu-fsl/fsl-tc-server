@@ -52,13 +52,12 @@ TEST_F(CloneTest, SIMPLE)
   fsal_status_t status;
   struct fsal_obj_handle *src_obj = nullptr;
   struct fsal_obj_handle *dst_obj = nullptr;
-  char *dst_name = nullptr;
-  char *name = nullptr;
   //struct fsal_obj_handle *lookup = nullptr;
 
   /* Create src file for the test */
   status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &src_obj,
                   NULL);
+  printf("Src Obj : %d\n", src_obj);
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(src_obj, nullptr);
 
@@ -67,11 +66,12 @@ TEST_F(CloneTest, SIMPLE)
   /* Create dst file for the test */
   status = fsal_create(test_root, TEST_FILE_CLONE, REGULAR_FILE, &attrs, NULL, &dst_obj,
                   NULL);
+  printf("Dst Obj : %d\n", dst_obj);
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(dst_obj, nullptr);
 
   /* Clone the src file */
-  status = test_root->obj_ops->clone(src_obj, &dst_name, dst_obj, name);
+  status = test_root->obj_ops->clone2(src_obj, dst_obj);
   EXPECT_EQ(status.major, 0);
   //status = test_root->obj_ops->lookup(test_root, TEST_FILE_NEW, &lookup, NULL);
   //EXPECT_EQ(status.major, 0);

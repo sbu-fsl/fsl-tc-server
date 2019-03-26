@@ -1068,6 +1068,9 @@ fsal_status_t mdcache_clone(struct fsal_obj_handle *src_hdl,
 			    struct fsal_obj_handle *dir_hdl,
 			    char *file_uuid);
 
+fsal_status_t mdcache_clone2(struct fsal_obj_handle *src_hdl,
+			    struct fsal_obj_handle *dst_hdl);
+
 /* Debug functions */
 #define MDC_LOG_KEY(key) do { \
 	LogFullDebugOpaque(COMPONENT_CACHE_INODE, \

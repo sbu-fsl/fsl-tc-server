@@ -471,3 +471,21 @@ fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl,
 		LogDebug(COMPONENT_FSAL, "txn: clone fail");
 	return status;
 }
+
+fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl,
+			  struct fsal_obj_handle *dst_hdl)
+{
+	struct txnfs_fsal_obj_handle *txn_hdl =
+		container_of(src_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+
+	struct txnfs_fsal_obj_handle *txn_hdl1 =
+		container_of(dst_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+	LogCrit(COMPONENT_FSAL, "txn: clone2");
+
+	fsal_status_t status = txn_hdl->sub_handle->obj_ops->clone2(
+	    txn_hdl->sub_handle, txn_hdl1->sub_handle);
+
+	return status;
+}

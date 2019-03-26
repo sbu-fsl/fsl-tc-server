@@ -1473,6 +1473,7 @@ void mdcache_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->start_compound = mdcache_start_compound;
 	ops->end_compound = mdcache_end_compound;
 	ops->clone = mdcache_clone;
+	ops->clone2 = mdcache_clone2;
 }
 
 /*

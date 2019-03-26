@@ -375,6 +375,9 @@ fsal_status_t vfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
 fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
 			       void *data);
 
+fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl,
+			  struct fsal_obj_handle *dst_hdl);
+
 fsal_status_t check_hsm_by_fd(int fd);
 
 fsal_status_t vfs_get_fs_locations(struct vfs_fsal_obj_handle *hdl,

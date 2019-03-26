@@ -31,7 +31,7 @@
  */
 
 #include "config.h"
-
+#include <errno.h>
 #include <assert.h>
 #include "fsal.h"
 #include "FSAL/access_check.h"
@@ -43,6 +43,8 @@
 #include "os/subr.h"
 #include "sal_data.h"
 #include "splice_copy.h"
+#include <sys/ioctl.h>
+#define FICLONE _IOW(0x94, 9, int)
 
 fsal_status_t vfs_open_my_fd(struct vfs_fsal_obj_handle *myself,
 			     fsal_openflags_t openflags,
@@ -2190,4 +2192,81 @@ fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_VFS layer.");
 	
 	return fsal_status;
+}
+
+static int clone_file(int src_fd, int dst_fd, int src_offset,
+			int src_length, int dest_offset)
+{
+        int ret = 0;
+
+        ret = ioctl(dst_fd, FICLONE, src_fd);
+        if (ret < 0) {
+                LogCrit(COMPONENT_FSAL, "failed to clone!");
+                LogCrit(COMPONENT_FSAL, "Error Code : %d", ret);
+                LogCrit(COMPONENT_FSAL, "Errno : %d", errno);
+        }
+
+        close(src_fd);
+        close(dst_fd);
+        return ret;
+}
+
+fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl,
+			  struct fsal_obj_handle *dst_hdl)
+{
+	int retval = 0, src_fd, dst_fd;
+	struct vfs_fsal_obj_handle *myself;
+	struct vfs_filesystem *vfs_fs;
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
+
+	LogDebug(COMPONENT_FSAL, "vfs_clone: server-side cloning");
+
+	myself = container_of(src_hdl, struct vfs_fsal_obj_handle, obj_handle);
+	vfs_fs = myself->obj_handle.fs->private_data;
+	src_fd = vfs_open_by_handle(vfs_fs,
+				myself->handle,
+				FSAL_O_RDWR,
+				&status.major);
+	//LogCrit(COMPONENT_FSAL, "src fd : %d", src_fd);
+	if (src_fd < 0) {
+		LogCrit(COMPONENT_FSAL, "vfs_clone: Unable to open src file");
+		goto out;
+	}
+
+	myself = container_of(dst_hdl, struct vfs_fsal_obj_handle, obj_handle);
+	vfs_fs = myself->obj_handle.fs->private_data;
+	dst_fd = vfs_open_by_handle(vfs_fs,
+				myself->handle,
+				FSAL_O_RDWR,
+				&status.major);
+	//LogCrit(COMPONENT_FSAL, "dst fd : %d", dst_fd);
+	if (dst_fd < 0) {
+		LogCrit(COMPONENT_FSAL, "vfs_clone: Unable to open src file");
+		goto out;
+	}
+
+	PTHREAD_RWLOCK_rdlock(&src_hdl->obj_lock);
+	/* Clone the file */
+	LogCrit(COMPONENT_FSAL, "Calling clone_file");
+	// TODO Need to get other parameters from client to do range_clone
+	retval = clone_file(src_fd, dst_fd, 0, 0, 0);
+	if (retval < 0) {
+		LogDebug(COMPONENT_FSAL, "vfs_clone: clone failed");
+		goto out;
+	}
+
+	// TODO Need to do this as well
+	/*retval = copy_metadata(src_hdl->absolute_path, clone_file_path);
+	if (retval < 0) {
+		LogDebug(COMPONENT_FSAL, "cowfs_clone: copy metadata failed");
+		goto out;
+	}*/
+
+	PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+
+out:
+	PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	LogDebug(COMPONENT_FSAL, "Exited vfs_clone");
+	return fsalstat(posix2fsal_error(retval), retval);
 }
