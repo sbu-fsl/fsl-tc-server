@@ -12,10 +12,12 @@
 #include "lwrapper.h"
 #include "txn_backend.h"
 #include "txn_logger.h"
+#include "undo_executor.h"
 
 namespace fs = std::experimental::filesystem;
 using namespace std;
 vector<fs::path> dummy_paths;
+vector<string> dummy_uuids;
 
 void txn_processor(struct TxnLog* txn) {
   std::cout << "enumerating txn_id=" << txn->txn_id << std::endl;
@@ -44,14 +46,12 @@ void txn_write_build(struct TxnLog* txn) {
       (struct FileId*)malloc(sizeof(struct FileId) * txn->num_files);
 
   // get uuid from leveldb for each file in dummy_paths
-  /*for (int i = 0; i < txn->num_files; i++) {
-    struct FileId* fid = txn->created_file_ids[i];
-    // generate uuid
-    // put in the map
-    fid->data = uuid;
-    fid->type = ft_File;
+  for (int i = 0; i < txn->num_files; i++) {
+    struct FileId* fid = &txn->created_file_ids[i];
+    fid->data = dummy_uuids[i].c_str();
+    fid->file_type = ft_File;
     fid->flags = 1;
-  }*/
+  }
 }
 
 // build txnlog with dummy file paths
@@ -104,7 +104,6 @@ void init_test_fs() {
 
     fhsize = sizeof(*handle);
     handle = (struct file_handle*)malloc(fhsize);
-    // ASSERT_NE((int)handle, 0);
     handle->handle_bytes = 0;
 
     ASSERT_EQ(
@@ -120,6 +119,7 @@ void init_test_fs() {
 
     db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
     const char* key = generate_file_id(db);
+    dummy_uuids.emplace_back(key);
     const char* value = (char*)&handle;
     size_t key_len = strlen(key);
     size_t val_len = sizeof(struct file_handle) + handle->handle_bytes;
@@ -132,12 +132,16 @@ void init_test_fs() {
     int ret = commit_transaction(record, 1, db);
     ASSERT_FALSE(ret);
   }
-  // ASSERT_EQ(closedir(dir), 0);
 }
 
 TEST(UndoExecutor, SuccessTxn) {
+  srand(time(NULL));
   init_test_fs();
-  // srand(time(NULL));
+
+  struct TxnLog txn;
+  txn_build(txn_VWrite, &txn);
+
+  undo_txn_execute(&txn);
   // struct txn_backend* backend;
   // string dbroot = "/tmp/executordb";
   // init_ldbtxn_backend(dbroot.c_str(), "txn_", &backend);
