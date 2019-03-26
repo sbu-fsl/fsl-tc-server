@@ -85,3 +85,5 @@ target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 add_cpplib(txn_logger secnfs_proto protobuf)
 
 add_cpplib(txn_backend txn_logger leveldb stdc++fs)
+
+add_cpplib(undo_executor lwrapper id_manager txn_backend stdc++fs)
