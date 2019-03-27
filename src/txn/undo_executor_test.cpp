@@ -74,11 +74,8 @@ void txn_build(enum CompoundType compound_type, struct TxnLog* txn) {
   }
 }
 
-void init_test_fs() {
-  // create entry in lwrapper
-  db_store_t* db = init_db_store("/tmp/test_db", true);
+void init_test_fs(string& fsroot, db_store_t* db) {
   const char* contents = "original";
-  ASSERT_TRUE(db);
 
   ASSERT_EQ(initialize_id_manager(db), 0);
   // root for dummy files
@@ -135,28 +132,28 @@ void init_test_fs() {
 }
 
 TEST(UndoExecutor, SuccessTxn) {
+  //
   srand(time(NULL));
-  init_test_fs();
 
+  const string fsroot = "/tmp/executorfs";
+
+  // open database for file_handle lookup
+  db_store_t* db = init_db_store("/tmp/test_db", true);
+  ASSERT_TRUE(db);
+
+  // setup dummy paths and entries in lwrapper
+  init_test_fs(fsroot, db);
+
+  // write txnlog entry
   struct TxnLog txn;
   txn_build(txn_VWrite, &txn);
 
   undo_txn_execute(&txn);
-  // struct txn_backend* backend;
-  // string dbroot = "/tmp/executordb";
-  // init_ldbtxn_backend(dbroot.c_str(), "txn_", &backend);
 
-  // backend->backend_init();
-  // build TxnLog entry
-  //
+  // check dummy paths don't exist
 
-  // execute complete transaction
-  //
-
-  // check no undo operations
-  //
-  // fs::remove_all(dbroot);
-  fs::remove_all("/tmp/executorfs");
+  destroy_db_store(db);
+  fs::remove_all(fsroot);
 }
 
 TEST(DISABLED_UndoExecutor, PartialTxn) {

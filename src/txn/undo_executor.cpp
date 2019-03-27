@@ -5,7 +5,7 @@
 
 // namespace fs = std::experimental::filesystem;
 /*
- * Undo created files
+ * Undo write files
  */
 void undo_txn_write_execute(struct TxnLog* txn) {
 
