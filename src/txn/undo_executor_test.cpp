@@ -17,7 +17,7 @@
 namespace fs = std::experimental::filesystem;
 using namespace std;
 vector<fs::path> dummy_paths;
-vector<string> dummy_uuids;
+vector<const char*> dummy_uuids;
 
 void txn_processor(struct TxnLog* txn) {
   std::cout << "enumerating txn_id=" << txn->txn_id << std::endl;
@@ -41,14 +41,15 @@ void txn_execute(struct TxnLog* txn) {
 }
 
 void txn_write_build(struct TxnLog* txn) {
-  txn->num_files = dummy_paths.size();
+  txn->num_files = 2;
   txn->created_file_ids =
       (struct FileId*)malloc(sizeof(struct FileId) * txn->num_files);
 
   // get uuid from leveldb for each file in dummy_paths
   for (int i = 0; i < txn->num_files; i++) {
     struct FileId* fid = &txn->created_file_ids[i];
-    fid->data = dummy_uuids[i].c_str();
+    fid->data = dummy_uuids[i];
+    // cout << "key:" << id_to_string(fid->data) << endl;
     fid->file_type = ft_File;
     fid->flags = 1;
   }
@@ -74,12 +75,12 @@ void txn_build(enum CompoundType compound_type, struct TxnLog* txn) {
   }
 }
 
-void init_test_fs(string& fsroot, db_store_t* db) {
+void init_test_fs(const string& path, db_store_t* db) {
   const char* contents = "original";
 
   ASSERT_EQ(initialize_id_manager(db), 0);
   // root for dummy files
-  fs::path fsroot = "/tmp/executorfs";
+  fs::path fsroot = path;
   fs::create_directory(fsroot);
 
   // create 10 files
@@ -116,17 +117,19 @@ void init_test_fs(string& fsroot, db_store_t* db) {
 
     db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
     const char* key = generate_file_id(db);
-    dummy_uuids.emplace_back(key);
-    const char* value = (char*)&handle;
+    cout << "key:" << id_to_string(key) << "handle:" << handle->handle_bytes
+         << endl;
+    dummy_uuids.push_back(key);
+    const char* value = (char*)handle;
     size_t key_len = strlen(key);
-    size_t val_len = sizeof(struct file_handle) + handle->handle_bytes;
+    size_t val_len = fhsize;
     record->key = key;
     record->val = value;
     record->key_len = key_len;
     record->val_len = val_len;
 
     // commit first transaction
-    int ret = commit_transaction(record, 1, db);
+    int ret = put_id_handle(record, 1, db);
     ASSERT_FALSE(ret);
   }
 }
@@ -148,7 +151,7 @@ TEST(UndoExecutor, SuccessTxn) {
   struct TxnLog txn;
   txn_build(txn_VWrite, &txn);
 
-  undo_txn_execute(&txn);
+  undo_txn_execute(&txn, db);
 
   // check dummy paths don't exist
 

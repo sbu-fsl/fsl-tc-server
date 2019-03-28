@@ -1,9 +1,10 @@
 #ifndef _UNDO_EXECUTOR_H
 #define _UNDO_EXECUTOR_H
+#include "lwrapper.h"
 
 // undo transaction
 //
-void undo_txn_execute(struct TxnLog* txn);
+void undo_txn_execute(struct TxnLog* txn, db_store_t* db);
 
 //  undo transactions in backend
 //
