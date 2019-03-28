@@ -25,8 +25,14 @@ link_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/../abseil-cpp/absl/utilities"
 )
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB REQUIRED glib-2.0)
+message(STATUS "GLIB INC: " ${GLIB_INCLUDE_DIRS})
+message(STATUS "GLIB LIBS: " ${GLIB_LIBRARIES})
+
 find_package(benchmark REQUIRED)
 include_directories(${benchmark_INCLUDE_DIRS})
+include_directories(${GLIB_INCLUDE_DIRS})
 
 function(add_cpplib libname)
   add_library(${libname} STATIC "${libname}.cpp" util/path_utils.cpp)
@@ -61,7 +67,7 @@ function(add_cpplib libname)
   endif()
 endfunction()
 
-add_cpplib(lwrapper leveldb)
+add_cpplib(lwrapper leveldb ${GLIB_LIBRARIES})
 
 add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
@@ -82,6 +88,10 @@ message(STATUS "protocol headers: " ${ProtoHeaders})
 add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
+<<<<<<< HEAD
 add_cpplib(txn_logger secnfs_proto protobuf)
 
 add_cpplib(txn_backend txn_logger leveldb stdc++fs)
+=======
+add_cpplib(txn_logger secnfs_proto id_manager protobuf absl_strings)
+>>>>>>> c60587de49f9252a81e2482db1588e4259498c0a
