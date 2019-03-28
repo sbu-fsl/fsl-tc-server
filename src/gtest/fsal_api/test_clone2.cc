@@ -38,11 +38,14 @@ namespace {
 
     virtual void SetUp() {
       gtest::GaneshaFSALBaseTest::SetUp();
+      fsal_prepare_attrs(&attrs_in, 0);
     }
 
     virtual void TearDown() {
+      fsal_release_attrs(&attrs_in);
       gtest::GaneshaFSALBaseTest::TearDown();
     }
+    struct attrlist attrs_in;
   };
 
 } /* namespace */
@@ -50,35 +53,54 @@ namespace {
 TEST_F(CloneTest, SIMPLE)
 {
   fsal_status_t status;
+  bool caller_perm_check = false;
   struct fsal_obj_handle *src_obj = nullptr;
   struct fsal_obj_handle *dst_obj = nullptr;
   //struct fsal_obj_handle *lookup = nullptr;
 
   /* Create src file for the test */
-  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &src_obj,
-                  NULL);
-  printf("Src Obj : %d\n", src_obj);
+  struct state_t *file_state1;
+  struct state_t *file_state2;
+
+  file_state1 = op_ctx->fsal_export->exp_ops.alloc_state(op_ctx->fsal_export,
+							STATE_TYPE_SHARE,
+							NULL);
+  ASSERT_NE(file_state1, nullptr);
+
+  status = test_root->obj_ops->open2(test_root, file_state1, FSAL_O_RDWR,
+             FSAL_UNCHECKED, TEST_FILE, &attrs_in, NULL, &src_obj, NULL,
+	     &caller_perm_check);
   ASSERT_EQ(status.major, 0);
-  ASSERT_NE(src_obj, nullptr);
+
+  file_state2 = op_ctx->fsal_export->exp_ops.alloc_state(op_ctx->fsal_export,
+							STATE_TYPE_SHARE,
+							NULL);
+  ASSERT_NE(file_state2, nullptr);
+
+  // create and open a file for clone
+  status = test_root->obj_ops->open2(test_root, file_state2, FSAL_O_RDWR,
+             FSAL_UNCHECKED, TEST_FILE_CLONE, &attrs_in, NULL, &dst_obj, NULL,
+	     &caller_perm_check);
+  ASSERT_EQ(status.major, 0);
+
 
   //TODO Write some dummy data to src file
-
-  /* Create dst file for the test */
-  status = fsal_create(test_root, TEST_FILE_CLONE, REGULAR_FILE, &attrs, NULL, &dst_obj,
-                  NULL);
-  printf("Dst Obj : %d\n", dst_obj);
-  ASSERT_EQ(status.major, 0);
-  ASSERT_NE(dst_obj, nullptr);
 
   /* Clone the src file */
   status = test_root->obj_ops->clone2(src_obj, dst_obj);
   EXPECT_EQ(status.major, 0);
-  //status = test_root->obj_ops->lookup(test_root, TEST_FILE_NEW, &lookup, NULL);
+  //status = test_root->obj_ops->lookup(test_root, TEST_FILE_CLONE, &lookup, NULL);
   //EXPECT_EQ(status.major, 0);
+  status = src_obj->obj_ops->close2(src_obj, file_state1);
+  EXPECT_EQ(status.major, 0);
 
+  status = dst_obj->obj_ops->close2(dst_obj, file_state2);
+  EXPECT_EQ(status.major, 0);
   /* Remove directory created while running test */
   //status = fsal_remove(test_root, TEST_ROOT);
   //ASSERT_EQ(status.major, 0);
+  op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export, file_state1);
+  op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export, file_state2);
 }
 
 int main(int argc, char *argv[])
