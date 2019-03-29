@@ -88,10 +88,6 @@ message(STATUS "protocol headers: " ${ProtoHeaders})
 add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
-<<<<<<< HEAD
-add_cpplib(txn_logger secnfs_proto protobuf)
+add_cpplib(txn_logger secnfs_proto id_manager protobuf absl_strings)
 
 add_cpplib(txn_backend txn_logger leveldb stdc++fs)
-=======
-add_cpplib(txn_logger secnfs_proto id_manager protobuf absl_strings)
->>>>>>> c60587de49f9252a81e2482db1588e4259498c0a

@@ -26,19 +26,19 @@ enum FSObjectType { ft_None, ft_File, ft_Directory, ft_Symlink, ft_Hardlink };
 struct FileId {
   const char* data;
   enum FSObjectType file_type; /* File or Directory */
-  int flags;                   /* created or not */
 };
 
 struct ObjectId {
-  const char* id;
+  uint64_t id_low;
+  uint64_t id_high;
   enum FSObjectType file_type; /* File or Directory */
-}
+};
 
 struct CreatedObject {
   ObjectId* base;
   const char* path;
   ObjectId* allocated_id;
-}
+};
 
 struct UnlinkId {
   const char* original_path;
@@ -76,7 +76,7 @@ typedef struct RenameId RenameId;
 
 struct TxnLog {
   uint64_t txn_id;
-  FileId* created_file_ids;
+  CreatedObject* created_file_ids;
   UnlinkId* created_unlink_ids;
   SymlinkId* created_symlink_ids;
   RenameId* created_rename_ids;

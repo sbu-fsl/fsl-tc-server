@@ -94,17 +94,26 @@ void serialize_create_txn(struct TxnLog* txn_log,
   txn_log_obj->set_type(proto::TransactionType::VCREATE);
   for (int i = 0; i < txn_log->num_files; i++) {
     proto::VCreateTxn* create_txn = txn_log_obj->mutable_creates();
-    if (txn_log->created_file_ids[i].flags) {
-      proto::FileID* file_id = create_txn->add_created_files();
-      file_id->set_id(txn_log->created_file_ids[i].data);
-      if (ENABLE_NORMAL_TEXT_LOGGING &&
-          txn_log->created_file_ids[i].data != NULL) {
-        char* hex_uuid = bytes_to_hex(txn_log->created_file_ids[i].data);
-        file_id->set_id((const char*)hex_uuid);
-      }
-      file_id->set_type(
-          get_file_type_txn(txn_log->created_file_ids[i].file_type));
-    }
+    proto::CreatedObject* object = create_txn->add_objects();
+    struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
+
+    // set FileId
+    object->mutable_base()->set_id_low(txnobj->base->id_low);
+    object->mutable_base()->set_id_high(txnobj->base->id_high);
+
+    // set FileType
+    object->mutable_base()->set_type(
+        get_file_type_txn(txnobj->base->file_type));
+
+    // set FileId
+    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id->id_low);
+    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id->id_high);
+
+    // set FileType
+    object->mutable_allocated_id()->set_type(
+        get_file_type_txn(txnobj->allocated_id->file_type));
+
+    object->set_path(txnobj->path);
   }
 }
 
@@ -116,18 +125,27 @@ void serialize_mkdir_txn(struct TxnLog* txn_log,
                          proto::TransactionLog* txn_log_obj) {
   txn_log_obj->set_type(proto::TransactionType::VMKDIR);
   for (int i = 0; i < txn_log->num_files; i++) {
-    proto::VMkdirTxn* mkdir_txn = txn_log_obj->mutable_mkdirs();
-    if (txn_log->created_file_ids[i].flags) {
-      proto::FileID* file_id = mkdir_txn->add_created_dirs();
-      file_id->set_id(txn_log->created_file_ids[i].data);
-      if (ENABLE_NORMAL_TEXT_LOGGING &&
-          txn_log->created_file_ids[i].data != NULL) {
-        char* hex_uuid = bytes_to_hex(txn_log->created_file_ids[i].data);
-        file_id->set_id((const char*)hex_uuid);
-      }
-      file_id->set_type(
-          get_file_type_txn(txn_log->created_file_ids[i].file_type));
-    }
+    proto::VMkdirTxn* create_txn = txn_log_obj->mutable_mkdirs();
+    proto::CreatedObject* object = create_txn->add_dirs();
+    struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
+
+    // set FileId
+    object->mutable_base()->set_id_low(txnobj->base->id_low);
+    object->mutable_base()->set_id_high(txnobj->base->id_high);
+
+    // set FileType
+    object->mutable_base()->set_type(
+        get_file_type_txn(txnobj->base->file_type));
+
+    // set FileId
+    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id->id_low);
+    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id->id_high);
+
+    // set FileType
+    object->mutable_allocated_id()->set_type(
+        get_file_type_txn(txnobj->allocated_id->file_type));
+
+    object->set_path(txnobj->path);
   }
 }
 
@@ -141,17 +159,26 @@ void serialize_write_txn(struct TxnLog* txn_log,
   for (int i = 0; i < txn_log->num_files; i++) {
     proto::VWriteTxn* write_txn = txn_log_obj->mutable_writes();
     write_txn->set_backup_dir_path(txn_log->backup_dir_path);
-    if (txn_log->created_file_ids[i].flags) {
-      proto::FileID* file_id = write_txn->add_created_files();
-      file_id->set_id(txn_log->created_file_ids[i].data);
-      if (ENABLE_NORMAL_TEXT_LOGGING &&
-          txn_log->created_file_ids[i].data != NULL) {
-        char* hex_uuid = bytes_to_hex(txn_log->created_file_ids[i].data);
-        file_id->set_id((const char*)hex_uuid);
-      }
-      file_id->set_type(
-          get_file_type_txn(txn_log->created_file_ids[i].file_type));
-    }
+    proto::CreatedObject* object = write_txn->add_files();
+    struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
+
+    // set FileId
+    object->mutable_base()->set_id_low(txnobj->base->id_low);
+    object->mutable_base()->set_id_high(txnobj->base->id_high);
+
+    // set FileType
+    object->mutable_base()->set_type(
+        get_file_type_txn(txnobj->base->file_type));
+
+    // set FileId
+    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id->id_low);
+    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id->id_high);
+
+    // set FileType
+    object->mutable_allocated_id()->set_type(
+        get_file_type_txn(txnobj->allocated_id->file_type));
+
+    object->set_path(txnobj->path);
   }
 }
 
@@ -221,15 +248,28 @@ void deserialize_create_txn(proto::TransactionLog* txn_log_obj,
   if (txn_log_obj->has_creates()) {
     const proto::VCreateTxn& create_txn = txn_log_obj->creates();
     txn_log->num_files = create_txn.created_files_size();
-    txn_log->created_file_ids =
-        (struct FileId*)malloc(sizeof(struct FileId) * txn_log->num_files);
+    txn_log->created_file_ids = (struct CreatedObject*)malloc(
+        sizeof(struct CreatedObject) * txn_log->num_files);
 
     for (int i = 0; i < create_txn.created_files_size(); i++) {
-      const proto::FileID& file_id = create_txn.created_files(i);
-      txn_log->created_file_ids[i].data = file_id.id().c_str();
-      if (file_id.has_type())
-        txn_log->created_file_ids[i].file_type = get_file_type(file_id.type());
-      txn_log->created_file_ids[i].flags = 1;
+      const proto::CreatedObject& object = create_txn.objects(i);
+      struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
+
+      // copy base
+      txnobj->base = (struct ObjectId*)malloc(sizeof(struct ObjectId));
+      txnobj->base->id_low = object.base().id_low();
+      txnobj->base->id_high = object.base().id_high();
+      txnobj->base->file_type = get_file_type(object.base().type());
+
+      // copy allocated_id
+      txnobj->allocated_id = (struct ObjectId*)malloc(sizeof(struct ObjectId));
+      txnobj->allocated_id->id_low = object.allocated_id().id_low();
+      txnobj->allocated_id->id_high = object.allocated_id().id_high();
+      txnobj->allocated_id->file_type =
+          get_file_type(object.allocated_id().type());
+
+      // copy path
+      txnobj->path = object.path().c_str();
     }
   }
 }
@@ -246,15 +286,28 @@ void deserialize_mkdir_txn(proto::TransactionLog* txn_log_obj,
   if (txn_log_obj->has_mkdirs()) {
     const proto::VMkdirTxn& mkdir_txn = txn_log_obj->mkdirs();
     txn_log->num_files = mkdir_txn.created_dirs_size();
-    txn_log->created_file_ids =
-        (struct FileId*)malloc(sizeof(struct FileId) * txn_log->num_files);
+    txn_log->created_file_ids = (struct CreatedObject*)malloc(
+        sizeof(struct CreatedObject) * txn_log->num_files);
 
     for (int i = 0; i < mkdir_txn.created_dirs_size(); i++) {
-      const proto::FileID& file_id = mkdir_txn.created_dirs(i);
-      txn_log->created_file_ids[i].data = file_id.id().c_str();
-      if (file_id.has_type())
-        txn_log->created_file_ids[i].file_type = get_file_type(file_id.type());
-      txn_log->created_file_ids[i].flags = 1;
+      const proto::CreatedObject& object = mkdir_txn.dirs(i);
+      struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
+
+      // copy base
+      txnobj->base = (struct ObjectId*)malloc(sizeof(struct ObjectId));
+      txnobj->base->id_low = object.base().id_low();
+      txnobj->base->id_high = object.base().id_high();
+      txnobj->base->file_type = get_file_type(object.base().type());
+
+      // copy allocated_id
+      txnobj->allocated_id = (struct ObjectId*)malloc(sizeof(struct ObjectId));
+      txnobj->allocated_id->id_low = object.allocated_id().id_low();
+      txnobj->allocated_id->id_high = object.allocated_id().id_high();
+      txnobj->allocated_id->file_type =
+          get_file_type(object.allocated_id().type());
+
+      // copy path
+      txnobj->path = object.path().c_str();
     }
   }
 }
@@ -272,23 +325,36 @@ void deserialize_write_txn(proto::TransactionLog* txn_log_obj,
     const proto::VWriteTxn& write_txn = txn_log_obj->writes();
     txn_log->backup_dir_path = write_txn.backup_dir_path().c_str();
     txn_log->num_files = write_txn.created_files_size();
-    txn_log->created_file_ids =
-        (struct FileId*)malloc(sizeof(struct FileId) * txn_log->num_files);
+    txn_log->created_file_ids = (struct CreatedObject*)malloc(
+        sizeof(struct CreatedObject) * txn_log->num_files);
 
-    for (int i = 0; i < write_txn.created_files_size(); i++) {
-      const proto::FileID& file_id = write_txn.created_files(i);
-      txn_log->created_file_ids[i].data = file_id.id().c_str();
-      if (file_id.has_type())
-        txn_log->created_file_ids[i].file_type = get_file_type(file_id.type());
-      txn_log->created_file_ids[i].flags = 1;
+    for (int i = 0; i < write_txn.created_files().size(); i++) {
+      const proto::CreatedObject& object = write_txn.files(i);
+      struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
+
+      // copy base
+      txnobj->base = (struct ObjectId*)malloc(sizeof(struct ObjectId));
+      txnobj->base->id_low = object.base().id_low();
+      txnobj->base->id_high = object.base().id_high();
+      txnobj->base->file_type = get_file_type(object.base().type());
+
+      // copy allocated_id
+      txnobj->allocated_id = (struct ObjectId*)malloc(sizeof(struct ObjectId));
+      txnobj->allocated_id->id_low = object.allocated_id().id_low();
+      txnobj->allocated_id->id_high = object.allocated_id().id_high();
+      txnobj->allocated_id->file_type =
+          get_file_type(object.allocated_id().type());
+
+      // copy path
+      txnobj->path = object.path().c_str();
     }
   }
 }
 
 /**
  * @brief helper function to deserialize_txn_log
- * This function fills struct TxnLog from proto::TransactionLog for transaction
- * involving VUnlink
+ * This function fills struct TxnLog from proto::TransactionLog for
+ * transaction involving VUnlink
  */
 void deserialize_unlink_txn(proto::TransactionLog* txn_log_obj,
                             struct TxnLog* txn_log) {
@@ -313,8 +379,8 @@ void deserialize_unlink_txn(proto::TransactionLog* txn_log_obj,
 
 /**
  * @brief helper function to deserialize_txn_log
- * This function fills struct TxnLog from proto::TransactionLog for transaction
- * involving VSymlink
+ * This function fills struct TxnLog from proto::TransactionLog for
+ * transaction involving VSymlink
  */
 void deserialize_symlink_txn(proto::TransactionLog* txn_log_obj,
                              struct TxnLog* txn_log) {
@@ -336,8 +402,8 @@ void deserialize_symlink_txn(proto::TransactionLog* txn_log_obj,
 
 /**
  * @brief helper function to deserialize_txn_log
- * This function fills struct TxnLog from proto::TransactionLog for transaction
- * involving VRename
+ * This function fills struct TxnLog from proto::TransactionLog for
+ * transaction involving VRename
  */
 void deserialize_rename_txn(proto::TransactionLog* txn_log_obj,
                             struct TxnLog* txn_log) {
@@ -466,7 +532,7 @@ void txn_log_free(struct TxnLog* txn_log) {
       break;
   }
 }
-
+/*
 namespace internal {
 
 TransactionType get_txn_type(const COMPOUND4args* arg) {
@@ -607,4 +673,4 @@ uint64_t create_txn_log(const db_store_t* db, const COMPOUND4args* arg) {
   }
 
   return txn_log.id();
-}
+}*/
