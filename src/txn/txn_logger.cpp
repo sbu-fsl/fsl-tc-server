@@ -244,11 +244,11 @@ void deserialize_create_txn(proto::TransactionLog* txn_log_obj,
   txn_log->compound_type = txn_VCreate;
   if (txn_log_obj->has_creates()) {
     const proto::VCreateTxn& create_txn = txn_log_obj->creates();
-    txn_log->num_files = create_txn.created_files_size();
+    txn_log->num_files = create_txn.objects_size();
     txn_log->created_file_ids = (struct CreatedObject*)malloc(
         sizeof(struct CreatedObject) * txn_log->num_files);
 
-    for (int i = 0; i < create_txn.created_files_size(); i++) {
+    for (int i = 0; i < create_txn.objects_size(); i++) {
       const proto::CreatedObject& object = create_txn.objects(i);
       struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
@@ -280,11 +280,11 @@ void deserialize_mkdir_txn(proto::TransactionLog* txn_log_obj,
 
   if (txn_log_obj->has_mkdirs()) {
     const proto::VMkdirTxn& mkdir_txn = txn_log_obj->mkdirs();
-    txn_log->num_files = mkdir_txn.created_dirs_size();
+    txn_log->num_files = mkdir_txn.dirs_size();
     txn_log->created_file_ids = (struct CreatedObject*)malloc(
         sizeof(struct CreatedObject) * txn_log->num_files);
 
-    for (int i = 0; i < mkdir_txn.created_dirs_size(); i++) {
+    for (int i = 0; i < mkdir_txn.dirs_size(); i++) {
       const proto::CreatedObject& object = mkdir_txn.dirs(i);
       struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
@@ -317,11 +317,11 @@ void deserialize_write_txn(proto::TransactionLog* txn_log_obj,
   if (txn_log_obj->has_writes()) {
     const proto::VWriteTxn& write_txn = txn_log_obj->writes();
     txn_log->backup_dir_path = write_txn.backup_dir_path().c_str();
-    txn_log->num_files = write_txn.created_files_size();
+    txn_log->num_files = write_txn.files_size();
     txn_log->created_file_ids = (struct CreatedObject*)malloc(
         sizeof(struct CreatedObject) * txn_log->num_files);
 
-    for (int i = 0; i < write_txn.created_files().size(); i++) {
+    for (int i = 0; i < write_txn.files().size(); i++) {
       const proto::CreatedObject& object = write_txn.files(i);
       struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
