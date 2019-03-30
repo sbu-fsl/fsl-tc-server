@@ -102,7 +102,20 @@ class TxnTest : public ::testing::Test {
     return ret;
   }
 
-  int compare(struct ObjectId *obj1, struct ObjectId *obj2) { return 0; }
+  int compare(struct FileId *obj1, struct FileId *obj2) {
+    EXPECT_STREQ(obj1->data, obj2->data);
+    EXPECT_EQ(obj1->file_type, obj2->file_type);
+    return 0;
+  }
+
+  int compare(struct ObjectId *obj1, struct ObjectId *obj2) {
+    EXPECT_EQ(obj1->id_low, obj2->id_low);
+    EXPECT_EQ(obj1->id_high, obj2->id_high);
+    EXPECT_EQ(obj1->file_type, obj2->file_type);
+
+    return 0;
+  }
+
   int compare(struct CreatedObject *cobj1, struct CreatedObject *cobj2) {
     EXPECT_STREQ(cobj1->path, cobj2->path);
     if (compare(&cobj1->base, &cobj2->base) != 0) return 1;
@@ -125,27 +138,12 @@ class TxnTest : public ::testing::Test {
   int compare(struct RenameId *robj1, struct RenameId *robj2) {
     EXPECT_STREQ(robj1->src_path, robj2->src_path);
     EXPECT_STREQ(robj1->dst_path, robj2->dst_path);
+
+    EXPECT_EQ(0, compare(&robj1->src_fileid, &robj2->src_fileid));
+    EXPECT_EQ(0, compare(&robj1->dst_fileid, &robj2->dst_fileid));
+    EXPECT_EQ(robj1->is_directory, robj2->is_directory);
     return 0;
   }
-
-  /*int compareStructsRenameId(TxnLog txn_log, TxnLog *txn_log_ret) {
-    struct RenameId *created_renames, *created_renames_ret;
-    created_renames = txn_log.created_rename_ids;
-    created_renames_ret = txn_log_ret->created_rename_ids;
-    if (src_path_str.compare(created_renames_ret->src_path) != 0) return 1;
-    if (dst_path_str.compare(created_renames_ret->dst_path) != 0) return 1;
-    if (id.compare(created_renames_ret->src_fileid.data) != 0) return 1;
-    if (id.compare(created_renames_ret->dst_fileid.data) != 0) return 1;
-    if (created_renames_ret->src_fileid.file_type !=
-        created_renames->src_fileid.file_type)
-      return 1;
-    if (created_renames_ret->dst_fileid.file_type !=
-        created_renames->dst_fileid.file_type)
-      return 1;
-    if (created_renames->is_directory != created_renames_ret->is_directory)
-      return 1;
-    return 0;
-  }*/
 };
 
 TEST_F(TxnTest, SimpleTest) {
