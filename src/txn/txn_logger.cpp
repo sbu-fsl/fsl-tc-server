@@ -98,20 +98,19 @@ void serialize_create_txn(struct TxnLog* txn_log,
     struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_id_low(txnobj->base->id_low);
-    object->mutable_base()->set_id_high(txnobj->base->id_high);
+    object->mutable_base()->set_id_low(txnobj->base.id_low);
+    object->mutable_base()->set_id_high(txnobj->base.id_high);
 
     // set FileType
-    object->mutable_base()->set_type(
-        get_file_type_txn(txnobj->base->file_type));
+    object->mutable_base()->set_type(get_file_type_txn(txnobj->base.file_type));
 
     // set FileId
-    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id->id_low);
-    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id->id_high);
+    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id.id_low);
+    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id.id_high);
 
     // set FileType
     object->mutable_allocated_id()->set_type(
-        get_file_type_txn(txnobj->allocated_id->file_type));
+        get_file_type_txn(txnobj->allocated_id.file_type));
 
     object->set_path(txnobj->path);
   }
@@ -130,20 +129,19 @@ void serialize_mkdir_txn(struct TxnLog* txn_log,
     struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_id_low(txnobj->base->id_low);
-    object->mutable_base()->set_id_high(txnobj->base->id_high);
+    object->mutable_base()->set_id_low(txnobj->base.id_low);
+    object->mutable_base()->set_id_high(txnobj->base.id_high);
 
     // set FileType
-    object->mutable_base()->set_type(
-        get_file_type_txn(txnobj->base->file_type));
+    object->mutable_base()->set_type(get_file_type_txn(txnobj->base.file_type));
 
     // set FileId
-    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id->id_low);
-    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id->id_high);
+    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id.id_low);
+    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id.id_high);
 
     // set FileType
     object->mutable_allocated_id()->set_type(
-        get_file_type_txn(txnobj->allocated_id->file_type));
+        get_file_type_txn(txnobj->allocated_id.file_type));
 
     object->set_path(txnobj->path);
   }
@@ -163,20 +161,19 @@ void serialize_write_txn(struct TxnLog* txn_log,
     struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_id_low(txnobj->base->id_low);
-    object->mutable_base()->set_id_high(txnobj->base->id_high);
+    object->mutable_base()->set_id_low(txnobj->base.id_low);
+    object->mutable_base()->set_id_high(txnobj->base.id_high);
 
     // set FileType
-    object->mutable_base()->set_type(
-        get_file_type_txn(txnobj->base->file_type));
+    object->mutable_base()->set_type(get_file_type_txn(txnobj->base.file_type));
 
     // set FileId
-    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id->id_low);
-    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id->id_high);
+    object->mutable_allocated_id()->set_id_low(txnobj->allocated_id.id_low);
+    object->mutable_allocated_id()->set_id_high(txnobj->allocated_id.id_high);
 
     // set FileType
     object->mutable_allocated_id()->set_type(
-        get_file_type_txn(txnobj->allocated_id->file_type));
+        get_file_type_txn(txnobj->allocated_id.file_type));
 
     object->set_path(txnobj->path);
   }
@@ -256,20 +253,18 @@ void deserialize_create_txn(proto::TransactionLog* txn_log_obj,
       struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
       // copy base
-      txnobj->base = (struct ObjectId*)malloc(sizeof(struct ObjectId));
-      txnobj->base->id_low = object.base().id_low();
-      txnobj->base->id_high = object.base().id_high();
-      txnobj->base->file_type = get_file_type(object.base().type());
+      txnobj->base.id_low = object.base().id_low();
+      txnobj->base.id_high = object.base().id_high();
+      txnobj->base.file_type = get_file_type(object.base().type());
 
       // copy allocated_id
-      txnobj->allocated_id = (struct ObjectId*)malloc(sizeof(struct ObjectId));
-      txnobj->allocated_id->id_low = object.allocated_id().id_low();
-      txnobj->allocated_id->id_high = object.allocated_id().id_high();
-      txnobj->allocated_id->file_type =
+      txnobj->allocated_id.id_low = object.allocated_id().id_low();
+      txnobj->allocated_id.id_high = object.allocated_id().id_high();
+      txnobj->allocated_id.file_type =
           get_file_type(object.allocated_id().type());
 
       // copy path
-      txnobj->path = object.path().c_str();
+      strcpy(txnobj->path, object.path().c_str());
     }
   }
 }
@@ -294,20 +289,18 @@ void deserialize_mkdir_txn(proto::TransactionLog* txn_log_obj,
       struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
       // copy base
-      txnobj->base = (struct ObjectId*)malloc(sizeof(struct ObjectId));
-      txnobj->base->id_low = object.base().id_low();
-      txnobj->base->id_high = object.base().id_high();
-      txnobj->base->file_type = get_file_type(object.base().type());
+      txnobj->base.id_low = object.base().id_low();
+      txnobj->base.id_high = object.base().id_high();
+      txnobj->base.file_type = get_file_type(object.base().type());
 
       // copy allocated_id
-      txnobj->allocated_id = (struct ObjectId*)malloc(sizeof(struct ObjectId));
-      txnobj->allocated_id->id_low = object.allocated_id().id_low();
-      txnobj->allocated_id->id_high = object.allocated_id().id_high();
-      txnobj->allocated_id->file_type =
+      txnobj->allocated_id.id_low = object.allocated_id().id_low();
+      txnobj->allocated_id.id_high = object.allocated_id().id_high();
+      txnobj->allocated_id.file_type =
           get_file_type(object.allocated_id().type());
 
       // copy path
-      txnobj->path = object.path().c_str();
+      strcpy(txnobj->path, object.path().c_str());
     }
   }
 }
@@ -333,20 +326,18 @@ void deserialize_write_txn(proto::TransactionLog* txn_log_obj,
       struct CreatedObject* txnobj = &txn_log->created_file_ids[i];
 
       // copy base
-      txnobj->base = (struct ObjectId*)malloc(sizeof(struct ObjectId));
-      txnobj->base->id_low = object.base().id_low();
-      txnobj->base->id_high = object.base().id_high();
-      txnobj->base->file_type = get_file_type(object.base().type());
+      txnobj->base.id_low = object.base().id_low();
+      txnobj->base.id_high = object.base().id_high();
+      txnobj->base.file_type = get_file_type(object.base().type());
 
       // copy allocated_id
-      txnobj->allocated_id = (struct ObjectId*)malloc(sizeof(struct ObjectId));
-      txnobj->allocated_id->id_low = object.allocated_id().id_low();
-      txnobj->allocated_id->id_high = object.allocated_id().id_high();
-      txnobj->allocated_id->file_type =
+      txnobj->allocated_id.id_low = object.allocated_id().id_low();
+      txnobj->allocated_id.id_high = object.allocated_id().id_high();
+      txnobj->allocated_id.file_type =
           get_file_type(object.allocated_id().type());
 
       // copy path
-      txnobj->path = object.path().c_str();
+      strcpy(txnobj->path, object.path().c_str());
     }
   }
 }

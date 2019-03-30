@@ -26,6 +26,7 @@ enum FSObjectType { ft_None, ft_File, ft_Directory, ft_Symlink, ft_Hardlink };
 struct FileId {
   const char* data;
   enum FSObjectType file_type; /* File or Directory */
+  int flags;
 };
 
 struct ObjectId {
@@ -35,9 +36,9 @@ struct ObjectId {
 };
 
 struct CreatedObject {
-  ObjectId* base;
-  const char* path;
-  ObjectId* allocated_id;
+  ObjectId base;
+  char path[PATH_MAX];
+  ObjectId allocated_id;
 };
 
 struct UnlinkId {
