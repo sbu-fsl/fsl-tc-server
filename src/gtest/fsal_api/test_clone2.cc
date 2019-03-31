@@ -68,7 +68,7 @@ TEST_F(CloneTest, SIMPLE)
   ASSERT_NE(file_state1, nullptr);
 
   status = test_root->obj_ops->open2(test_root, file_state1, FSAL_O_RDWR,
-             FSAL_UNCHECKED, TEST_FILE, &attrs_in, NULL, &src_obj, NULL,
+	     FSAL_UNCHECKED, TEST_FILE, &attrs_in, NULL, &src_obj, NULL,
 	     &caller_perm_check);
   ASSERT_EQ(status.major, 0);
 
@@ -79,7 +79,7 @@ TEST_F(CloneTest, SIMPLE)
 
   // create and open a file for clone
   status = test_root->obj_ops->open2(test_root, file_state2, FSAL_O_RDWR,
-             FSAL_UNCHECKED, TEST_FILE_CLONE, &attrs_in, NULL, &dst_obj, NULL,
+	     FSAL_UNCHECKED, TEST_FILE_CLONE, &attrs_in, NULL, &dst_obj, NULL,
 	     &caller_perm_check);
   ASSERT_EQ(status.major, 0);
 
@@ -89,16 +89,20 @@ TEST_F(CloneTest, SIMPLE)
   /* Clone the src file */
   status = test_root->obj_ops->clone2(src_obj, dst_obj);
   EXPECT_EQ(status.major, 0);
-  //status = test_root->obj_ops->lookup(test_root, TEST_FILE_CLONE, &lookup, NULL);
-  //EXPECT_EQ(status.major, 0);
+
+  // TODO: Read the dst file and make sure what we read back is the same as
+  // what we write to src_obj.
+
   status = src_obj->obj_ops->close2(src_obj, file_state1);
   EXPECT_EQ(status.major, 0);
 
   status = dst_obj->obj_ops->close2(dst_obj, file_state2);
   EXPECT_EQ(status.major, 0);
-  /* Remove directory created while running test */
-  //status = fsal_remove(test_root, TEST_ROOT);
-  //ASSERT_EQ(status.major, 0);
+  /* Remove files created while running test */
+  status = fsal_remove(test_root, TEST_FILE);
+  ASSERT_EQ(status.major, 0);
+  status = fsal_remove(test_root, TEST_FILE_CLONE);
+  ASSERT_EQ(status.major, 0);
   op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export, file_state1);
   op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export, file_state2);
 }
