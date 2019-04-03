@@ -43,8 +43,6 @@
 #include "os/subr.h"
 #include "sal_data.h"
 #include "splice_copy.h"
-#include <sys/ioctl.h>
-#define FICLONE _IOW(0x94, 9, int)
 
 fsal_status_t vfs_open_my_fd(struct vfs_fsal_obj_handle *myself,
 			     fsal_openflags_t openflags,
@@ -2194,26 +2192,13 @@ fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
 	return fsal_status;
 }
 
-static int clone_file(int src_fd, int dst_fd, int src_offset,
-			int src_length, int dest_offset)
-{
-        int ret = 0;
-
-        ret = ioctl(dst_fd, FICLONE, src_fd);
-        if (ret < 0) {
-                LogCrit(COMPONENT_FSAL, "failed to clone!");
-                LogCrit(COMPONENT_FSAL, "Error Code : %d", ret);
-                LogCrit(COMPONENT_FSAL, "Errno : %d", errno);
-        }
-
-        return ret;
-}
-
-fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl,
-			  struct fsal_obj_handle *dst_hdl)
+fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+			 struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+			 size_t len, unsigned int flags)
 {
 	int retval = 0, src_fd, dst_fd;
 	struct vfs_fsal_obj_handle *myself;
+	struct file_clone_range *arg;
 
 	LogDebug(COMPONENT_FSAL, "vfs_clone: server-side cloning");
 
@@ -2236,8 +2221,21 @@ fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl,
 	PTHREAD_RWLOCK_rdlock(&src_hdl->obj_lock);
 	/* Clone the file */
 	LogCrit(COMPONENT_FSAL, "Calling clone_file");
-	// TODO Need to get other parameters from client to do range_clone
-	retval = clone_file(src_fd, dst_fd, 0, 0, 0);
+	if (len == -1) {
+		// Perform full copy
+		retval = ioctl(dst_fd, FICLONE, src_fd);
+	}
+	else {
+		// Perform range copy
+		arg = (struct file_clone_range *)malloc(sizeof(struct file_clone_range));
+		arg->src_fd = src_fd;
+		arg->src_offset = *off_in;
+		arg->src_length = len;
+		arg->dest_offset = *off_out;
+		retval = ioctl(dst_fd, FICLONERANGE, arg);
+	}
+	//TODO only supported in kernel>=v4.5. 18.04 comes with 4.15 by default
+	//copy_file_range(src_fd, off_in, dst_fd, off_out, len, flags);
 	if (retval < 0) {
 		LogDebug(COMPONENT_FSAL, "vfs_clone: clone failed");
 		goto out;
