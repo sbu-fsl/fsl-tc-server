@@ -13,6 +13,7 @@
 #include <absl/strings/str_join.h>
 
 #include "id_manager.h"
+#include "txn_context.h"
 #include "txn.pb.h"
 #include "txn_logger.h"
 #define MAX_LEN 64

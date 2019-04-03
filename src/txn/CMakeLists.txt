@@ -71,6 +71,8 @@ add_cpplib(lwrapper leveldb ${GLIB_LIBRARIES})
 
 add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
+add_cpplib(txn_context id_manager)
+
 add_cpplib(lock_manager lwrapper)
 
 # add_cpplib(pre_generate_uuid protobuf)

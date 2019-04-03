@@ -54,6 +54,8 @@ char* uuid_to_buf(uuid_t id);
 // Decodes uuid in |buf| whose size is fixed to TXN_UUID_LEN.
 uuid_t buf_to_uuid(const char* buf);
 
+inline bool uuid_is_null(uuid_t id) { return (id.lo == 0) && (id.hi == 0); }
+
 #ifdef __cplusplus
 }
 #endif
