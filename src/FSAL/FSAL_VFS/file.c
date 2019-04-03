@@ -2233,6 +2233,7 @@ fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 		arg->src_length = len;
 		arg->dest_offset = *off_out;
 		retval = ioctl(dst_fd, FICLONERANGE, arg);
+		free(arg);
 	}
 	//TODO only supported in kernel>=v4.5. 18.04 comes with 4.15 by default
 	//copy_file_range(src_fd, off_in, dst_fd, off_out, len, flags);
