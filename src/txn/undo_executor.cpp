@@ -4,6 +4,7 @@
 #include "lwrapper.h"
 #include "id_manager.h"
 #include <fcntl.h>
+#include <cassert>
 //#include <experimental/filesystem>
 #ifndef F_GETPATH
 #define F_GETPATH (1024 + 7)
@@ -16,32 +17,32 @@ using namespace std;
 void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
   cout << "undo count:" << txn->num_files << endl;
   for (int i = 0; i < txn->num_files; i++) {
-    struct FileId* fid = &txn->created_file_ids[i];
-    cout << "undo" << fid->data << endl;
-
+    struct CreatedObject* oid = &txn->created_file_ids[i];
+    cout << "undo txn path" << oid->path << endl;
+    uuid_t uuid = {.lo = oid->allocated_id.id_low,
+                   .hi = oid->allocated_id.id_high};
     // Reverse lookup record by handle.
+    char* uuidbuf = uuid_to_buf(uuid);
     db_kvpair_t rev_record = {
-        .key = fid->data,
+        .key = uuidbuf,
         .val = NULL,
-        .key_len = strlen(fid->data),
+        .key_len = strlen(uuidbuf),
         .val_len = 0,
     };
     int ret = get_id_handle(&rev_record, 1, db, false);
+    assert(ret == 0);
     struct file_handle* handle = (struct file_handle*)rev_record.val;
-    cout << "key:" << id_to_string(fid->data) << endl;
+    cout << "key:" << id_to_string(uuidbuf) << endl;
     cout << "handle len: " << rev_record.val_len << endl;
     cout << "handle bytes: " << handle->handle_bytes << endl;
 
     int fd = open_by_handle_at(AT_FDCWD, handle, O_RDONLY);
-    // cout << "fd:" << fd << " " << errno << endl;
+    cout << "fd:" << fd << " " << errno << endl;
+    assert(fd != -1);
     char buf[20];
-    char path[PATH_MAX];
     memset(buf, 0, 20);
     read(fd, buf, 20);
     cout << buf << endl;
-    if (fcntl(fd, F_GETPATH, path) != -1) {
-      cout << path << endl;
-    }
     close(fd);
     // cout << ret << endl;
   }

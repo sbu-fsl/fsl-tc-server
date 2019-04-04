@@ -17,11 +17,7 @@
 namespace fs = std::experimental::filesystem;
 using namespace std;
 vector<fs::path> dummy_paths;
-vector<const char*> dummy_uuids;
-
-void txn_processor(struct TxnLog* txn) {
-  std::cout << "enumerating txn_id=" << txn->txn_id << std::endl;
-}
+vector<uuid_t> dummy_uuids;
 
 void txn_write_execute(struct TxnLog* txn) {}
 
@@ -42,16 +38,21 @@ void txn_execute(struct TxnLog* txn) {
 
 void txn_write_build(struct TxnLog* txn) {
   txn->num_files = 2;
-  txn->created_file_ids =
-      (struct FileId*)malloc(sizeof(struct FileId) * txn->num_files);
+  txn->created_file_ids = (struct CreatedObject*)malloc(
+      sizeof(struct CreatedObject) * txn->num_files);
 
   // get uuid from leveldb for each file in dummy_paths
   for (int i = 0; i < txn->num_files; i++) {
-    struct FileId* fid = &txn->created_file_ids[i];
-    fid->data = dummy_uuids[i];
+    struct CreatedObject* oid = &txn->created_file_ids[i];
+    uuid_t uuid = dummy_uuids[i];
+    // oid->data = dummy_uuids[i];
+    cout << "dpath: " << dummy_paths[i] << endl;
+    strcpy(oid->path, dummy_paths[i].c_str());
     // cout << "key:" << id_to_string(fid->data) << endl;
-    fid->file_type = ft_File;
-    fid->flags = 1;
+    oid->allocated_id.file_type = ft_File;
+    oid->allocated_id.id_low = uuid.lo;
+    oid->allocated_id.id_high = uuid.hi;
+    // oid->flags = 1;
   }
 }
 
@@ -95,7 +96,7 @@ void init_test_fs(const string& path, db_store_t* db) {
     int fhsize = 0;
     int flags = 0;
 
-    cout << path << endl;
+    // cout << path << endl;
     int fd = open(path.c_str(), O_CREAT | O_TRUNC | O_WRONLY);
     ASSERT_EQ(write(fd, contents, strlen(contents)), strlen(contents));
     close(fd);
@@ -119,7 +120,7 @@ void init_test_fs(const string& path, db_store_t* db) {
     const char* key = generate_file_id(db);
     cout << "key:" << id_to_string(key) << "handle:" << handle->handle_bytes
          << endl;
-    dummy_uuids.push_back(key);
+    dummy_uuids.push_back(buf_to_uuid(key));
     const char* value = (char*)handle;
     size_t key_len = strlen(key);
     size_t val_len = fhsize;
