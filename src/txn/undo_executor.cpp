@@ -1,29 +1,45 @@
 #include <iostream>
+#include <experimental/filesystem>
 #include "txn_logger.h"
 #include "undo_executor.h"
 #include "lwrapper.h"
 #include "id_manager.h"
 #include <fcntl.h>
 #include <cassert>
-//#include <experimental/filesystem>
-#ifndef F_GETPATH
-#define F_GETPATH (1024 + 7)
-#endif
-// namespace fs = std::experimental::filesystem;
+
+namespace fs = std::experimental::filesystem;
 using namespace std;
 /*
- * Undo write files
+ * Undo write transaction
  */
 void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
   cout << "undo count:" << txn->num_files << endl;
+  db_kvpair_t rev_record;
   for (int i = 0; i < txn->num_files; i++) {
     struct CreatedObject* oid = &txn->created_file_ids[i];
     cout << "undo txn path" << oid->path << endl;
     uuid_t uuid = {.lo = oid->allocated_id.id_low,
                    .hi = oid->allocated_id.id_high};
+    uuid_t null_uuid = uuid_null();
+
+    // if val_len = 0, no backup file => create operation
+    // delete file at path
+    if (memcmp(&uuid, &null_uuid, sizeof(uuid_t)) == 0) {
+      cout << "create " << i << endl;
+      // TODO - check if path exists, if not we can stop here
+      // we should have failed at this operation
+      if (fs::exists(oid->path)) {
+        fs::remove(oid->path);
+      }
+      continue;
+    }
+    cout << "write " << i << endl;
     // Reverse lookup record by handle.
     char* uuidbuf = uuid_to_buf(uuid);
-    db_kvpair_t rev_record = {
+    fs::path bkppath = txn->backup_dir_path;
+    bkppath = bkppath / id_to_string(uuidbuf);
+
+    rev_record = {
         .key = uuidbuf,
         .val = NULL,
         .key_len = strlen(uuidbuf),
@@ -31,20 +47,18 @@ void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
     };
     int ret = get_id_handle(&rev_record, 1, db, false);
     assert(ret == 0);
-    struct file_handle* handle = (struct file_handle*)rev_record.val;
-    cout << "key:" << id_to_string(uuidbuf) << endl;
-    cout << "handle len: " << rev_record.val_len << endl;
-    cout << "handle bytes: " << handle->handle_bytes << endl;
+    // Don't need the file handle right now
+    // struct file_handle* handle = (struct file_handle*)rev_record.val;
+    // int fd = open_by_handle_at(AT_FDCWD, handle, O_RDONLY);
+    // assert(fd != -1);
+    // close(fd);
 
-    int fd = open_by_handle_at(AT_FDCWD, handle, O_RDONLY);
-    cout << "fd:" << fd << " " << errno << endl;
-    assert(fd != -1);
-    char buf[20];
-    memset(buf, 0, 20);
-    read(fd, buf, 20);
-    cout << buf << endl;
-    close(fd);
-    // cout << ret << endl;
+    // rename backup_dir_path/uuid to path
+    fs::rename(bkppath, oid->path);
+    // finished restore of files
+    // delete the txn in db
+    ret = delete_id_handle(&rev_record, 1, db, false);
+    assert(ret == 0);
   }
 }
 
