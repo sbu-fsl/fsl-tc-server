@@ -120,6 +120,7 @@ int delete_transaction(db_kvpair_t* kvp, const int nums,
  * must call this after consumption of txn-records returned 
  */
 void cleanup_transaction_iterator(db_kvpair_t** records, int nrecs); 
+
 #ifdef __cplusplus
 }
 #endif

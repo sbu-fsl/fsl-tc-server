@@ -24,6 +24,14 @@ constexpr int kUUIDReserveBatchSize = 4096;
 // also means that ids with high component of 0 are reserved.
 constexpr absl::uint128 root_file_id = absl::MakeUint128(/*high=*/1, 0);
 
+constexpr absl::uint128 null_file_id = absl::MakeUint128(/*high=*/0, 0);
+
+// This is an abstract id that represents the id of the current file handle.
+constexpr absl::uint128 current_file_id = absl::MakeUint128(/*high=*/0, 1);
+
+// This is an abstract id that represents the id of the saved file handle.
+constexpr absl::uint128 saved_file_id = absl::MakeUint128(/*high=*/0, 2);
+
 // We store a next_file_id and max_reserved_id in memory to prevent constantly
 // hitting the database.
 absl::uint128 next_file_id = absl::MakeUint128(1, 1);
@@ -59,8 +67,6 @@ int uuid_batch_reserve(const db_store_t *db) {
   return ret;
 }
 
-}  // namespace
-
 absl::uint128 buf_to_uint128(const char *buf) {
   absl::uint128 n(0);
 
@@ -68,6 +74,8 @@ absl::uint128 buf_to_uint128(const char *buf) {
 
   return n;
 }
+
+}  // namespace
 
 uint64_t get_lower_half(const char *buf) {
   return absl::Uint128Low64(buf_to_uint128(buf));
@@ -134,6 +142,10 @@ uuid_t uuid_root() {
   return absl::bit_cast<uuid_t>(root_file_id);
 }
 
+uuid_t uuid_null() {
+  return absl::bit_cast<uuid_t>(null_file_id);
+}
+
 uuid_t uuid_next(uuid_t current) {
   absl::uint128 u128 = absl::bit_cast<absl::uint128>(current);
   u128 += 1;
@@ -147,4 +159,12 @@ uuid_t uuid_allocate(db_store_t *db, int n) {
     if (uuid_batch_reserve(db) != 0) std::abort();
   }
   return absl::bit_cast<uuid_t>(std::exchange(next_file_id, new_next));
+}
+
+char *uuid_to_buf(uuid_t id) {
+  return uint128_to_buf(absl::bit_cast<absl::uint128>(id));
+}
+
+uuid_t buf_to_uuid(const char* buf) {
+  return absl::bit_cast<uuid_t>(buf_to_uint128(buf));
 }
