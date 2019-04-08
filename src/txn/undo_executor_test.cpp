@@ -102,33 +102,45 @@ class UndoExecutor : public ::testing::Test {
     }
   }
 
-  // add 1 writes and file create using base ObjectId
+  // add 10 writes and file creates using absolute paths
   //
   void txn_write_base(struct TxnLog* txn) {
-    int i = 4;  // we have 10 files
-    txn->num_files = 2;
+    txn->num_files = create_paths.size() + write_paths.size();
     txn->created_file_ids = (struct CreatedObject*)malloc(
         sizeof(struct CreatedObject) * txn->num_files);
-
+    int i = 0;
+    // populate 10 write ops, and 10 create ops
     // get uuid from leveldb for each file in write_paths
-    struct CreatedObject* oid = &txn->created_file_ids[i];
-    uuid_t uuid = write_uuids[i];
-    fs::path bkppath = bkproot;
-    const char* filename = id_to_string(uuid_to_buf(uuid));
-    bkppath = bkppath / filename;
-    // snapshot file
-    fs::copy_file(write_paths[i], bkppath);
+    for (; i < (int)write_paths.size(); i++) {
+      struct CreatedObject* oid = &txn->created_file_ids[i];
+      uuid_t uuid = write_uuids[i];
+      fs::path bkppath = bkproot;
+      bkppath = bkppath / id_to_string(uuid_to_buf(uuid));
+      // snapshot file
+      fs::copy_file(write_paths[i], bkppath);
 
-    // copy original filename
-    strcpy(oid->path, filename);
+      // copy original path
+      memset(&oid->base_id, 0, sizeof(struct ObjectId));
+      strcpy(oid->path, write_paths[i].filename().c_str());
+      memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
+      oid->allocated_id.file_type = ft_File;
+      oid->allocated_id.id_low = uuid.lo;
+      oid->allocated_id.id_high = uuid.hi;
+    }
 
-    // set base
-    memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
+    for (; i < txn->num_files; i++) {
+      struct CreatedObject* oid = &txn->created_file_ids[i];
+      fs::path bkppath = bkproot;
+      // no snapshot
 
-    // set allocated id
-    oid->allocated_id.file_type = ft_File;
-    oid->allocated_id.id_low = uuid.lo;
-    oid->allocated_id.id_high = uuid.hi;
+      // copy original path
+      strcpy(oid->path,
+             create_paths[i - write_paths.size()].filename().c_str());
+      // this would be a generated uuid
+      uuid_t tuuid = buf_to_uuid(generate_file_id(db));
+      memcpy(&oid->allocated_id, &tuuid, sizeof(struct ObjectId));
+      memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
+    }
   }
 
   struct file_handle* path_to_fhandle(const char* path) {
@@ -149,6 +161,7 @@ class UndoExecutor : public ::testing::Test {
 
     return handle;
   }
+
   void insert_handle(char* key, struct file_handle* handle) {
     db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
     write_uuids.push_back(buf_to_uuid(key));
@@ -164,6 +177,7 @@ class UndoExecutor : public ::testing::Test {
     int ret = put_id_handle(record, 1, db);
     EXPECT_EQ(ret, 0);
   }
+
   void init_test_fs(const string& path, db_store_t* db) {
     struct file_handle* handle;
     char* key;
@@ -239,7 +253,7 @@ TEST_F(UndoExecutor, WriteTxnWithAbsolutePath) {
   }
 }
 
-TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
+TEST_F(UndoExecutor, WriteTxnWithBase) {
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb
@@ -250,14 +264,13 @@ TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
 
   undo_txn_execute(&txn, db);
 
-  /*// enumerate backup directory
+  // enumerate backup directory
   // all the backups should have been renamed to original
   ASSERT_EQ(
       std::distance(fs::directory_iterator(bkproot), fs::directory_iterator{}),
       0);
 
-  // check file contents of dummy_file_path
-  // should be original
+  // check file contents of dummy_file_path should be original
   for (auto& path : write_paths) {
     int fd;
     char buf[80];
@@ -267,18 +280,6 @@ TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
     ASSERT_STREQ(buf, original);
     close(fd);
   }
-
-  // check database, uuid entries should disappear
-  for (auto& uuid : write_uuids) {
-    auto buf = uuid_to_buf(uuid);
-    db_kvpair_t rev_record = {
-        .key = buf,
-        .val = NULL,
-        .key_len = strlen(buf),
-        .val_len = 0,
-    };
-    ASSERT_EQ(0, get_id_handle(&rev_record, 1, db, false));
-  }*/
 }
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

@@ -68,10 +68,10 @@ int handle_exists(db_store_t* db, struct file_handle* handle) {
   db_kvpair_t rev_record;
 
   rev_record = {
-      .key = NULL,
-      .val = (char*)handle,
-      .key_len = 0,
-      .val_len = sizeof(struct file_handle) + handle->handle_bytes,
+      .key = (char*)handle,
+      .val = NULL,
+      .key_len = sizeof(struct file_handle) + handle->handle_bytes,
+      .val_len = 0,
   };
   int ret = get_id_handle(&rev_record, 1, db, true);
 
@@ -112,13 +112,18 @@ void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
       if (handle) {
         if (handle_exists(db, handle) == 0) {
           // restore backup
+          cout << "rename " << bkproot / id_to_string(uuid_to_buf(allocated_id))
+               << original_path << endl;
           fs::rename(bkproot / id_to_string(uuid_to_buf(allocated_id)),
                      original_path);
         } else {
-          assert(fs::exists(original_path));
-          fs::remove(original_path);
+          cout << "remove " << original_path << endl;
+          if (fs::exists(original_path)) {
+            fs::remove(original_path);
+          }
         }
       }
+      close(base_fd);
     } else {
       cout << "file with absolute path" << endl;
       original_path = oid->path;
@@ -126,17 +131,17 @@ void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
       // this must be create, failed to create file in txn
       if (allocated_handle) {
         // restore backup
+        cout << "rename " << bkproot / id_to_string(uuid_to_buf(allocated_id))
+             << original_path << endl;
         fs::rename(bkproot / id_to_string(uuid_to_buf(allocated_id)),
                    original_path);
       } else {
+        cout << "remove " << original_path << endl;
         if (fs::exists(original_path)) {
           fs::remove(original_path);
         }
       }
     }
-  }
-  if (base_fd != -1) {
-    close(base_fd);
   }
 }
 
