@@ -19,6 +19,7 @@ void get_dir_path(int dfd, char* path) {
   fchdir(dirfd(save));
   closedir(save);
 }
+
 struct file_handle* check_txn_path(int dirfd, const char* path) {
   struct file_handle* handle;
   int mount_id;
@@ -92,11 +93,13 @@ void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
     struct file_handle *base_handle = NULL, *allocated_handle = NULL;
     struct CreatedObject* oid = &txn->created_file_ids[i];
     cout << "undo txn path" << oid->path << endl;
+    assert(oid->allocated_id.file_type == ft_File);
     fs::path original_path;
     uuid_t base_id = {.lo = oid->base_id.id_low, .hi = oid->base_id.id_high};
     uuid_t allocated_id = {.lo = oid->allocated_id.id_low,
                            .hi = oid->allocated_id.id_high};
     if (memcmp(&base_id, &null_uuid, sizeof(uuid_t)) != 0) {
+      assert(oid->base_id.file_type == ft_Directory);
       base_handle = uuid_to_handle(db, base_id);
       base_fd = open_by_handle_at(AT_FDCWD, base_handle, O_RDONLY);
     }

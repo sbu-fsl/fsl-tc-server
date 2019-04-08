@@ -97,7 +97,8 @@ class UndoExecutor : public ::testing::Test {
       strcpy(oid->path, create_paths[i - write_paths.size()].c_str());
       // this would be a generated uuid
       uuid_t tuuid = buf_to_uuid(generate_file_id(db));
-      memcpy(&oid->allocated_id, &tuuid, sizeof(struct ObjectId));
+      oid->allocated_id.file_type = ft_File;
+      memcpy(&oid->allocated_id, &tuuid, sizeof(uuid_t));
       memset(&oid->base_id, 0, sizeof(struct ObjectId));
     }
   }
@@ -137,8 +138,9 @@ class UndoExecutor : public ::testing::Test {
       strcpy(oid->path,
              create_paths[i - write_paths.size()].filename().c_str());
       // this would be a generated uuid
+      oid->allocated_id.file_type = ft_File;
       uuid_t tuuid = buf_to_uuid(generate_file_id(db));
-      memcpy(&oid->allocated_id, &tuuid, sizeof(struct ObjectId));
+      memcpy(&oid->allocated_id, &tuuid, sizeof(uuid_t));
       memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
     }
   }
