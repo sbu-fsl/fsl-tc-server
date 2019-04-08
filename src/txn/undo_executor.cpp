@@ -83,14 +83,13 @@ int handle_exists(db_store_t* db, struct file_handle* handle) {
 void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
   cout << "undo count:" << txn->num_files << endl;
   int base_fd;
-  struct file_handle *handle = NULL, *base_handle = NULL,
-                     *allocated_handle = NULL;
   uuid_t null_uuid = uuid_null();
 
   // backup directory for this txn
   fs::path bkproot = txn->backup_dir_path;
 
   for (int i = 0; i < txn->num_files; i++) {
+    struct file_handle *base_handle = NULL, *allocated_handle = NULL;
     struct CreatedObject* oid = &txn->created_file_ids[i];
     cout << "undo txn path" << oid->path << endl;
     fs::path original_path;

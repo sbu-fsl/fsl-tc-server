@@ -251,6 +251,11 @@ TEST_F(UndoExecutor, WriteTxnWithAbsolutePath) {
     ASSERT_STREQ(buf, original);
     close(fd);
   }
+
+  // assert the created paths were removed
+  for (auto& path : create_paths) {
+    ASSERT_FALSE(fs::exists(path));
+  }
 }
 
 TEST_F(UndoExecutor, WriteTxnWithBase) {
@@ -279,6 +284,11 @@ TEST_F(UndoExecutor, WriteTxnWithBase) {
     ASSERT_EQ(read(fd, buf, 80), strlen(original));
     ASSERT_STREQ(buf, original);
     close(fd);
+  }
+
+  // assert the created paths were removed
+  for (auto& path : create_paths) {
+    ASSERT_FALSE(fs::exists(path));
   }
 }
 int main(int argc, char** argv) {
