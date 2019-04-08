@@ -23,6 +23,7 @@ class UndoExecutor : public ::testing::Test {
   vector<uuid_t> write_uuids;
   // create files
   vector<fs::path> create_paths;
+  struct ObjectId base;
 
   const char* original = "original";
   db_store_t* db;
@@ -32,6 +33,20 @@ class UndoExecutor : public ::testing::Test {
 
   virtual void SetUp() {
     srand(time(NULL));
+
+    // cleanup, incase we crashed last time
+    if (fs::exists(fsroot)) {
+      fs::remove_all(fsroot);
+    }
+    if (fs::exists(bkproot)) {
+      fs::remove_all(bkproot);
+    }
+    if (fs::exists(dbfile)) {
+      fs::remove_all(dbfile);
+    }
+
+    // setup base
+    base.file_type = ft_Directory;
 
     // open database for file_handle lookup
     db = init_db_store(dbfile.c_str(), true);
@@ -45,17 +60,19 @@ class UndoExecutor : public ::testing::Test {
 
   virtual void TearDown() {
     destroy_db_store(db);
-    // fs::remove_all(fsroot);
+    fs::remove_all(fsroot);
   }
 
-  void txn_write_build(struct TxnLog* txn) {
+  // add 10 writes and file creates using absolute paths
+  //
+  void txn_write_absolute(struct TxnLog* txn) {
     txn->num_files = create_paths.size() + write_paths.size();
     txn->created_file_ids = (struct CreatedObject*)malloc(
         sizeof(struct CreatedObject) * txn->num_files);
     int i = 0;
     // populate 10 write ops, and 10 create ops
     // get uuid from leveldb for each file in write_paths
-    for (; i < write_paths.size(); i++) {
+    for (; i < (int)write_paths.size(); i++) {
       struct CreatedObject* oid = &txn->created_file_ids[i];
       uuid_t uuid = write_uuids[i];
       fs::path bkppath = bkproot;
@@ -64,7 +81,7 @@ class UndoExecutor : public ::testing::Test {
       fs::copy_file(write_paths[i], bkppath);
 
       // copy original path
-      memset(&oid->base, 0, sizeof(struct ObjectId));
+      memset(&oid->base_id, 0, sizeof(struct ObjectId));
       strcpy(oid->path, write_paths[i].c_str());
       oid->allocated_id.file_type = ft_File;
       oid->allocated_id.id_low = uuid.lo;
@@ -78,17 +95,91 @@ class UndoExecutor : public ::testing::Test {
 
       // copy original path
       strcpy(oid->path, create_paths[i - write_paths.size()].c_str());
-      memset(&oid->allocated_id, 0, sizeof(struct ObjectId));
-      memset(&oid->base, 0, sizeof(struct ObjectId));
+      // this would be a generated uuid
+      uuid_t tuuid = buf_to_uuid(generate_file_id(db));
+      memcpy(&oid->allocated_id, &tuuid, sizeof(struct ObjectId));
+      memset(&oid->base_id, 0, sizeof(struct ObjectId));
     }
   }
 
+  // add 1 writes and file create using base ObjectId
+  //
+  void txn_write_base(struct TxnLog* txn) {
+    int i = 4;  // we have 10 files
+    txn->num_files = 2;
+    txn->created_file_ids = (struct CreatedObject*)malloc(
+        sizeof(struct CreatedObject) * txn->num_files);
+
+    // get uuid from leveldb for each file in write_paths
+    struct CreatedObject* oid = &txn->created_file_ids[i];
+    uuid_t uuid = write_uuids[i];
+    fs::path bkppath = bkproot;
+    const char* filename = id_to_string(uuid_to_buf(uuid));
+    bkppath = bkppath / filename;
+    // snapshot file
+    fs::copy_file(write_paths[i], bkppath);
+
+    // copy original filename
+    strcpy(oid->path, filename);
+
+    // set base
+    memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
+
+    // set allocated id
+    oid->allocated_id.file_type = ft_File;
+    oid->allocated_id.id_low = uuid.lo;
+    oid->allocated_id.id_high = uuid.hi;
+  }
+
+  struct file_handle* path_to_fhandle(const char* path) {
+    struct file_handle* handle;
+    int mount_id;
+    int fhsize = 0;
+    int flags = 0;
+    fhsize = sizeof(*handle);
+    handle = (struct file_handle*)malloc(fhsize);
+    handle->handle_bytes = 0;
+
+    EXPECT_EQ(name_to_handle_at(AT_FDCWD, path, handle, &mount_id, flags), -1);
+
+    fhsize = sizeof(struct file_handle) + handle->handle_bytes;
+    handle = (struct file_handle*)realloc(
+        handle, fhsize); /* Copies handle->handle_bytes */
+    EXPECT_EQ(name_to_handle_at(AT_FDCWD, path, handle, &mount_id, flags), 0);
+
+    return handle;
+  }
+  void insert_handle(char* key, struct file_handle* handle) {
+    db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
+    write_uuids.push_back(buf_to_uuid(key));
+    const char* value = (char*)handle;
+    size_t key_len = strlen(key);
+    size_t val_len = sizeof(struct file_handle) + handle->handle_bytes;
+    record->key = key;
+    record->val = value;
+    record->key_len = key_len;
+    record->val_len = val_len;
+
+    // commit first transaction
+    int ret = put_id_handle(record, 1, db);
+    EXPECT_EQ(ret, 0);
+  }
   void init_test_fs(const string& path, db_store_t* db) {
+    struct file_handle* handle;
+    char* key;
 
     ASSERT_EQ(initialize_id_manager(db), 0);
     // root for dummy files
     fs::path fsroot = path;
     fs::create_directory(fsroot);
+    // insert handle
+    handle = path_to_fhandle(fsroot.c_str());
+    key = generate_file_id(db);
+    insert_handle(key, handle);
+
+    uuid_t baseuuid = buf_to_uuid(key);
+    base.id_low = baseuuid.lo;
+    base.id_high = baseuuid.hi;
 
     // create 10 files
     for (int i = 0; i < 10; i++) {
@@ -98,43 +189,16 @@ class UndoExecutor : public ::testing::Test {
 
     for (auto& path : write_paths) {
       struct file_handle* handle;
-      int mount_id;
-      int fhsize = 0;
-      int flags = 0;
 
+      // create a file
       int fd = open(path.c_str(), O_CREAT | O_TRUNC | O_WRONLY);
       ASSERT_EQ(write(fd, original, strlen(original)), strlen(original));
       close(fd);
 
-      fhsize = sizeof(*handle);
-      handle = (struct file_handle*)malloc(fhsize);
-      handle->handle_bytes = 0;
-
-      ASSERT_EQ(
-          name_to_handle_at(AT_FDCWD, path.c_str(), handle, &mount_id, flags),
-          -1);
-
-      fhsize = sizeof(struct file_handle) + handle->handle_bytes;
-      handle = (struct file_handle*)realloc(
-          handle, fhsize); /* Copies handle->handle_bytes */
-      ASSERT_EQ(
-          name_to_handle_at(AT_FDCWD, path.c_str(), handle, &mount_id, flags),
-          0);
-
-      db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
-      const char* key = generate_file_id(db);
-      write_uuids.push_back(buf_to_uuid(key));
-      const char* value = (char*)handle;
-      size_t key_len = strlen(key);
-      size_t val_len = fhsize;
-      record->key = key;
-      record->val = value;
-      record->key_len = key_len;
-      record->val_len = val_len;
-
-      // commit first transaction
-      int ret = put_id_handle(record, 1, db);
-      ASSERT_FALSE(ret);
+      // put handle in leveldb
+      handle = path_to_fhandle(path.c_str());
+      key = generate_file_id(db);
+      insert_handle(key, handle);
     }
 
     // create 10 files
@@ -143,37 +207,50 @@ class UndoExecutor : public ::testing::Test {
       create_paths.emplace_back(fsroot / ("c" + to_string(i)));
     }
   }
-
-  // build txnlog with dummy file paths
-  //
-  void txn_build(enum CompoundType compound_type, struct TxnLog* txn) {
-    txn->compound_type = compound_type;
-    txn->txn_id = rand();
-    txn->backup_dir_path = bkproot.c_str();
-    switch (compound_type) {
-      case txn_VWrite:
-        txn_write_build(txn);
-        break;
-      case txn_VNone:
-      case txn_VCreate:
-      case txn_VMkdir:
-      case txn_VRename:
-      case txn_VUnlink:
-      case txn_VSymlink:
-        break;
-    }
-  }
 };
 
-TEST_F(UndoExecutor, SuccessTxn) {
+TEST_F(UndoExecutor, WriteTxnWithAbsolutePath) {
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb
-  txn_build(txn_VWrite, &txn);
+  txn.compound_type = txn_VWrite;
+  txn.txn_id = rand();
+  txn.backup_dir_path = bkproot.c_str();
+  txn_write_absolute(&txn);
 
   undo_txn_execute(&txn, db);
 
   // enumerate backup directory
+  // all the backups should have been renamed to original
+  ASSERT_EQ(
+      std::distance(fs::directory_iterator(bkproot), fs::directory_iterator{}),
+      0);
+
+  // check file contents of dummy_file_path
+  // should be original
+  for (auto& path : write_paths) {
+    int fd;
+    char buf[80];
+    fd = open(path.c_str(), O_RDONLY);
+    ASSERT_GT(fd, 2);
+    ASSERT_EQ(read(fd, buf, 80), strlen(original));
+    ASSERT_STREQ(buf, original);
+    close(fd);
+  }
+}
+
+TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
+  struct TxnLog txn;
+  // write txnlog entry
+  // with dummy files and populate file handles in leveldb
+  txn.compound_type = txn_VWrite;
+  txn.txn_id = rand();
+  txn.backup_dir_path = bkproot.c_str();
+  txn_write_base(&txn);
+
+  undo_txn_execute(&txn, db);
+
+  /*// enumerate backup directory
   // all the backups should have been renamed to original
   ASSERT_EQ(
       std::distance(fs::directory_iterator(bkproot), fs::directory_iterator{}),
@@ -201,27 +278,8 @@ TEST_F(UndoExecutor, SuccessTxn) {
         .val_len = 0,
     };
     ASSERT_EQ(0, get_id_handle(&rev_record, 1, db, false));
-  }
+  }*/
 }
-
-TEST_F(UndoExecutor, DISABLED_PartialTxn) {
-  srand(time(NULL));
-  struct txn_backend* backend;
-  string dbroot = "/tmp/executordb";
-  init_ldbtxn_backend(dbroot.c_str(), "txn_", &backend);
-
-  backend->backend_init();
-  // build TxnLog entry
-  //
-
-  // execute complete transaction
-  //
-
-  // check no undo operations
-  //
-  fs::remove_all(dbroot);
-}
-
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

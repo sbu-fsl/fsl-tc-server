@@ -36,7 +36,7 @@ struct ObjectId {
 };
 
 struct CreatedObject {
-  ObjectId base;
+  ObjectId base_id;
   char path[PATH_MAX];
   ObjectId allocated_id;
 };
