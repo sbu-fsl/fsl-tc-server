@@ -23,6 +23,7 @@ class UndoExecutor : public ::testing::Test {
   vector<uuid_t> write_uuids;
   // create files
   vector<fs::path> create_paths;
+  vector<fs::path> create_dir_paths;
   struct ObjectId base;
 
   const char* original = "original";
@@ -60,7 +61,7 @@ class UndoExecutor : public ::testing::Test {
 
   virtual void TearDown() {
     destroy_db_store(db);
-    fs::remove_all(fsroot);
+    // fs::remove_all(fsroot);
   }
 
   // add 10 writes and file creates using absolute paths
@@ -103,7 +104,7 @@ class UndoExecutor : public ::testing::Test {
     }
   }
 
-  // add 10 writes and file creates using absolute paths
+  // add 10 writes and file creates using base paths
   //
   void txn_write_base(struct TxnLog* txn) {
     txn->num_files = create_paths.size() + write_paths.size();
@@ -145,6 +146,25 @@ class UndoExecutor : public ::testing::Test {
     }
   }
 
+  // add 10 dir creates using base paths
+  //
+  void txn_create_base(struct TxnLog* txn) {
+    txn->num_files = create_dir_paths.size();
+    txn->created_file_ids = (struct CreatedObject*)malloc(
+        sizeof(struct CreatedObject) * txn->num_files);
+    for (int i = 0; i < txn->num_files; i++) {
+      struct CreatedObject* oid = &txn->created_file_ids[i];
+      // no snapshot
+      fs::create_directory(create_dir_paths[i]);
+      // copy original path
+      strcpy(oid->path, create_dir_paths[i].filename().c_str());
+      // this would be a generated uuid
+      oid->allocated_id.file_type = ft_Directory;
+      uuid_t tuuid = buf_to_uuid(generate_file_id(db));
+      memcpy(&oid->allocated_id, &tuuid, sizeof(uuid_t));
+      memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
+    }
+  }
   struct file_handle* path_to_fhandle(const char* path) {
     struct file_handle* handle;
     int mount_id;
@@ -178,6 +198,7 @@ class UndoExecutor : public ::testing::Test {
     // commit first transaction
     int ret = put_id_handle(record, 1, db);
     EXPECT_EQ(ret, 0);
+    EXPECT_EQ(commit_transaction(record, 1, db), 0);
   }
 
   void init_test_fs(const string& path, db_store_t* db) {
@@ -214,7 +235,7 @@ class UndoExecutor : public ::testing::Test {
       // put handle in leveldb
       handle = path_to_fhandle(path.c_str());
       key = generate_file_id(db);
-      insert_handle(key, handle);
+      /*insert_handle(key, handle);*/
     }
 
     // create 10 files
@@ -222,10 +243,16 @@ class UndoExecutor : public ::testing::Test {
       // insert entry in write_paths
       create_paths.emplace_back(fsroot / ("c" + to_string(i)));
     }
+
+    // create 10 files
+    for (int i = 0; i < 10; i++) {
+      // insert entry in write_paths
+      create_dir_paths.emplace_back(fsroot / ("d" + to_string(i)));
+    }
   }
 };
 
-TEST_F(UndoExecutor, WriteTxnWithAbsolutePath) {
+TEST_F(UndoExecutor, DISABLED_WriteTxnWithAbsolutePath) {
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb
@@ -260,7 +287,7 @@ TEST_F(UndoExecutor, WriteTxnWithAbsolutePath) {
   }
 }
 
-TEST_F(UndoExecutor, WriteTxnWithBase) {
+TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb
@@ -290,6 +317,24 @@ TEST_F(UndoExecutor, WriteTxnWithBase) {
 
   // assert the created paths were removed
   for (auto& path : create_paths) {
+    ASSERT_FALSE(fs::exists(path));
+  }
+}
+
+TEST_F(UndoExecutor, CreateTxnWithBase) {
+  struct TxnLog txn;
+  // write txnlog entry
+  // with dummy files and populate file handles in leveldb
+  txn.compound_type = txn_VCreate;
+  txn.txn_id = rand();
+  // don't need backups for create
+  txn.backup_dir_path = NULL;
+  txn_create_base(&txn);
+
+  undo_txn_execute(&txn, db);
+
+  // assert the created paths were removed
+  for (auto& path : create_dir_paths) {
     ASSERT_FALSE(fs::exists(path));
   }
 }
