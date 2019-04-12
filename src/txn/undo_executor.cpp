@@ -75,7 +75,8 @@ int handle_exists(db_store_t* db, struct file_handle* handle) {
       .val_len = 0,
   };
   int ret = get_id_handle(&rev_record, 1, db, true);
-  cout << ret << rev_record.val_len << " " << rev_record.val << endl;
+  cout << "ret= " << ret << "val_len = " << rev_record.val_len << " "
+       << rev_record.val << endl;
   return ret;
 }
 
@@ -159,7 +160,7 @@ void undo_txn_create_execute(struct TxnLog* txn, db_store_t* db) {
   for (int i = 0; i < txn->num_files; i++) {
     struct file_handle *base_handle = NULL, *allocated_handle = NULL;
     struct CreatedObject* oid = &txn->created_file_ids[i];
-    cout << "undo txn path" << oid->path << endl;
+    cout << i << ": undo txn path" << oid->path << endl;
     assert(oid->allocated_id.file_type == ft_Directory);
     fs::path original_path;
     uuid_t base_id = {.lo = oid->base_id.id_low, .hi = oid->base_id.id_high};

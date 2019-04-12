@@ -33,9 +33,9 @@ class TxnTest : public ::testing::Test {
   struct RenameId created_renames[1];
   virtual void SetUp() {
     // create
-    created_file[0].base.id_low = 123;
-    created_file[0].base.id_high = 456;
-    created_file[0].base.file_type = ft_File;
+    created_file[0].base_id.id_low = 123;
+    created_file[0].base_id.id_high = 456;
+    created_file[0].base_id.file_type = ft_File;
 
     created_file[0].allocated_id.id_low = 123;
     created_file[0].allocated_id.id_high = 456;
@@ -118,7 +118,7 @@ class TxnTest : public ::testing::Test {
 
   int compare(struct CreatedObject *cobj1, struct CreatedObject *cobj2) {
     EXPECT_STREQ(cobj1->path, cobj2->path);
-    if (compare(&cobj1->base, &cobj2->base) != 0) return 1;
+    if (compare(&cobj1->base_id, &cobj2->base_id) != 0) return 1;
     if (compare(&cobj1->allocated_id, &cobj2->allocated_id) != 0) return 1;
     return 0;
   }

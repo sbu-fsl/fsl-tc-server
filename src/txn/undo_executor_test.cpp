@@ -165,6 +165,7 @@ class UndoExecutor : public ::testing::Test {
       memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
     }
   }
+
   struct file_handle* path_to_fhandle(const char* path) {
     struct file_handle* handle;
     int mount_id;
@@ -188,7 +189,7 @@ class UndoExecutor : public ::testing::Test {
     db_kvpair_t* record = (db_kvpair_t*)malloc(sizeof(db_kvpair_t));
     write_uuids.push_back(buf_to_uuid(key));
     const char* value = (char*)handle;
-    size_t key_len = strlen(key);
+    size_t key_len = TXN_UUID_LEN;  // Ming: strlen(key) is wrong
     size_t val_len = sizeof(struct file_handle) + handle->handle_bytes;
     record->key = key;
     record->val = value;
@@ -322,6 +323,7 @@ TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
 }
 
 TEST_F(UndoExecutor, CreateTxnWithBase) {
+ fprintf(stderr, "!!!!!Starting test!!!!!\n");
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb

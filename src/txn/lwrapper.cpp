@@ -174,16 +174,15 @@ static void generate_db_keys(db_kvpair_t* kvp, const char* prefix,
   db_kvpair_t* curr_new_kvp = new_kvp;
 
   while (i < nums) {
-    size_t len = curr_kvp->key_len + strlen(prefix) + 1;
+    size_t len = curr_kvp->key_len + strlen(prefix);
     char* temp = (char*)malloc(sizeof(char) * len);
     // key => Transaction_prefix concats transaction ID
     strcpy(temp, prefix);
-    strcat(temp, curr_kvp->key);
-    temp[len - 1] = '\0';
+    memcpy(temp + strlen(prefix), curr_kvp->key, curr_kvp->key_len);
     // new allocated key will be automatically freed by the caller of commit
     // transaction api
     curr_new_kvp->key = temp;
-    curr_new_kvp->key_len = strlen(temp);
+    curr_new_kvp->key_len = len;
     if (alloc_val_mem) {
       curr_new_kvp->val = memdup(curr_kvp->val, curr_kvp->val_len);
       curr_new_kvp->val_len = curr_kvp->val_len;
@@ -208,6 +207,15 @@ static void cleanup_allocated_kvps(db_kvpair_t* kvp, int nums) {
     SAFE_FREE(curr);
   }
 }
+
+void print_buf(const char* buf, size_t buf_len) {
+  fprintf(stderr, "buf at %p: ", buf);
+  for (size_t i = 0; i < buf_len; ++i) {
+    fprintf(stderr, "%.2x", (int)buf[i]);
+  }
+  fprintf(stderr, "\n");
+}
+
 /*
  * caller is owner of key, value pair memory. caller need to release the
  * memory
@@ -226,6 +234,10 @@ int put_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
   db_kvpair_t* curr = kvp;
 
   while (i < nums) {
+    fprintf(stderr, "putting key ==== ");
+    print_buf(curr->key, curr->key_len);
+    fprintf(stderr, "putting value ==== ");
+    print_buf(curr->val, curr->val_len);
     leveldb_writebatch_put(write_batch, curr->key, curr->key_len,
                            curr->val, curr->val_len);
     i++;
@@ -252,9 +264,15 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
 
   if (nums == 0) return 0;
 
+  fprintf(stderr, "key ==== ");
+  print_buf(kvp->key, kvp->key_len);
+  fprintf(stderr, "before kvp->val_len: %zd\n", kvp->val_len);
   if (nums == 1) {
     kvp->val = leveldb_get(db_st->db, db_st->r_options, kvp->key, kvp->key_len,
                            &(kvp->val_len), &err);
+    fprintf(stderr, "nums = %d\n", nums);
+    fprintf(stderr, "kvp->val: %p\n", kvp->val);
+    fprintf(stderr, "after kvp->val_len: %zd\n", kvp->val_len);
     CHECK_ERR(err);
 
 #ifdef DEBUG
@@ -270,6 +288,8 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
     while (i < nums) {
       curr->val = leveldb_get(db_st->db, db_st->r_options, curr->key,
                               curr->key_len, &(curr->val_len), &err);
+    fprintf(stderr, "nums = %d", nums);
+      fprintf(stderr, "curr->val: %p", curr->val);
       if (err != NULL) {
         /* reset error var */
         leveldb_free(err);
@@ -382,6 +402,7 @@ int get_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
   if (ret) return ret;
 
   while (i < nums) {
+    fprintf(stderr, "get_id_handle(): value_len = %zd\n", new_kvp->val_len);
     int len = curr_kvp->val_len = new_kvp->val_len;
     if (len) {
       curr_kvp->val = memdup(new_kvp->val, len);
