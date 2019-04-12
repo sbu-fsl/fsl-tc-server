@@ -236,7 +236,7 @@ class UndoExecutor : public ::testing::Test {
       // put handle in leveldb
       handle = path_to_fhandle(path.c_str());
       key = generate_file_id(db);
-      /*insert_handle(key, handle);*/
+      insert_handle(key, handle);
     }
 
     // create 10 files
@@ -323,7 +323,7 @@ TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
 }
 
 TEST_F(UndoExecutor, CreateTxnWithBase) {
- fprintf(stderr, "!!!!!Starting test!!!!!\n");
+  fprintf(stderr, "!!!!!Starting test!!!!!\n");
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb

@@ -54,7 +54,7 @@ struct file_handle* uuid_to_handle(db_store_t* db, uuid_t uuid) {
   rev_record = {
       .key = uuidbuf,
       .val = NULL,
-      .key_len = strlen(uuidbuf),
+      .key_len = TXN_UUID_LEN,
       .val_len = 0,
   };
   int ret = get_id_handle(&rev_record, 1, db, false);
@@ -77,7 +77,7 @@ int handle_exists(db_store_t* db, struct file_handle* handle) {
   int ret = get_id_handle(&rev_record, 1, db, true);
   cout << "ret= " << ret << "val_len = " << rev_record.val_len << " "
        << rev_record.val << endl;
-  return ret;
+  return rev_record.val_len > 0 ? ret : -1;
 }
 
 /*
@@ -166,15 +166,12 @@ void undo_txn_create_execute(struct TxnLog* txn, db_store_t* db) {
     uuid_t base_id = {.lo = oid->base_id.id_low, .hi = oid->base_id.id_high};
     uuid_t allocated_id = {.lo = oid->allocated_id.id_low,
                            .hi = oid->allocated_id.id_high};
-    allocated_handle = uuid_to_handle(db, base_id);
-    assert(handle_exists(db, allocated_handle) != 0);
-    return;
     if (memcmp(&base_id, &null_uuid, sizeof(uuid_t)) != 0) {
       assert(oid->base_id.file_type == ft_Directory);
       base_handle = uuid_to_handle(db, base_id);
       base_fd = open_by_handle_at(AT_FDCWD, base_handle, O_RDONLY);
-      // assert(base_fd != -1);
-      // assert(base_handle != NULL);
+      assert(base_fd != -1);
+      assert(base_handle != NULL);
     }
 
     if (base_handle) {
