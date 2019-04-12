@@ -174,16 +174,15 @@ static void generate_db_keys(db_kvpair_t* kvp, const char* prefix,
   db_kvpair_t* curr_new_kvp = new_kvp;
 
   while (i < nums) {
-    size_t len = curr_kvp->key_len + strlen(prefix) + 1;
+    size_t len = curr_kvp->key_len + strlen(prefix);
     char* temp = (char*)malloc(sizeof(char) * len);
     // key => Transaction_prefix concats transaction ID
     strcpy(temp, prefix);
-    strcat(temp, curr_kvp->key);
-    temp[len - 1] = '\0';
+    memcpy(temp + strlen(prefix), curr_kvp->key, curr_kvp->key_len);
     // new allocated key will be automatically freed by the caller of commit
     // transaction api
     curr_new_kvp->key = temp;
-    curr_new_kvp->key_len = strlen(temp);
+    curr_new_kvp->key_len = len;
     if (alloc_val_mem) {
       curr_new_kvp->val = memdup(curr_kvp->val, curr_kvp->val_len);
       curr_new_kvp->val_len = curr_kvp->val_len;
