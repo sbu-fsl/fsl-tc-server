@@ -4,6 +4,7 @@
 #include "undo_executor.h"
 #include "lwrapper.h"
 #include "id_manager.h"
+#include "log.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -11,14 +12,6 @@
 
 namespace fs = std::experimental::filesystem;
 using namespace std;
-
-void get_dir_path(int dfd, char* path) {
-  DIR* save = opendir(".");
-  fchdir(dfd);
-  getcwd(path, PATH_MAX);
-  fchdir(dirfd(save));
-  closedir(save);
-}
 
 struct file_handle* check_txn_path(int dirfd, const char* path) {
   struct file_handle* handle;
@@ -93,7 +86,6 @@ void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
     struct CreatedObject* oid = &txn->created_file_ids[i];
     cout << "undo txn path" << oid->path << endl;
     assert(oid->allocated_id.file_type == ft_File);
-    fs::path original_path;
     uuid_t base_id = {.lo = oid->base_id.id_low, .hi = oid->base_id.id_high};
     uuid_t allocated_id = {.lo = oid->allocated_id.id_low,
                            .hi = oid->allocated_id.id_high};
@@ -105,42 +97,33 @@ void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
 
     if (base_handle) {
       cout << "file with base path" << endl;
-      char base_path[PATH_MAX];
-      get_dir_path(base_fd, base_path);
-      original_path = base_path;
-      original_path /= oid->path;
       struct file_handle* handle = check_txn_path(base_fd, oid->path);
       if (handle) {
         if (handle_exists(db, handle) == 0) {
           // restore backup
           cout << "rename " << bkproot / id_to_string(uuid_to_buf(allocated_id))
-               << original_path << endl;
-          fs::rename(bkproot / id_to_string(uuid_to_buf(allocated_id)),
-                     original_path);
+               << "{base}" << oid->path << endl;
+          fs::path path = bkproot / id_to_string(uuid_to_buf(allocated_id));
+          renameat(AT_FDCWD, path.c_str(), base_fd, oid->path);
         } else {
-          cout << "remove " << original_path << endl;
-          if (fs::exists(original_path)) {
-            fs::remove(original_path);
-          }
+          cout << "remove {base} " << oid->path << endl;
+          assert(unlinkat(base_fd, oid->path, 0) == 0 || errno == ENOENT);
         }
       }
       close(base_fd);
     } else {
       cout << "file with absolute path" << endl;
-      original_path = oid->path;
       allocated_handle = uuid_to_handle(db, allocated_id);
       // this must be create, failed to create file in txn
       if (allocated_handle) {
         // restore backup
         cout << "rename " << bkproot / id_to_string(uuid_to_buf(allocated_id))
-             << original_path << endl;
-        fs::rename(bkproot / id_to_string(uuid_to_buf(allocated_id)),
-                   original_path);
+             << oid->path << endl;
+        fs::path path = bkproot / id_to_string(uuid_to_buf(allocated_id));
+        renameat(AT_FDCWD, path.c_str(), AT_FDCWD, oid->path);
       } else {
-        cout << "remove " << original_path << endl;
-        if (fs::exists(original_path)) {
-          fs::remove(original_path);
-        }
+        cout << "remove " << oid->path << endl;
+        assert(unlinkat(AT_FDCWD, oid->path, 0) == 0 || errno == ENOENT);
       }
     }
   }
@@ -159,7 +142,6 @@ void undo_txn_create_execute(struct TxnLog* txn, db_store_t* db) {
     struct CreatedObject* oid = &txn->created_file_ids[i];
     cout << i << ": undo txn path" << oid->path << endl;
     assert(oid->allocated_id.file_type == ft_Directory);
-    fs::path original_path;
     uuid_t base_id = {.lo = oid->base_id.id_low, .hi = oid->base_id.id_high};
     uuid_t allocated_id = {.lo = oid->allocated_id.id_low,
                            .hi = oid->allocated_id.id_high};
@@ -173,29 +155,22 @@ void undo_txn_create_execute(struct TxnLog* txn, db_store_t* db) {
 
     if (base_handle) {
       cout << "dir with base path" << endl;
-      char base_path[PATH_MAX];
-      get_dir_path(base_fd, base_path);
-      original_path = base_path;
-      original_path /= oid->path;
       struct file_handle* handle = check_txn_path(base_fd, oid->path);
       if (handle) {
         // if the txn failed, we should not have the handle in db
         assert(handle_exists(db, handle) != 0);
-        cout << "remove dir" << original_path << endl;
-        if (fs::exists(original_path)) {
-          fs::remove(original_path);
-        }
+        cout << "remove dir" << oid->path << endl;
+        assert(unlinkat(base_fd, oid->path, AT_REMOVEDIR) == 0 ||
+               errno == ENOENT);
       }
       close(base_fd);
     } else {
       cout << "dir with absolute path" << endl;
-      original_path = oid->path;
       if (allocated_handle) {
         // if the txn failed, we should not have the handle in db
-        cout << "remove dir" << original_path << endl;
-        if (fs::exists(original_path)) {
-          fs::remove_all(original_path);
-        }
+        cout << "remove dir" << oid->path << endl;
+        assert(unlinkat(base_fd, oid->path, AT_REMOVEDIR) == 0 ||
+               errno == ENOENT);
       }
     }
   }
