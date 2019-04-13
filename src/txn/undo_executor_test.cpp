@@ -121,8 +121,7 @@ class UndoExecutor : public ::testing::Test {
       // snapshot file
       fs::copy_file(write_paths[i], bkppath);
 
-      // copy original path
-      memset(&oid->base_id, 0, sizeof(struct ObjectId));
+      // copy just filename path
       strcpy(oid->path, write_paths[i].filename().c_str());
       memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
       oid->allocated_id.file_type = ft_File;
@@ -135,7 +134,7 @@ class UndoExecutor : public ::testing::Test {
       fs::path bkppath = bkproot;
       // no snapshot
 
-      // copy original path
+      // copy full path
       strcpy(oid->path,
              create_paths[i - write_paths.size()].filename().c_str());
       // this would be a generated uuid
@@ -143,6 +142,26 @@ class UndoExecutor : public ::testing::Test {
       uuid_t tuuid = buf_to_uuid(generate_file_id(db));
       memcpy(&oid->allocated_id, &tuuid, sizeof(uuid_t));
       memcpy(&oid->base_id, &base, sizeof(struct ObjectId));
+    }
+  }
+
+  // add 10 dir creates using absolute paths
+  //
+  void txn_create_absolute(struct TxnLog* txn) {
+    txn->num_files = create_dir_paths.size();
+    txn->created_file_ids = (struct CreatedObject*)malloc(
+        sizeof(struct CreatedObject) * txn->num_files);
+    for (int i = 0; i < txn->num_files; i++) {
+      struct CreatedObject* oid = &txn->created_file_ids[i];
+      // no snapshot
+      fs::create_directory(create_dir_paths[i]);
+      // copy original path
+      strcpy(oid->path, create_dir_paths[i].c_str());
+      // this would be a generated uuid
+      oid->allocated_id.file_type = ft_Directory;
+      memset(&oid->base_id, 0, sizeof(struct ObjectId));
+      uuid_t tuuid = buf_to_uuid(generate_file_id(db));
+      memcpy(&oid->allocated_id, &tuuid, sizeof(uuid_t));
     }
   }
 
@@ -318,6 +337,24 @@ TEST_F(UndoExecutor, WriteTxnWithBase) {
 
   // assert the created paths were removed
   for (auto& path : create_paths) {
+    ASSERT_FALSE(fs::exists(path));
+  }
+}
+
+TEST_F(UndoExecutor, CreateTxnWithAbsolute) {
+  struct TxnLog txn;
+  // write txnlog entry
+  // with dummy files and populate file handles in leveldb
+  txn.compound_type = txn_VCreate;
+  txn.txn_id = rand();
+  // don't need backups for create
+  txn.backup_dir_path = NULL;
+  txn_create_absolute(&txn);
+
+  undo_txn_execute(&txn, db);
+
+  // assert the created paths were removed
+  for (auto& path : create_dir_paths) {
     ASSERT_FALSE(fs::exists(path));
   }
 }

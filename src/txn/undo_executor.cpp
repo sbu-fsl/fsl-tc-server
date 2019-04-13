@@ -4,7 +4,6 @@
 #include "undo_executor.h"
 #include "lwrapper.h"
 #include "id_manager.h"
-#include "log.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -166,12 +165,10 @@ void undo_txn_create_execute(struct TxnLog* txn, db_store_t* db) {
       close(base_fd);
     } else {
       cout << "dir with absolute path" << endl;
-      if (allocated_handle) {
-        // if the txn failed, we should not have the handle in db
-        cout << "remove dir" << oid->path << endl;
-        assert(unlinkat(base_fd, oid->path, AT_REMOVEDIR) == 0 ||
-               errno == ENOENT);
-      }
+      // if the txn failed, we should not have the handle in db
+      cout << "remove dir" << oid->path << endl;
+      assert(unlinkat(AT_FDCWD, oid->path, AT_REMOVEDIR) == 0 ||
+             errno == ENOENT);
     }
   }
 }
