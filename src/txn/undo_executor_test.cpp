@@ -253,7 +253,7 @@ class UndoExecutor : public ::testing::Test {
   }
 };
 
-TEST_F(UndoExecutor, DISABLED_WriteTxnWithAbsolutePath) {
+TEST_F(UndoExecutor, WriteTxnWithAbsolutePath) {
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb
@@ -288,7 +288,7 @@ TEST_F(UndoExecutor, DISABLED_WriteTxnWithAbsolutePath) {
   }
 }
 
-TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
+TEST_F(UndoExecutor, WriteTxnWithBase) {
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb
@@ -323,7 +323,6 @@ TEST_F(UndoExecutor, DISABLED_WriteTxnWithBase) {
 }
 
 TEST_F(UndoExecutor, CreateTxnWithBase) {
-  fprintf(stderr, "!!!!!Starting test!!!!!\n");
   struct TxnLog txn;
   // write txnlog entry
   // with dummy files and populate file handles in leveldb

@@ -28,12 +28,12 @@
     }                       \
   } while (0);
 
-#define SAFE_FREE(ptr)   \
-  do {                   \
-    if ((ptr) != NULL) { \
-      free((void *)(ptr));       \
-      (ptr) = NULL;      \
-    }                    \
+#define SAFE_FREE(ptr)    \
+  do {                    \
+    if ((ptr) != NULL) {  \
+      free((void*)(ptr)); \
+      (ptr) = NULL;       \
+    }                     \
   } while (0);
 
 #define TR_PREFIX "txn-"
@@ -49,12 +49,12 @@ static char* memdup(const char* buf, size_t len) {
 static int insert_markers(const db_store_t* db_st) {
   char* err = NULL;
 
-  leveldb_put(db_st->db, db_st->w_options, TR_PREFIX, strlen(TR_PREFIX),
-              ANCHOR, strlen(ANCHOR) + 1, &err);
+  leveldb_put(db_st->db, db_st->w_options, TR_PREFIX, strlen(TR_PREFIX), ANCHOR,
+              strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
-  leveldb_put(db_st->db, db_st->w_options, ID_PREFIX, strlen(ID_PREFIX),
-              ANCHOR, strlen(ANCHOR) + 1, &err);
+  leveldb_put(db_st->db, db_st->w_options, ID_PREFIX, strlen(ID_PREFIX), ANCHOR,
+              strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
   leveldb_put(db_st->db, db_st->w_options, HDL_PREFIX, strlen(HDL_PREFIX),
@@ -234,12 +234,8 @@ int put_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
   db_kvpair_t* curr = kvp;
 
   while (i < nums) {
-    fprintf(stderr, "putting key ==== ");
-    print_buf(curr->key, curr->key_len);
-    fprintf(stderr, "putting value ==== ");
-    print_buf(curr->val, curr->val_len);
-    leveldb_writebatch_put(write_batch, curr->key, curr->key_len,
-                           curr->val, curr->val_len);
+    leveldb_writebatch_put(write_batch, curr->key, curr->key_len, curr->val,
+                           curr->val_len);
     i++;
     curr++;
   }
@@ -264,15 +260,9 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
 
   if (nums == 0) return 0;
 
-  fprintf(stderr, "key ==== ");
-  print_buf(kvp->key, kvp->key_len);
-  fprintf(stderr, "before kvp->val_len: %zd\n", kvp->val_len);
   if (nums == 1) {
     kvp->val = leveldb_get(db_st->db, db_st->r_options, kvp->key, kvp->key_len,
                            &(kvp->val_len), &err);
-    fprintf(stderr, "nums = %d\n", nums);
-    fprintf(stderr, "kvp->val: %p\n", kvp->val);
-    fprintf(stderr, "after kvp->val_len: %zd\n", kvp->val_len);
     CHECK_ERR(err);
 
 #ifdef DEBUG
@@ -288,8 +278,6 @@ int get_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
     while (i < nums) {
       curr->val = leveldb_get(db_st->db, db_st->r_options, curr->key,
                               curr->key_len, &(curr->val_len), &err);
-    fprintf(stderr, "nums = %d", nums);
-      fprintf(stderr, "curr->val: %p", curr->val);
       if (err != NULL) {
         /* reset error var */
         leveldb_free(err);
@@ -402,7 +390,6 @@ int get_id_handle(db_kvpair_t* kvp, const int nums, const db_store_t* db_st,
   if (ret) return ret;
 
   while (i < nums) {
-    fprintf(stderr, "get_id_handle(): value_len = %zd\n", new_kvp->val_len);
     int len = curr_kvp->val_len = new_kvp->val_len;
     if (len) {
       curr_kvp->val = memdup(new_kvp->val, len);

@@ -75,8 +75,6 @@ int handle_exists(db_store_t* db, struct file_handle* handle) {
       .val_len = 0,
   };
   int ret = get_id_handle(&rev_record, 1, db, true);
-  cout << "ret= " << ret << "val_len = " << rev_record.val_len << " "
-       << rev_record.val << endl;
   return rev_record.val_len > 0 ? ret : -1;
 }
 
@@ -84,7 +82,6 @@ int handle_exists(db_store_t* db, struct file_handle* handle) {
  * Undo write transaction
  */
 void undo_txn_write_execute(struct TxnLog* txn, db_store_t* db) {
-  cout << "undo count:" << txn->num_files << endl;
   int base_fd;
   uuid_t null_uuid = uuid_null();
 
