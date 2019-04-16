@@ -92,4 +92,4 @@ add_cpplib(txn_logger secnfs_proto id_manager protobuf absl_strings)
 
 add_cpplib(txn_backend txn_logger leveldb stdc++fs)
 
-add_cpplib(undo_executor lwrapper id_manager txn_backend stdc++fs)
+add_cpplib(undo_executor lwrapper id_manager txn_backend stdc++fs glog)

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <iostream>
 #include <experimental/filesystem>
+#include <glog/logging.h>
 #include "id_manager.h"
 #include "lwrapper.h"
 #include "txn_backend.h"
@@ -378,6 +379,9 @@ TEST_F(UndoExecutor, CreateTxnWithBase) {
 }
 
 int main(int argc, char** argv) {
+  // log to stderr for testing
+  FLAGS_logtostderr = true;
   ::testing::InitGoogleTest(&argc, argv);
+  ::google::InitGoogleLogging(argv[0]);
   return RUN_ALL_TESTS();
 }
