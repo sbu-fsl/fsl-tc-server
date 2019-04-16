@@ -165,11 +165,53 @@ void undo_txn_create_execute(struct TxnLog* txn, db_store_t* db) {
       close(base_fd);
     } else {
       LOG(INFO) << "dir with absolute path" << endl;
-      // if the txn failed, we should not have the handle in db
       LOG(INFO) << "remove dir" << oid->path << endl;
       LOG_ASSERT(unlinkat(AT_FDCWD, oid->path, AT_REMOVEDIR) == 0 ||
                  errno == ENOENT);
     }
+  }
+}
+
+/*
+ * Undo unlink transaction
+ */
+void undo_txn_unlink_execute(struct TxnLog* txn, db_store_t* db) {
+  uuid_t null_uuid = uuid_null();
+
+  // backup directory for this txn
+  fs::path bkproot = txn->backup_dir_path;
+
+  for (int i = 0; i < txn->num_unlinks; i++) {
+    int parent_fd = -1;
+    struct file_handle* parent_handle = NULL;
+    struct UnlinkId* oid = &txn->created_unlink_ids[i];
+    LOG(INFO) << "undo txn name " << oid->name << endl;
+    uuid_t parent_id = {.lo = oid->parent_id.id_low,
+                        .hi = oid->parent_id.id_high};
+
+    // parent id cannot be null uuid
+    LOG_ASSERT(memcmp(&parent_id, &null_uuid, sizeof(uuid_t)) != 0);
+
+    // parent object should be a directory
+    LOG_ASSERT(oid->parent_id.file_type == ft_Directory);
+
+    // parent handle should exist in database
+    parent_handle = uuid_to_handle(db, parent_id);
+    LOG_ASSERT(parent_handle);
+
+    // handle is valid
+    parent_fd = open_by_handle_at(AT_FDCWD, parent_handle, O_RDONLY);
+    LOG_ASSERT(parent_fd > 0);
+
+    // rename backup file to original
+    // bkproot / index of the object
+    fs::path path = bkproot / to_string(i);
+
+    // note: even if the file wasn't unlinked, we'll restore from backup
+    LOG(INFO) << "restoring unlinked file" << endl;
+    LOG_ASSERT(fs::exists(path));
+    LOG_ASSERT(renameat(AT_FDCWD, path.c_str(), parent_fd, oid->name) == 0);
+    close(parent_fd);
   }
 }
 
@@ -184,6 +226,8 @@ void undo_txn_execute(struct TxnLog* txn, db_store_t* db) {
       undo_txn_create_execute(txn, db);
       break;
     case txn_VUnlink:
+      undo_txn_unlink_execute(txn, db);
+      break;
     case txn_VMkdir:
     case txn_VRename:
     case txn_VSymlink:

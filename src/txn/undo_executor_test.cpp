@@ -186,6 +186,53 @@ class UndoExecutor : public ::testing::Test {
     }
   }
 
+  // add a mix of files and directories to be deleted
+  //
+  void txn_unlink(struct TxnLog* txn) {
+    txn->num_unlinks = write_paths.size() + create_dir_paths.size();
+    txn->created_unlink_ids =
+        (struct UnlinkId*)malloc(sizeof(struct UnlinkId) * txn->num_unlinks);
+    int i = 0;
+    // add files
+    for (; i < (int)write_paths.size(); i++) {
+      struct UnlinkId* oid = &txn->created_unlink_ids[i];
+      fs::path bkppath = bkproot;
+      bkppath = bkppath / to_string(i);
+      // snapshot file
+      fs::copy_file(write_paths[i], bkppath);
+
+      if (rand() % 2 == 0) {
+        LOG(INFO) << "removing object at " << i << endl;
+        EXPECT_TRUE(fs::remove(write_paths[i]));
+      }
+      // copy just filename
+      strcpy(oid->name, write_paths[i].filename().c_str());
+      // copy the parent object
+      memcpy(&oid->parent_id, &base, sizeof(struct ObjectId));
+    }
+
+    // add directories
+    for (; i < txn->num_unlinks; i++) {
+      struct UnlinkId* oid = &txn->created_unlink_ids[i];
+      int idx = i - write_paths.size();
+      fs::path bkppath = bkproot;
+      bkppath = bkppath / to_string(i);
+
+      fs::create_directory(create_dir_paths[idx]);
+      fs::copy(create_dir_paths[idx], bkppath);
+
+      if (rand() % 2 == 0) {
+        LOG(INFO) << "removing object at " << i << endl;
+        EXPECT_TRUE(fs::remove(create_dir_paths[idx]));
+      }
+
+      // copy dir name
+      strcpy(oid->name, create_dir_paths[idx].filename().c_str());
+      // copy the parent object
+      memcpy(&oid->parent_id, &base, sizeof(struct ObjectId));
+    }
+  }
+
   struct file_handle* path_to_fhandle(const char* path) {
     struct file_handle* handle;
     int mount_id;
@@ -375,6 +422,27 @@ TEST_F(UndoExecutor, CreateTxnWithBase) {
   // assert the created paths were removed
   for (auto& path : create_dir_paths) {
     ASSERT_FALSE(fs::exists(path));
+  }
+}
+
+TEST_F(UndoExecutor, UnlinkTxn) {
+  struct TxnLog txn;
+  // write txnlog entry
+  // with dummy files and populate file handles in leveldb
+  txn.compound_type = txn_VUnlink;
+  txn.txn_id = rand();
+  // don't need backups for create
+  txn.backup_dir_path = bkproot.c_str();
+  txn_unlink(&txn);
+
+  undo_txn_execute(&txn, db);
+
+  // assert the unlinked paths exist after undo
+  for (auto& path : write_paths) {
+    ASSERT_TRUE(fs::exists(path));
+  }
+  for (auto& path : create_dir_paths) {
+    ASSERT_TRUE(fs::exists(path));
   }
 }
 
