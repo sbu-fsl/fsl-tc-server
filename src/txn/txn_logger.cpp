@@ -193,8 +193,16 @@ void serialize_unlink_txn(struct TxnLog* txn_log,
   unlink_txn->set_backup_dir_path(txn_log->backup_dir_path);
   for (int i = 0; i < txn_log->num_unlinks; i++) {
     proto::VUnlinkTxn_Unlink* unlink_obj = unlink_txn->add_unlinked_objs();
-    unlink_obj->set_original_path(txn_log->created_unlink_ids[i].original_path);
-    unlink_obj->set_backup_name(txn_log->created_unlink_ids[i].backup_name);
+    struct UnlinkId* txnobj = &txn_log->created_unlink_ids[i];
+
+    // set FileId
+    unlink_obj->mutable_parent_id()->set_id_low(txnobj->parent_id.id_low);
+    unlink_obj->mutable_parent_id()->set_id_high(txnobj->parent_id.id_high);
+
+    // set FileType
+    unlink_obj->mutable_parent_id()->set_type(
+        get_file_type_txn(txnobj->parent_id.file_type));
+    unlink_obj->set_name(txnobj->name);
   }
 }
 
@@ -362,11 +370,16 @@ void deserialize_unlink_txn(proto::TransactionLog* txn_log_obj,
         sizeof(struct UnlinkId) * txn_log->num_unlinks);
 
     for (int i = 0; i < unlink_txn.unlinked_objs_size(); i++) {
-      const proto::VUnlinkTxn_Unlink& unlink_obj = unlink_txn.unlinked_objs(i);
-      txn_log->created_unlink_ids[i].original_path =
-          unlink_obj.original_path().c_str();
-      txn_log->created_unlink_ids[i].backup_name =
-          unlink_obj.backup_name().c_str();
+      const proto::VUnlinkTxn_Unlink& object = unlink_txn.unlinked_objs(i);
+      struct UnlinkId* txnobj = &txn_log->created_unlink_ids[i];
+
+      // copy parent
+      txnobj->parent_id.id_low = object.parent_id().id_low();
+      txnobj->parent_id.id_high = object.parent_id().id_high();
+      txnobj->parent_id.file_type = get_file_type(object.parent_id().type());
+
+      // copy name
+      strcpy(txnobj->name, object.name().c_str());
     }
   }
 }

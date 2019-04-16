@@ -98,8 +98,8 @@ message VRenameTxn {
 
 message VUnlinkTxn {
 	message Unlink {
-		required string original_path = 1;
-		required string backup_name = 2;
+		required ObjectId parent_id = 1;
+		required string name = 2;
 	}
 	required string backup_dir_path = 1;
 	repeated Unlink unlinked_objs = 2;

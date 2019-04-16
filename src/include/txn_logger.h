@@ -42,8 +42,8 @@ struct CreatedObject {
 };
 
 struct UnlinkId {
-  const char* original_path;
-  const char* backup_name;
+  ObjectId parent_id;
+  char name[NAME_MAX];
 };
 
 struct SymlinkId {

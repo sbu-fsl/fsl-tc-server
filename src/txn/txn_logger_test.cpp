@@ -45,8 +45,10 @@ class TxnTest : public ::testing::Test {
     txn_log.num_files = 1;
 
     // unlinks
-    created_unlinks[0].original_path = original_path_str.c_str();
-    created_unlinks[0].backup_name = backup_name_str.c_str();
+    created_unlinks[0].parent_id.id_low = 123;
+    created_unlinks[0].parent_id.id_high = 456;
+    created_unlinks[0].parent_id.file_type = ft_File;
+    strcpy(created_unlinks[0].name, "file_to_unlink");
     txn_log.created_unlink_ids = created_unlinks;
     txn_log.num_unlinks = 1;
 
@@ -73,8 +75,8 @@ class TxnTest : public ::testing::Test {
 
   int compare(TxnLog *txn1, TxnLog *txn2) {
     int ret;
-    if (txn1->txn_id != txn2->txn_id) return 1;
-    if (txn1->compound_type != txn2->compound_type) return 1;
+    EXPECT_EQ(txn1->txn_id, txn2->txn_id);
+    EXPECT_EQ(txn1->compound_type, txn2->compound_type);
 
     switch (txn1->compound_type) {
       case txn_VNone:
@@ -118,14 +120,14 @@ class TxnTest : public ::testing::Test {
 
   int compare(struct CreatedObject *cobj1, struct CreatedObject *cobj2) {
     EXPECT_STREQ(cobj1->path, cobj2->path);
-    if (compare(&cobj1->base_id, &cobj2->base_id) != 0) return 1;
-    if (compare(&cobj1->allocated_id, &cobj2->allocated_id) != 0) return 1;
+    EXPECT_EQ(compare(&cobj1->base_id, &cobj2->base_id), 0);
+    EXPECT_EQ(compare(&cobj1->allocated_id, &cobj2->allocated_id), 0);
     return 0;
   }
 
   int compare(struct UnlinkId *uobj1, struct UnlinkId *uobj2) {
-    EXPECT_STREQ(uobj1->original_path, uobj2->original_path);
-    EXPECT_STREQ(uobj1->backup_name, uobj2->backup_name);
+    EXPECT_EQ(compare(&uobj1->parent_id, &uobj2->parent_id), 0);
+    EXPECT_STREQ(uobj1->name, uobj2->name);
     return 0;
   }
 
