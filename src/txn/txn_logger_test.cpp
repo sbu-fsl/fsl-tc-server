@@ -53,8 +53,10 @@ class TxnTest : public ::testing::Test {
     txn_log.num_unlinks = 1;
 
     // symlinks
-    created_symlinks[0].src_path = src_path_str.c_str();
-    created_symlinks[0].dst_path = dst_path_str.c_str();
+    created_symlinks[0].parent_id.id_low = 123;
+    created_symlinks[0].parent_id.id_high = 456;
+    created_symlinks[0].parent_id.file_type = ft_File;
+    strcpy(created_symlinks[0].name, "file_to_symlink");
     txn_log.created_symlink_ids = created_symlinks;
     txn_log.num_symlinks = 1;
 
@@ -133,7 +135,8 @@ class TxnTest : public ::testing::Test {
 
   int compare(struct SymlinkId *sobj1, struct SymlinkId *sobj2) {
     EXPECT_STREQ(sobj1->src_path, sobj2->src_path);
-    EXPECT_STREQ(sobj1->dst_path, sobj2->dst_path);
+    EXPECT_STREQ(sobj1->name, sobj2->name);
+    EXPECT_EQ(compare(&sobj1->parent_id, &sobj2->parent_id), 0);
     return 0;
   }
 

@@ -47,8 +47,9 @@ struct UnlinkId {
 };
 
 struct SymlinkId {
-  const char* src_path;
-  const char* dst_path;
+  char src_path[PATH_MAX];
+  ObjectId parent_id;
+  char name[NAME_MAX];
 };
 
 enum CompoundType {

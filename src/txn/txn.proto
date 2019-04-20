@@ -108,7 +108,8 @@ message VUnlinkTxn {
 message VSymlinkTxn {
 	message Symlink {
 		required string src_path = 1;
-		required string dst_path = 2;
+		required ObjectId parent_id = 2;
+		required string name = 3;
 	}
 	repeated Symlink linked_objs = 1;
 }

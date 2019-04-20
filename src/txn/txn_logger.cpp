@@ -216,8 +216,18 @@ void serialize_symlink_txn(struct TxnLog* txn_log,
   proto::VSymlinkTxn* symlink_txn = txn_log_obj->mutable_symlinks();
   for (int i = 0; i < txn_log->num_unlinks; i++) {
     proto::VSymlinkTxn_Symlink* symlink_obj = symlink_txn->add_linked_objs();
-    symlink_obj->set_src_path(txn_log->created_symlink_ids[i].src_path);
-    symlink_obj->set_dst_path(txn_log->created_symlink_ids[i].dst_path);
+    struct SymlinkId* txnobj = &txn_log->created_symlink_ids[i];
+    symlink_obj->set_src_path(txnobj->src_path);
+
+    // set destination
+    // set FileId
+    symlink_obj->mutable_parent_id()->set_id_low(txnobj->parent_id.id_low);
+    symlink_obj->mutable_parent_id()->set_id_high(txnobj->parent_id.id_high);
+
+    // set FileType
+    symlink_obj->mutable_parent_id()->set_type(
+        get_file_type_txn(txnobj->parent_id.file_type));
+    symlink_obj->set_name(txnobj->name);
   }
 }
 
@@ -400,9 +410,18 @@ void deserialize_symlink_txn(proto::TransactionLog* txn_log_obj,
         sizeof(struct SymlinkId) * txn_log->num_symlinks);
 
     for (int i = 0; i < symlink_txn.linked_objs_size(); i++) {
-      const proto::VSymlinkTxn_Symlink& link_obj = symlink_txn.linked_objs(i);
-      txn_log->created_symlink_ids[i].src_path = link_obj.src_path().c_str();
-      txn_log->created_symlink_ids[i].dst_path = link_obj.dst_path().c_str();
+      const proto::VSymlinkTxn_Symlink& object = symlink_txn.linked_objs(i);
+      struct SymlinkId* txnobj = &txn_log->created_symlink_ids[i];
+      strcpy(txn_log->created_symlink_ids[i].src_path,
+             object.src_path().c_str());
+
+      // copy parent
+      txnobj->parent_id.id_low = object.parent_id().id_low();
+      txnobj->parent_id.id_high = object.parent_id().id_high();
+      txnobj->parent_id.file_type = get_file_type(object.parent_id().type());
+
+      // copy name
+      strcpy(txnobj->name, object.name().c_str());
     }
   }
 }
