@@ -25,6 +25,7 @@ class UndoExecutor : public ::testing::Test {
   // create files
   vector<fs::path> create_paths;
   vector<fs::path> create_dir_paths;
+  vector<fs::path> create_symlink_paths;
   struct ObjectId base;
 
   const char* original = "original";
@@ -229,6 +230,48 @@ class UndoExecutor : public ::testing::Test {
       // copy dir name
       strcpy(oid->name, create_dir_paths[idx].filename().c_str());
       // copy the parent object
+      memcpy(&oid->parent_id, &base, sizeof(struct ObjectId));
+    }
+  }
+
+  // add 5 directory and 5 file symlinks
+  //
+  void txn_symlink(struct TxnLog* txn) {
+    txn->num_symlinks = 10;
+    txn->created_symlink_ids =
+        (struct SymlinkId*)malloc(sizeof(struct SymlinkId) * txn->num_symlinks);
+    int i = 0;
+    for (; i < 5; i++) {
+      struct SymlinkId* oid = &txn->created_symlink_ids[i];
+      // no snapshot
+      fs::path dst = fsroot;
+      std::string name = "s" + to_string(i);
+      dst /= name;
+      if (rand() % 2 == 0) {
+        create_symlink_paths.push_back(dst);
+        LOG(INFO) << "symlink at s" << i << endl;
+        fs::create_symlink(write_paths[i], dst);
+      }
+      // copy name
+      strcpy(oid->name, name.c_str());
+      memcpy(&oid->parent_id, &base, sizeof(struct ObjectId));
+    }
+
+    for (; i < txn->num_symlinks; i++) {
+      struct SymlinkId* oid = &txn->created_symlink_ids[i];
+      // no snapshot
+
+      fs::path dst = fsroot;
+      std::string name = "s" + to_string(i);
+      dst /= name;
+      fs::create_directory(create_dir_paths[i]);
+      if (rand() % 2 == 0) {
+        create_symlink_paths.push_back(dst);
+        LOG(INFO) << "symlink at s" << i << endl;
+        fs::create_symlink(create_dir_paths[i], dst);
+      }
+      // copy name
+      strcpy(oid->name, name.c_str());
       memcpy(&oid->parent_id, &base, sizeof(struct ObjectId));
     }
   }
@@ -443,6 +486,24 @@ TEST_F(UndoExecutor, UnlinkTxn) {
   }
   for (auto& path : create_dir_paths) {
     ASSERT_TRUE(fs::exists(path));
+  }
+}
+
+TEST_F(UndoExecutor, SymlinkTxn) {
+  struct TxnLog txn;
+  // write txnlog entry
+  // with dummy files and populate file handles in leveldb
+  txn.compound_type = txn_VSymlink;
+  txn.txn_id = rand();
+  // don't need backups for create
+  txn.backup_dir_path = NULL;
+  txn_symlink(&txn);
+
+  undo_txn_execute(&txn, db);
+
+  // assert the created paths were removed
+  for (auto& path : create_symlink_paths) {
+    ASSERT_FALSE(fs::exists(path));
   }
 }
 

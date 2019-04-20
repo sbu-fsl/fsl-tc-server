@@ -215,6 +215,32 @@ void undo_txn_unlink_execute(struct TxnLog* txn, db_store_t* db) {
   }
 }
 
+/*
+ * Undo symlink transaction
+ */
+void undo_txn_symlink_execute(struct TxnLog* txn, db_store_t* db) {
+  LOG(INFO) << "undo count:" << txn->num_files << endl;
+  int parent_fd;
+
+  for (int i = 0; i < txn->num_symlinks; i++) {
+    struct file_handle* parent_handle = NULL;
+    struct SymlinkId* oid = &txn->created_symlink_ids[i];
+    LOG(INFO) << i << ": undo txn path" << oid->name << endl;
+    LOG_ASSERT(oid->parent_id.file_type == ft_Directory);
+    uuid_t parent_id = {.lo = oid->parent_id.id_low,
+                        .hi = oid->parent_id.id_high};
+    LOG_ASSERT(oid->parent_id.file_type == ft_Directory);
+    parent_handle = uuid_to_handle(db, parent_id);
+    parent_fd = open_by_handle_at(AT_FDCWD, parent_handle, O_RDONLY);
+    LOG_ASSERT(parent_fd != -1);
+    LOG_ASSERT(parent_handle != NULL);
+
+    int ret = unlinkat(parent_fd, oid->name, 0);
+    LOG_IF(INFO, ret == 0) << "removed symlink " << oid->name << endl;
+    LOG_ASSERT(ret == 0 || (ret < 0 && errno == ENOENT));
+    close(parent_fd);
+  }
+}
 void undo_txn_execute(struct TxnLog* txn, db_store_t* db) {
   switch (txn->compound_type) {
     case txn_VNone:
@@ -228,9 +254,11 @@ void undo_txn_execute(struct TxnLog* txn, db_store_t* db) {
     case txn_VUnlink:
       undo_txn_unlink_execute(txn, db);
       break;
-    case txn_VMkdir:
-    case txn_VRename:
     case txn_VSymlink:
+      undo_txn_symlink_execute(txn, db);
+      break;
+    case txn_VRename:
+    case txn_VMkdir:
       LOG_ASSERT(!"not implemented");
       break;
   }
