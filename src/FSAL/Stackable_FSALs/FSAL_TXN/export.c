@@ -21,6 +21,7 @@
 #include "nfs_exports.h"
 #include "export_mgr.h"
 
+static struct next_ops next_ops;
 /* helpers to/from other NULL objects
  */
 
