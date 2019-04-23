@@ -74,11 +74,14 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
 	 * diverse exports.
 	 */
 
+  UDBG;
 	display_fsinfo(fsal_module);
 	LogDebug(COMPONENT_FSAL,
 		 "FSAL_TXN INIT: Supported attributes mask = 0x%" PRIx64,
 		 fsal_module->fs_info.supported_attrs);
 	lm = new_lock_manager();
+  db = init_db_store("txn-store", true);
+  assert(db != NULL);
 	LogDebug(COMPONENT_FSAL,"init lock manager %p", lm);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
@@ -100,6 +103,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
  */
 MODULE_INIT void txnfs_init(void)
 {
+  UDBG;
 	int retval;
 	struct fsal_module *myself = &TXNFS.module;
 
@@ -119,6 +123,7 @@ MODULE_INIT void txnfs_init(void)
 MODULE_FINI void txnfs_unload(void)
 {
 	int retval;
+  UDBG;
 
 	retval = unregister_fsal(&TXNFS.module);
 	if (retval != 0) {

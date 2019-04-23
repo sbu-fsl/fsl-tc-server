@@ -25,6 +25,8 @@ struct next_ops {
   const struct fsal_up_vector *up_ops; /*< Upcall operations */
 };
 
+#define UDBG                                                                   \
+  LogDebug(COMPONENT_FSAL, "TXDEBUG:%s:%s:%d\n", __FILE__, __func__, __LINE__)
 /**
  * Structure used to store data for read_dirents callback.
  *

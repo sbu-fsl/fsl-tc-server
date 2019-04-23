@@ -42,6 +42,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 		struct fsal_filesystem *fs,
 		const char* uuid)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *result;
 
 	result = gsh_calloc(1, sizeof(struct txnfs_fsal_obj_handle));
@@ -90,6 +91,7 @@ fsal_status_t txnfs_alloc_and_check_handle(
 		const char* uuid,
 		const bool is_creation)
 {
+  UDBG;
 	if (FSAL_IS_ERROR(subfsal_status)) return subfsal_status;
 
 	struct txnfs_fsal_obj_handle *txn_handle = NULL;
@@ -161,6 +163,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 			    const char *path, struct fsal_obj_handle **handle,
 			    struct attrlist *attrs_out)
 {
+  UDBG;
 	/** Parent as txnfs handle.*/
 	struct txnfs_fsal_obj_handle *txn_parent =
 		container_of(parent, struct txnfs_fsal_obj_handle, obj_handle);
@@ -197,6 +200,7 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 			     struct fsal_obj_handle **new_obj,
 			     struct attrlist *attrs_out)
 {
+  UDBG;
 	*new_obj = NULL;
 	/** Parent directory txnfs handle. */
 	struct txnfs_fsal_obj_handle *parent_hdl =
@@ -237,6 +241,7 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 			      struct fsal_obj_handle **new_obj,
 			      struct attrlist *attrs_out)
 {
+  UDBG;
 	/** Parent directory txnfs handle. */
 	struct txnfs_fsal_obj_handle *txnfs_dir =
 		container_of(dir_hdl, struct txnfs_fsal_obj_handle,
@@ -276,6 +281,7 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 				 struct fsal_obj_handle **new_obj,
 				 struct attrlist *attrs_out)
 {
+  UDBG;
 	/** Parent directory txnfs handle. */
 	struct txnfs_fsal_obj_handle *txnfs_dir =
 		container_of(dir_hdl, struct txnfs_fsal_obj_handle,
@@ -306,6 +312,7 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 				 struct gsh_buffdesc *link_content,
 				 bool refresh)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		(struct txnfs_fsal_obj_handle *) obj_hdl;
 	struct txnfs_fsal_export *export =
@@ -326,6 +333,7 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 			      struct fsal_obj_handle *destdir_hdl,
 			      const char *name)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		(struct txnfs_fsal_obj_handle *) obj_hdl;
 	struct txnfs_fsal_obj_handle *txnfs_dir =
@@ -398,6 +406,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  fsal_readdir_cb cb, attrmask_t attrmask,
 				  bool *eof)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(dir_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -445,6 +454,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 fsal_cookie_t compute_readdir_cookie(struct fsal_obj_handle *parent,
 				     const char *name)
 {
+  UDBG;
 	fsal_cookie_t cookie;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(parent, struct txnfs_fsal_obj_handle,
@@ -488,6 +498,7 @@ int dirent_cmp(struct fsal_obj_handle *parent,
 	       const char *name1, fsal_cookie_t cookie1,
 	       const char *name2, fsal_cookie_t cookie2)
 {
+  UDBG;
 	int rc;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(parent, struct txnfs_fsal_obj_handle,
@@ -512,6 +523,7 @@ static fsal_status_t renamefile(struct fsal_obj_handle *obj_hdl,
 				struct fsal_obj_handle *newdir_hdl,
 				const char *new_name)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *txnfs_olddir =
 		container_of(olddir_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -539,6 +551,7 @@ static fsal_status_t renamefile(struct fsal_obj_handle *obj_hdl,
 static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 			      struct attrlist *attrib_get)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -562,6 +575,7 @@ static fsal_status_t txnfs_setattr2(struct fsal_obj_handle *obj_hdl,
 				     struct state_t *state,
 				     struct attrlist *attrs)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -587,6 +601,7 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 				 struct fsal_obj_handle *obj_hdl,
 				 const char *name)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *txnfs_dir =
 		container_of(dir_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -617,6 +632,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 				   fsal_digesttype_t output_type,
 				   struct gsh_buffdesc *fh_desc)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -645,6 +661,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 			  struct gsh_buffdesc *fh_desc)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -660,6 +677,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 static void release(struct fsal_obj_handle *obj_hdl)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *hdl =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -682,6 +700,7 @@ static bool txnfs_is_referral(struct fsal_obj_handle *obj_hdl,
 			       struct attrlist *attrs,
 			       bool cache_attrs)
 {
+  UDBG;
 	struct txnfs_fsal_obj_handle *hdl =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -702,6 +721,7 @@ static bool txnfs_is_referral(struct fsal_obj_handle *obj_hdl,
 
 void txnfs_handle_ops_init(struct fsal_obj_ops *ops)
 {
+  UDBG;
 	fsal_default_obj_ops_init(ops);
 
 	ops->release = release;
@@ -765,6 +785,7 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
 				struct fsal_obj_handle **handle,
 				struct attrlist *attrs_out)
 {
+  UDBG;
 	/** Handle given by the subfsal. */
 	struct fsal_obj_handle *sub_handle = NULL;
 	*handle = NULL;
@@ -786,7 +807,6 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
 	if (FSAL_IS_ERROR(status)) return status;
 
 	/* setting id for root */
-	//const db_store_t* db = init_db_store("txn-store", true);
 	const char *root_uuid = get_root_id(db);
 	if(root_uuid == NULL) {
 		LogCrit(COMPONENT_FSAL, "get_root_id returned null value");
@@ -827,6 +847,7 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 				   struct fsal_obj_handle **handle,
 				   struct attrlist *attrs_out)
 {
+  UDBG;
 	/** Current txnfs export. */
 	struct txnfs_fsal_export *export =
 		container_of(exp_hdl, struct txnfs_fsal_export, export);
