@@ -12,11 +12,12 @@
 #include <sys/types.h>
 #include "gsh_list.h"
 #include "FSAL/fsal_init.h"
+#include "config_parsing.h"
 #include "txnfs_methods.h"
 
 
 /* FSAL name determines name of shared library: libfsal<name>.so */
-const char myname[] = "TXN";
+const char myname[] = "TXNFS";
 
 /* my module private storage
  */
@@ -51,6 +52,21 @@ struct txnfs_fsal_module TXNFS = {
 	}
 };
 
+static struct config_item txn_items[] = {
+	CONF_MAND_PATH("DbPath", 1, MAXPATHLEN, "/tmp/txndb",
+		       txnfs_fsal_module, db_path),
+	CONFIG_EOL
+};
+
+static struct config_block txn_block = {
+	.dbus_interface_name = "org.ganesha.nfsd.config.fsal.txn",
+	.blk_desc.name = "TXNFS",
+	.blk_desc.type = CONFIG_BLOCK,
+	.blk_desc.u.blk.init = noop_conf_init,
+	.blk_desc.u.blk.params = txn_items,
+	.blk_desc.u.blk.commit = noop_conf_commit
+};
+
 /* Module methods
  */
 
@@ -75,15 +91,31 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
 	 */
 
   UDBG;
-	display_fsinfo(fsal_module);
 	LogDebug(COMPONENT_FSAL,
 		 "FSAL_TXN INIT: Supported attributes mask = 0x%" PRIx64,
 		 fsal_module->fs_info.supported_attrs);
+	struct txnfs_fsal_module *txnfs_module =
+	    container_of(fsal_module, struct txnfs_fsal_module, module);
+	/* if we have fsal specific params, do them here
+	 * fsal_hdl->name is used to find the block containing the
+	 * params.
+	 */
+  int found = load_config_from_parse(config_struct,
+				      &txn_block,
+				      txnfs_module,
+				      true,
+				      err_type);
+	if (!config_error_is_harmless(err_type))
+		return fsalstat(ERR_FSAL_INVAL, 0);
+	
+  display_fsinfo(&txnfs_module->module);
+	LogDebug(COMPONENT_FSAL,"dump_config found: %d db_path: %s", found, txnfs_module->db_path);
 	lm = new_lock_manager();
-  db = init_db_store("txn-store", true);
+  db = init_db_store(txnfs_module->db_path, true);
   assert(db != NULL);
-	LogDebug(COMPONENT_FSAL,"init lock manager %p", lm);
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+  assert(initialize_id_manager(db) == 0);
+	
+  return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
 /* Internal TXNFS method linkage to export object

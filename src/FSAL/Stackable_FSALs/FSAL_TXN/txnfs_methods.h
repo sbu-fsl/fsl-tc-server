@@ -7,6 +7,9 @@
 struct txnfs_fsal_module {
   struct fsal_module module;
   struct fsal_obj_ops handle_ops;
+
+  /** Config - database path */
+  char *db_path;
 };
 
 extern struct txnfs_fsal_module TXNFS;

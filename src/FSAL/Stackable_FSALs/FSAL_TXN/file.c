@@ -101,7 +101,7 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 						obj_hdl->fs, new_obj,
 						status, NULL, false);
 		else {
-			LogDebug(COMPONENT_FSAL, "uuid_index: %d and uuids_len:%d",
+			/*LogDebug(COMPONENT_FSAL, "uuid_index: %d and uuids_len:%d",
 					op_ctx->uuid_index, op_ctx->uuids_len);
 			if (op_ctx->uuid_index >= op_ctx->uuids_len) {
 				LogMajor(COMPONENT_FSAL,
@@ -111,7 +111,10 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 
 			return txnfs_alloc_and_check_handle(export, sub_handle,
 					obj_hdl->fs, new_obj,
-					status, op_ctx->uuids[op_ctx->uuid_index++], true);
+					status, op_ctx->uuids[op_ctx->uuid_index++], true);*/
+			return txnfs_alloc_and_check_handle(export, sub_handle,
+					obj_hdl->fs, new_obj,
+					status, NULL, true);
 		}
 	}
 

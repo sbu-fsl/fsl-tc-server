@@ -50,7 +50,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 	/* default handlers */
 	fsal_obj_handle_init(&result->obj_handle, &export->export,
 			     sub_handle->type);
-	strcpy(result->obj_handle.absolute_path, sub_handle->absolute_path);
+	/*strcpy(result->obj_handle.absolute_path, sub_handle->absolute_path);*/
 	/* txnfs handlers */
 	result->obj_handle.obj_ops = &TXNFS.handle_ops;
 	result->sub_handle = sub_handle;
@@ -95,14 +95,14 @@ fsal_status_t txnfs_alloc_and_check_handle(
 	if (FSAL_IS_ERROR(subfsal_status)) return subfsal_status;
 
 	struct txnfs_fsal_obj_handle *txn_handle = NULL;
-	db_kvpair_t kvpair[2];
-	struct gsh_buffdesc fh_desc;
+	/*db_kvpair_t kvpair[2];*/
+	/*struct gsh_buffdesc fh_desc;*/
 
 	/* calling subfsal method to get unique key corresponding to the sub-handle*/
+/*
 	op_ctx->fsal_export = export->export.sub_export;
 	sub_handle->obj_ops->handle_to_key(sub_handle, &fh_desc);
 	op_ctx->fsal_export = &export->export;
-
 	LogDebug(COMPONENT_FSAL,
 		"PRE UUID OP_CTX INDEX: %d and LEN: %d and "
 		"IS_CREATION: %d\n",
@@ -150,7 +150,8 @@ fsal_status_t txnfs_alloc_and_check_handle(
 				"FileID.");
 		}
 	}
-
+*/
+	txn_handle = txnfs_alloc_handle(export, sub_handle, fs, uuid);
 	*new_handle = &txn_handle->obj_handle;
 	return subfsal_status;
 }
@@ -222,16 +223,19 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 
 	LogMajor(COMPONENT_FSAL, "uuid_index: %d and uuids_len:%d",
 		 op_ctx->uuid_index, op_ctx->uuids_len);
-	if (op_ctx->uuid_index >= op_ctx->uuids_len) {
+	/*if (op_ctx->uuid_index >= op_ctx->uuids_len) {
 		LogMajor(COMPONENT_FSAL,
 			 "uuid_index is greater than or equal to total uuids");
 		return fsalstat(ERR_FSAL_INVAL, 0);
-	}
+	}*/
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(
 	    export, sub_handle, dir_hdl->fs, new_obj, status,
-	    op_ctx->uuids[op_ctx->uuid_index++], true);
+	    NULL, true);
+	/*return txnfs_alloc_and_check_handle(
+	    export, sub_handle, dir_hdl->fs, new_obj, status,
+			op_ctx->uuids[op_ctx->uuid_index++], true);*/
 }
 
 static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
@@ -636,6 +640,18 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
+	
+  struct txnfs_fsal_export *export =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
+	op_ctx->fsal_export = export->export.sub_export;
+	fsal_status_t status = handle->sub_handle->obj_ops->handle_to_wire(
+		handle->sub_handle, output_type, fh_desc);
+	op_ctx->fsal_export = &export->export;
+
+	return status;
+
+	/*[> calling subfsal method <]
 
 	LogDebug(COMPONENT_FSAL, "Creating digest for file id %s", handle->uuid);
 	if (fh_desc->len >= TXN_UUID_LEN) {
@@ -648,7 +664,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 		return fsalstat(ERR_FSAL_TOOSMALL, 0);
 	}
 
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);*/
 }
 
 /**
@@ -658,7 +674,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
  * after the handle is released.
  */
 
-static void handle_to_key(struct fsal_obj_handle *obj_hdl,
+/*static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 			  struct gsh_buffdesc *fh_desc)
 {
   UDBG;
@@ -668,6 +684,22 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 	fh_desc->addr = (char *)handle->uuid;
 	fh_desc->len = TXN_UUID_LEN;
+}*/
+static void handle_to_key(struct fsal_obj_handle *obj_hdl,
+			  struct gsh_buffdesc *fh_desc)
+{
+	struct txnfs_fsal_obj_handle *handle =
+		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+
+	struct txnfs_fsal_export *export =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
+
+	/* calling subfsal method */
+	op_ctx->fsal_export = export->export.sub_export;
+	handle->sub_handle->obj_ops->handle_to_key(handle->sub_handle, fh_desc);
+	op_ctx->fsal_export = &export->export;
 }
 
 /*
@@ -853,12 +885,13 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 		container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	struct fsal_obj_handle *sub_handle; /*< New subfsal handle.*/
-	db_kvpair_t kvpair;
+	/*db_kvpair_t kvpair;*/
 	*handle = NULL;
 	struct gsh_buffdesc keybuf;
+	fsal_status_t status;
 
 	/* call to subfsal lookup with the good context. */
-	fsal_status_t status;
+  /*
 	LogDebug(COMPONENT_FSAL, "Received file ID %s. ID Length = %zu",
 		 (char *)hdl_desc->addr, hdl_desc->len);
 	kvpair.key = hdl_desc->addr;
@@ -871,7 +904,7 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	keybuf.addr = (char *)kvpair.val;
-	keybuf.len = kvpair.val_len;
+	keybuf.len = kvpair.val_len;*/
 	op_ctx->fsal_export = export->export.sub_export;
 
 	status = export->export.sub_export->exp_ops.create_handle(
