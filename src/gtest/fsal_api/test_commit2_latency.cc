@@ -22,27 +22,27 @@
  * -------------
  */
 
-#include <sys/types.h>
-#include <string.h>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <chrono>
-#include <thread>
-#include <random>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <random>
+#include <string.h>
+#include <sys/types.h>
+#include <thread>
+#include <vector>
 
 extern "C" {
 /* Manually forward this, as 9P is not C++ safe */
 void admin_halt(void);
 /* Ganesha headers */
+#include "common_utils.h"
 #include "export_mgr.h"
+#include "fsal.h"
 #include "nfs_exports.h"
 #include "sal_data.h"
-#include "fsal.h"
-#include "common_utils.h"
 /* For MDCACHE bypass.  Use with care */
 #include "../FSAL/Stackable_FSALs/FSAL_MDCACHE/mdcache_debug.h"
 }
@@ -57,78 +57,75 @@ void admin_halt(void);
 
 namespace {
 
-  char* ganesha_conf = nullptr;
-  char* lpath = nullptr;
-  int dlevel = -1;
-  uint16_t export_id = 77;
-  char* event_list = nullptr;
-  char* profile_out = nullptr;
+char *ganesha_conf = nullptr;
+char *lpath = nullptr;
+int dlevel = -1;
+uint16_t export_id = 77;
+char *event_list = nullptr;
+char *profile_out = nullptr;
 
-  class Commit2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-  protected:
+class Commit2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
+protected:
+  virtual void SetUp() {
+    fsal_status_t status;
+    bool caller_perm_check = false;
 
-    virtual void SetUp() {
-      fsal_status_t status;
-      bool caller_perm_check = false;
+    gtest::GaneshaFSALBaseTest::SetUp();
+    fsal_prepare_attrs(&attrs_in, 0);
 
-      gtest::GaneshaFSALBaseTest::SetUp();
+    test_file_state = op_ctx->fsal_export->exp_ops.alloc_state(
+        op_ctx->fsal_export, STATE_TYPE_SHARE, NULL);
+    ASSERT_NE(test_file_state, nullptr);
 
-      test_file_state = op_ctx->fsal_export->exp_ops.alloc_state(
-						op_ctx->fsal_export,
-						STATE_TYPE_SHARE,
-						NULL);
-      ASSERT_NE(test_file_state, nullptr);
-
-      status = test_root->obj_ops->open2(test_root, test_file_state,
-                      FSAL_O_RDWR, FSAL_UNCHECKED, TEST_FILE, NULL, NULL,
-                      &test_file, NULL, &caller_perm_check);
-      ASSERT_EQ(status.major, 0);
-    }
-
-    virtual void TearDown() {
-      fsal_status_t status;
-
-      status = test_file->obj_ops->close2(test_file, test_file_state);
-      EXPECT_EQ(0, status.major);
-
-      test_file_state->state_exp->exp_ops.free_state(test_file_state->state_exp,
-						     test_file_state);
-      EXPECT_EQ(0, status.major);
-
-      status = fsal_remove(test_root, TEST_FILE);
-      EXPECT_EQ(status.major, 0);
-      test_file->obj_ops->put_ref(test_file);
-      test_file = NULL;
-
-      gtest::GaneshaFSALBaseTest::TearDown();
-    }
-
-    struct fsal_obj_handle *test_file = nullptr;
-    struct state_t* test_file_state = nullptr;
-  };
-
-  static void write_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
-                        void *write_data, void *caller_data)
-  {
-    /* Fixup ERR_FSAL_SHARE_DENIED status */
-    if (ret.major == ERR_FSAL_SHARE_DENIED)
-      ret = fsalstat(ERR_FSAL_LOCKED, 0);
-
-    EXPECT_EQ(ret.major, 0);
+    status = test_root->obj_ops->open2(
+        test_root, test_file_state, FSAL_O_RDWR, FSAL_UNCHECKED, TEST_FILE,
+        &attrs_in, NULL, &test_file, NULL, &caller_perm_check);
+    ASSERT_EQ(status.major, 0);
   }
+
+  virtual void TearDown() {
+    fsal_status_t status;
+
+    status = test_file->obj_ops->close2(test_file, test_file_state);
+    EXPECT_EQ(0, status.major);
+
+    test_file_state->state_exp->exp_ops.free_state(test_file_state->state_exp,
+                                                   test_file_state);
+    EXPECT_EQ(0, status.major);
+
+    status = fsal_remove(test_root, TEST_FILE);
+    EXPECT_EQ(status.major, 0);
+    test_file->obj_ops->put_ref(test_file);
+    test_file = NULL;
+    fsal_release_attrs(&attrs_in);
+
+    gtest::GaneshaFSALBaseTest::TearDown();
+  }
+  struct attrlist attrs_in;
+
+  struct fsal_obj_handle *test_file = nullptr;
+  struct state_t *test_file_state = nullptr;
+};
+
+static void write_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
+                     void *write_data, void *caller_data) {
+  /* Fixup ERR_FSAL_SHARE_DENIED status */
+  if (ret.major == ERR_FSAL_SHARE_DENIED)
+    ret = fsalstat(ERR_FSAL_LOCKED, 0);
+
+  EXPECT_EQ(ret.major, 0);
+}
 
 } /* namespace */
 
-TEST_F(Commit2EmptyLatencyTest, SIMPLE)
-{
+TEST_F(Commit2EmptyLatencyTest, SIMPLE) {
   fsal_status_t status;
 
   status = test_file->obj_ops->commit2(test_file, OFFSET, LENGTH);
   EXPECT_EQ(status.major, 0);
 }
 
-TEST_F(Commit2EmptyLatencyTest, SIMPLE_BYPASS)
-{
+TEST_F(Commit2EmptyLatencyTest, SIMPLE_BYPASS) {
   fsal_status_t status;
   struct fsal_obj_handle *sub_hdl;
 
@@ -139,13 +136,12 @@ TEST_F(Commit2EmptyLatencyTest, SIMPLE_BYPASS)
   EXPECT_EQ(status.major, 0);
 }
 
-TEST_F(Commit2EmptyLatencyTest, SMALL_UNSTABLE_WRITE)
-{
+TEST_F(Commit2EmptyLatencyTest, SMALL_UNSTABLE_WRITE) {
   fsal_status_t status;
   char *databuffer;
   struct fsal_io_arg write_arg;
   int bytes = 64;
-  databuffer = (char *) malloc(bytes);
+  databuffer = (char *)malloc(bytes);
 
   memset(databuffer, 'a', bytes);
 
@@ -165,13 +161,12 @@ TEST_F(Commit2EmptyLatencyTest, SMALL_UNSTABLE_WRITE)
   free(databuffer);
 }
 
-TEST_F(Commit2EmptyLatencyTest, SMALL_STABLE_WRITE)
-{
+TEST_F(Commit2EmptyLatencyTest, SMALL_STABLE_WRITE) {
   fsal_status_t status;
   char *databuffer;
   struct fsal_io_arg write_arg;
   int bytes = 64;
-  databuffer = (char *) malloc(bytes);
+  databuffer = (char *)malloc(bytes);
 
   memset(databuffer, 'a', bytes);
 
@@ -191,13 +186,12 @@ TEST_F(Commit2EmptyLatencyTest, SMALL_STABLE_WRITE)
   free(databuffer);
 }
 
-TEST_F(Commit2EmptyLatencyTest, LARGE_UNSTABLE_WRITE)
-{
+TEST_F(Commit2EmptyLatencyTest, LARGE_UNSTABLE_WRITE) {
   fsal_status_t status;
   char *databuffer;
   struct fsal_io_arg write_arg;
-  int bytes = (2*1024*1024);
-  databuffer = (char *) malloc(bytes);
+  int bytes = (2 * 1024 * 1024);
+  databuffer = (char *)malloc(bytes);
 
   memset(databuffer, 'a', bytes);
 
@@ -217,13 +211,12 @@ TEST_F(Commit2EmptyLatencyTest, LARGE_UNSTABLE_WRITE)
   free(databuffer);
 }
 
-TEST_F(Commit2EmptyLatencyTest, LARGE_STABLE_WRITE)
-{
+TEST_F(Commit2EmptyLatencyTest, LARGE_STABLE_WRITE) {
   fsal_status_t status;
   char *databuffer;
   struct fsal_io_arg write_arg;
-  int bytes = (2*1024*1024);
-  databuffer = (char *) malloc(bytes);
+  int bytes = (2 * 1024 * 1024);
+  databuffer = (char *)malloc(bytes);
 
   memset(databuffer, 'a', bytes);
 
@@ -243,8 +236,7 @@ TEST_F(Commit2EmptyLatencyTest, LARGE_STABLE_WRITE)
   free(databuffer);
 }
 
-TEST_F(Commit2EmptyLatencyTest, LOOP)
-{
+TEST_F(Commit2EmptyLatencyTest, LOOP) {
   fsal_status_t status;
   struct timespec s_time, e_time;
 
@@ -261,8 +253,7 @@ TEST_F(Commit2EmptyLatencyTest, LOOP)
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 }
 
-TEST_F(Commit2EmptyLatencyTest, FSAL_COMMIT)
-{
+TEST_F(Commit2EmptyLatencyTest, FSAL_COMMIT) {
   fsal_status_t status;
   struct timespec s_time, e_time;
 
@@ -279,10 +270,9 @@ TEST_F(Commit2EmptyLatencyTest, FSAL_COMMIT)
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int code = 0;
-  char* session_name = NULL;
+  char *session_name = NULL;
 
   using namespace std;
   using namespace std::literals;
@@ -293,28 +283,23 @@ int main(int argc, char *argv[])
 
   try {
 
-    opts.add_options()
-      ("config", po::value<string>(),
-       "path to Ganesha conf file")
+    opts.add_options()("config", po::value<string>(),
+                       "path to Ganesha conf file")
 
-      ("logfile", po::value<string>(),
-       "log to the provided file path")
+        ("logfile", po::value<string>(), "log to the provided file path")
 
-      ("export", po::value<uint16_t>(),
-       "id of export on which to operate (must exist)")
+            ("export", po::value<uint16_t>(),
+             "id of export on which to operate (must exist)")
 
-      ("debug", po::value<string>(),
-       "ganesha debug level")
+                ("debug", po::value<string>(), "ganesha debug level")
 
-      ("session", po::value<string>(),
-	"LTTng session name")
+                    ("session", po::value<string>(), "LTTng session name")
 
-      ("event-list", po::value<string>(),
-	"LTTng event list, comma separated")
+                        ("event-list", po::value<string>(),
+                         "LTTng event list, comma separated")
 
-      ("profile", po::value<string>(),
-	"Enable profiling and set output file.")
-      ;
+                            ("profile", po::value<string>(),
+                             "Enable profiling and set output file.");
 
     po::variables_map::iterator vm_iter;
     po::command_line_parser parser{argc, argv};
@@ -325,16 +310,16 @@ int main(int argc, char *argv[])
     // use config vars--leaves them on the stack
     vm_iter = vm.find("config");
     if (vm_iter != vm.end()) {
-      ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
+      ganesha_conf = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("logfile");
     if (vm_iter != vm.end()) {
-      lpath = (char*) vm_iter->second.as<std::string>().c_str();
+      lpath = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("debug");
     if (vm_iter != vm.end()) {
-      dlevel = ReturnLevelAscii(
-	(char*) vm_iter->second.as<std::string>().c_str());
+      dlevel =
+          ReturnLevelAscii((char *)vm_iter->second.as<std::string>().c_str());
     }
     vm_iter = vm.find("export");
     if (vm_iter != vm.end()) {
@@ -342,30 +327,30 @@ int main(int argc, char *argv[])
     }
     vm_iter = vm.find("session");
     if (vm_iter != vm.end()) {
-      session_name = (char*) vm_iter->second.as<std::string>().c_str();
+      session_name = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("event-list");
     if (vm_iter != vm.end()) {
-      event_list = (char*) vm_iter->second.as<std::string>().c_str();
+      event_list = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("profile");
     if (vm_iter != vm.end()) {
-      profile_out = (char*) vm_iter->second.as<std::string>().c_str();
+      profile_out = (char *)vm_iter->second.as<std::string>().c_str();
     }
 
     ::testing::InitGoogleTest(&argc, argv);
     gtest::env = new gtest::Environment(ganesha_conf, lpath, dlevel,
-					session_name, TEST_ROOT, export_id);
+                                        session_name, TEST_ROOT, export_id);
     ::testing::AddGlobalTestEnvironment(gtest::env);
 
-    code  = RUN_ALL_TESTS();
+    code = RUN_ALL_TESTS();
   }
 
-  catch(po::error& e) {
+  catch (po::error &e) {
     cout << "Error parsing opts " << e.what() << endl;
   }
 
-  catch(...) {
+  catch (...) {
     cout << "Unhandled exception in main()" << endl;
   }
 

@@ -28,7 +28,6 @@ set(ganesha_test_conf
 
 function(add_gtest testname)
   add_executable(${testname} "${testname}.cc")
-  set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
   add_sanitizers(${testname})
   target_link_libraries(${testname}
     ${GANESHA_LIBRARIES}
@@ -37,11 +36,13 @@ function(add_gtest testname)
     ${LTTNG_CTL_LIBRARIES}
     ${GPERFTOOLS_LIBRARIES}
     )
+  set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
   # The tests take too long to run; uncomment after speed them up.
-  # add_test(${testname} ${testname}
-  # "--logfile=/tmp/${testname}.log"
-  # "--debug=Debug"
-  # "--config=${ganesha_test_conf}")
+   add_test(${testname} ${testname}
+   "--logfile=/tmp/${testname}.log"
+   "--debug=Debug"
+   "--gtest_filter=*SIMPLE*"
+   "--config=${ganesha_test_conf}")
 endfunction()
 
 add_subdirectory(fsal_api)
