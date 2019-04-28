@@ -616,6 +616,11 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 static void release(struct fsal_obj_handle *obj_hdl)
 {
+	// in tests, when shutdown handle is called
+	// op_ctx seems to be NULL and causes crash
+	if (!op_ctx) {
+		return;
+	}
 	struct txnfs_fsal_obj_handle *hdl =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
