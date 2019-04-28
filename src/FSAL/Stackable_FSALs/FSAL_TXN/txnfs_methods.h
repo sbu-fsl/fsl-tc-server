@@ -66,8 +66,14 @@ fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
                                            struct fsal_obj_handle *sub_handle,
                                            struct fsal_filesystem *fs,
                                            struct fsal_obj_handle **new_handle,
+                                           fsal_status_t subfsal_status);
+/*fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
+                                           struct fsal_obj_handle *sub_handle,
+                                           struct fsal_filesystem *fs,
+                                           struct fsal_obj_handle **new_handle,
                                            fsal_status_t subfsal_status,
-                                           const char *uuid, bool is_creation);
+                                           const char *uuid, bool
+   is_creation);*/
 
 /*
  * TXNFS internal object handle
@@ -153,6 +159,9 @@ fsal_status_t txnfs_lock_op2(struct fsal_obj_handle *obj_hdl,
                              fsal_lock_param_t *conflicting_lock);
 fsal_status_t txnfs_close2(struct fsal_obj_handle *obj_hdl,
                            struct state_t *state);
+fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
+                              struct state_t *state, uint64_t offset,
+                              uint64_t length, bool allocate);
 fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
                          struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
                          uint64_t count, uint64_t *copied);

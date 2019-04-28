@@ -38,7 +38,41 @@
 #include <fcntl.h>
 #include "FSAL/fsal_commonlib.h"
 #include "txnfs_methods.h"
-#include <time.h>
+
+/**
+ * @brief Callback arg for TXN async callbacks
+ *
+ * TXN needs to know what its object is related to the sub-FSAL's object.
+ * This wraps the given callback arg with TXN specific info
+ */
+struct null_async_arg {
+	struct fsal_obj_handle *obj_hdl;	/**< TXN's handle */
+	fsal_async_cb cb;			/**< Wrapped callback */
+	void *cb_arg;				/**< Wrapped callback data */
+};
+
+/**
+ * @brief Callback for TXN async calls
+ *
+ * Unstack, and call up.
+ *
+ * @param[in] obj		Object being acted on
+ * @param[in] ret		Return status of call
+ * @param[in] obj_data		Data for call
+ * @param[in] caller_data	Data for caller
+ */
+void null_async_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
+		   void *obj_data, void *caller_data)
+{
+	struct fsal_export *save_exp = op_ctx->fsal_export;
+	struct null_async_arg *arg = caller_data;
+
+	op_ctx->fsal_export = save_exp->super_export;
+	arg->cb(arg->obj_hdl, ret, obj_data, arg->cb_arg);
+	op_ctx->fsal_export = save_exp;
+
+	gsh_free(arg);
+}
 
 /* txnfs_close
  * Close the file if it is still open.
@@ -96,26 +130,9 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 
 	if (sub_handle) {
 		/* wrap the subfsal handle in a txnfs handle. */
-		if (createmode == FSAL_NO_CREATE)
-			return txnfs_alloc_and_check_handle(export, sub_handle,
-						obj_hdl->fs, new_obj,
-						status, NULL, false);
-		else {
-			/*LogDebug(COMPONENT_FSAL, "uuid_index: %d and uuids_len:%d",
-					op_ctx->uuid_index, op_ctx->uuids_len);
-			if (op_ctx->uuid_index >= op_ctx->uuids_len) {
-				LogMajor(COMPONENT_FSAL,
-						"uuid_index is greater than or equal to total uuids");
-				return fsalstat(ERR_FSAL_INVAL, 0);
-			}
-
-			return txnfs_alloc_and_check_handle(export, sub_handle,
-					obj_hdl->fs, new_obj,
-					status, op_ctx->uuids[op_ctx->uuid_index++], true);*/
-			return txnfs_alloc_and_check_handle(export, sub_handle,
-					obj_hdl->fs, new_obj,
-					status, NULL, true);
-		}
+		return txnfs_alloc_and_check_handle(export, sub_handle,
+						     obj_hdl->fs, new_obj,
+						     status);
 	}
 
 	return status;
@@ -156,7 +173,8 @@ fsal_openflags_t txnfs_status2(struct fsal_obj_handle *obj_hdl,
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_openflags_t result =
-	    handle->sub_handle->obj_ops->status2(handle->sub_handle, state);
+		handle->sub_handle->obj_ops->status2(handle->sub_handle,
+						    state);
 	op_ctx->fsal_export = &export->export;
 
 	return result;
@@ -176,41 +194,47 @@ fsal_status_t txnfs_reopen2(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->reopen2(
-	    handle->sub_handle, state, openflags);
+	fsal_status_t status =
+		handle->sub_handle->obj_ops->reopen2(handle->sub_handle,
+						    state, openflags);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
 }
 
-void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
-		 fsal_async_cb done_cb, struct fsal_io_arg *read_arg,
-		 void *caller_arg)
+void txnfs_read2(struct fsal_obj_handle *obj_hdl,
+		  bool bypass,
+		  fsal_async_cb done_cb,
+		  struct fsal_io_arg *read_arg,
+		  void *caller_arg)
 {
 	struct txnfs_fsal_obj_handle *handle =
-	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
-
+		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
 	struct txnfs_fsal_export *export =
-	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
+	struct null_async_arg *arg;
+
+	/* Set up async callback */
+	arg = gsh_calloc(1, sizeof(*arg));
+	arg->obj_hdl = obj_hdl;
+	arg->cb = done_cb;
+	arg->cb_arg = caller_arg;
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass, done_cb,
-					   read_arg, caller_arg);
+	handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass,
+					  null_async_cb, read_arg, arg);
 	op_ctx->fsal_export = &export->export;
 }
 
-void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
-		  fsal_async_cb done_cb, struct fsal_io_arg *write_arg,
-		  void *caller_arg)
+void txnfs_write2(struct fsal_obj_handle *obj_hdl,
+		   bool bypass,
+		   fsal_async_cb done_cb,
+		   struct fsal_io_arg *write_arg,
+		   void *caller_arg)
 {
-	/*db_kvpair_t kvpair;
-	char key[20];
-	struct attrlist attrs;
-	struct fsal_obj_handle *sub_handle;
-	struct fsal_export *sub_export;
-	struct gsh_buffdesc fh_desc;*/
-
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -218,40 +242,19 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
 			     export);
+	struct null_async_arg *arg;
 
-	/*snprintf(key, 20, "%ld", obj_hdl->fileid);
-	LogDebug(COMPONENT_FSAL, "File ID received is %s", key);
-	kvpair.key = key;
-	kvpair.key_len = strlen(key);
-	LogCrit(COMPONENT_FSAL, "get_keys = %d", get_keys(&kvpair, 1, db));
-	fh_desc.addr = kvpair.val;
-	fh_desc.len = kvpair.val_len;
-	fsal_prepare_attrs(&attrs,
- 				op_ctx->fsal_export->exp_ops.
- 				fs_supported_attrs(op_ctx->fsal_export)
-				& ~ATTR_ACL);
-	sub_export = export->export.sub_export;
-	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = sub_export->exp_ops.create_handle(sub_export,
-							&fh_desc,
-							&sub_handle,
-							&attrs);
-	op_ctx->fsal_export = &export->export;
-	if (FSAL_IS_ERROR(status)) {
-		LogWarn(COMPONENT_FSAL, "create_handle failed with %s", fsal_err_txt(status));
-		fsal_release_attrs(&attrs);
-		return status;
-	}*/
+	/* Set up async callback */
+	arg = gsh_calloc(1, sizeof(*arg));
+	arg->obj_hdl = obj_hdl;
+	arg->cb = done_cb;
+	arg->cb_arg = caller_arg;
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass, done_cb,
-					    write_arg, caller_arg);
-	/*sub_handle->obj_ops.write2(sub_handle, bypass,
-					  state, offset, buf_size,
-					  buffer, write_amount,
-					  fsal_stable, info);*/
+	handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
+					   null_async_cb, write_arg, arg);
 	op_ctx->fsal_export = &export->export;
-	//fsal_release_attrs(&attrs);
 }
 
 fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
@@ -269,7 +272,8 @@ fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status =
-	    handle->sub_handle->obj_ops->seek2(handle->sub_handle, state, info);
+		handle->sub_handle->obj_ops->seek2(handle->sub_handle, state,
+						  info);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -289,8 +293,9 @@ fsal_status_t txnfs_io_advise2(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->io_advise2(
-	    handle->sub_handle, state, hints);
+	fsal_status_t status =
+		handle->sub_handle->obj_ops->io_advise2(handle->sub_handle,
+						       state, hints);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -309,8 +314,9 @@ fsal_status_t txnfs_commit2(struct fsal_obj_handle *obj_hdl, off_t offset,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->commit2(
-	    handle->sub_handle, offset, len);
+	fsal_status_t status =
+		handle->sub_handle->obj_ops->commit2(handle->sub_handle, offset,
+						    len);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -333,9 +339,10 @@ fsal_status_t txnfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->lock_op2(
-	    handle->sub_handle, state, p_owner, lock_op, req_lock,
-	    conflicting_lock);
+	fsal_status_t status =
+		handle->sub_handle->obj_ops->lock_op2(handle->sub_handle, state,
+						     p_owner, lock_op, req_lock,
+						     conflicting_lock);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -355,122 +362,30 @@ fsal_status_t txnfs_close2(struct fsal_obj_handle *obj_hdl,
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status =
-	    handle->sub_handle->obj_ops->close2(handle->sub_handle, state);
+		handle->sub_handle->obj_ops->close2(handle->sub_handle, state);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
 }
 
-fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl,
-				uint64_t src_offset,
-				struct fsal_obj_handle *dst_hdl,
-				uint64_t dst_offset, uint64_t count,
-				uint64_t *copied)
+fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
+			       struct state_t *state, uint64_t offset,
+			       uint64_t length, bool allocate)
 {
-	struct txnfs_fsal_obj_handle *src_txn_hdl =
-		container_of(src_hdl, struct txnfs_fsal_obj_handle,
-				obj_handle);
-	struct txnfs_fsal_obj_handle *dst_txn_hdl =
-		container_of(dst_hdl, struct txnfs_fsal_obj_handle,
-				obj_handle);
+	struct txnfs_fsal_obj_handle *handle =
+		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+
 	struct txnfs_fsal_export *export =
 		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-				export);
+			     export);
+	fsal_status_t status;
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = src_txn_hdl->sub_handle->obj_ops->copy(
-	    src_txn_hdl->sub_handle, src_offset, dst_txn_hdl->sub_handle,
-	    dst_offset, count, copied);
+	status = handle->sub_handle->obj_ops->fallocate(handle->sub_handle,
+							state, offset, length,
+							allocate);
 	op_ctx->fsal_export = &export->export;
-
-	return status;
-	
-}
-
-fsal_status_t txnfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				   void *data)
-{
-	char name[20] = {0};
-	time_t current_time;
-	struct attrlist *attrs_out = NULL;
-	struct attrlist attrs;
-	// compound_data_t *cdata = (compound_data_t *)data;
-
-	struct txnfs_fsal_obj_handle *txn_hdl =
-		container_of(root_backup_hdl,
-			     struct txnfs_fsal_obj_handle, obj_handle);
-
-	struct txnfs_fsal_export *export =
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-				export);
-
-	op_ctx->fsal_export = export->export.sub_export;
-	LogCrit(COMPONENT_FSAL, "In TXN start");
-
-	/* create timestamp based backup_dir here */
-	current_time = time(NULL);
-	if (current_time == ((time_t) - 1)) {
-		LogCrit(COMPONENT_FSAL, "get time failed");
-	}
-	sprintf(name, "txn_%ld", current_time);
-
-	memset(&attrs, 0, sizeof(struct attrlist));
-	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-	attrs.mode = 777;
-	attrs.owner = 667;
-	attrs.group = 766;
-
-	fsal_status_t status = txn_hdl->sub_handle->obj_ops->mkdir(
-	    txn_hdl->sub_handle, name, &attrs,
-	    /* TODO: &cdata->tc_backup_dir */ NULL, attrs_out);
-
-	LogCrit(COMPONENT_FSAL, "Created backupdir at: %s", name);
-	op_ctx->fsal_export = &export->export;
-	// cdata->lh = lm_lock(lm, cdata->files, cdata->nr_files);
-	return status;
-}
-
-fsal_status_t txnfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-				 void *data)
-{
-	struct txnfs_fsal_obj_handle *txn_hdl =
-		container_of(root_backup_hdl, struct txnfs_fsal_obj_handle,
-				obj_handle);
-
-	struct txnfs_fsal_export *export =
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-				export);
-	// compound_data_t *cdata = (compound_data_t *)data;
-
-	op_ctx->fsal_export = export->export.sub_export;
-	LogCrit(COMPONENT_FSAL, "In TXN end");
-	fsal_status_t status = txn_hdl->sub_handle->obj_ops->end_compound(
-	    txn_hdl->sub_handle, data);
-	// unlock_handle(cdata->lh);
-	// cdata->lh = NULL;
-
-	op_ctx->fsal_export = &export->export;
-
-	return status;
-}
-
-fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl,
-			  char **dst_name,
-			  struct fsal_obj_handle *dir_hdl,
-			  char *uuid)
-{
-	struct txnfs_fsal_obj_handle *txn_hdl =
-		container_of(src_hdl, struct txnfs_fsal_obj_handle,
-			     obj_handle);
-
-	LogDebug(COMPONENT_FSAL, "txn: clone");
-
-	fsal_status_t status = txn_hdl->sub_handle->obj_ops->clone(
-	    txn_hdl->sub_handle, dst_name, dir_hdl, (char *)txn_hdl->uuid);
-	if (dst_name)
-		LogDebug(COMPONENT_FSAL, "txn: clone sucess, %s", *dst_name);
-	else
-		LogDebug(COMPONENT_FSAL, "txn: clone fail");
 	return status;
 }
