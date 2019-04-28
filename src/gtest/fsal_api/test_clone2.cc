@@ -60,7 +60,7 @@ namespace {
 
 } /* namespace */
 
-TEST_F(CloneTest, SIMPLE)
+TEST_F(CloneTest, SIMPLE_CLONE)
 {
   fsal_status_t status;
   bool caller_perm_check = false;
@@ -113,7 +113,6 @@ TEST_F(CloneTest, SIMPLE)
   ASSERT_EQ(status.major, 0);
 
   /* Clone the src file */
-  // TODO Write Similar test case for range copy
   status = test_root->obj_ops->clone2(src_obj, NULL, dst_obj, NULL, -1, 0);
   EXPECT_EQ(status.major, 0);
 
@@ -136,7 +135,99 @@ TEST_F(CloneTest, SIMPLE)
   free(w_databuffer);
   free(r_databuffer);
 
-  //TODO Doesn't hang if we comment this close. Need to debug src_obj handle liveliness
+  status = src_obj->obj_ops->close2(src_obj, file_state1);
+  EXPECT_EQ(status.major, 0);
+
+  status = dst_obj->obj_ops->close2(dst_obj, file_state2);
+  EXPECT_EQ(status.major, 0);
+  /* Remove files created while running test */
+  status = fsal_remove(test_root, TEST_FILE);
+  ASSERT_EQ(status.major, 0);
+  status = fsal_remove(test_root, TEST_FILE_CLONE);
+  ASSERT_EQ(status.major, 0);
+  op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export, file_state1);
+  op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export, file_state2);
+}
+
+TEST_F(CloneTest, RANGE_CLONE)
+{
+  fsal_status_t status;
+  bool caller_perm_check = false;
+  struct state_t *file_state1;
+  struct state_t *file_state2;
+  struct fsal_obj_handle *src_obj = nullptr;
+  struct fsal_obj_handle *dst_obj = nullptr;
+  char *w_databuffer, *r_databuffer;
+  struct fsal_io_arg *write_arg, *read_arg;
+  int bytes = 4096 + 1024;
+  int cpy_bytes = 1024;
+  // For range copy the offset should be aligned with block size
+  long int off_in = 4096;
+  long int off_out = 0;
+  int ret = -1;
+  w_databuffer = (char *) malloc(bytes);
+  r_databuffer = (char *) malloc(cpy_bytes);
+
+  memset(w_databuffer, 'a', bytes);
+
+  /* Create src file for the test */
+
+  file_state1 = op_ctx->fsal_export->exp_ops.alloc_state(op_ctx->fsal_export,
+							STATE_TYPE_SHARE,
+							NULL);
+  ASSERT_NE(file_state1, nullptr);
+
+  status = test_root->obj_ops->open2(test_root, file_state1, FSAL_O_RDWR,
+	     FSAL_UNCHECKED, TEST_FILE, &attrs_in, NULL, &src_obj, NULL,
+	     &caller_perm_check);
+  ASSERT_EQ(status.major, 0);
+
+  write_arg = (struct fsal_io_arg*)alloca(sizeof(struct fsal_io_arg) +
+					  sizeof(struct iovec));
+  write_arg->info = NULL;
+  write_arg->state = NULL;
+  write_arg->offset = OFFSET;
+  write_arg->iov_count = 1;
+  write_arg->iov[0].iov_len = bytes;
+  write_arg->iov[0].iov_base = w_databuffer;
+  write_arg->io_amount = 0;
+  write_arg->fsal_stable = false;
+
+  src_obj->obj_ops->write2(src_obj, true, callback, write_arg, NULL);
+
+  file_state2 = op_ctx->fsal_export->exp_ops.alloc_state(op_ctx->fsal_export,
+							STATE_TYPE_SHARE,
+							NULL);
+  ASSERT_NE(file_state2, nullptr);
+  // create and open a file for clone
+  status = test_root->obj_ops->open2(test_root, file_state2, FSAL_O_RDWR,
+	     FSAL_UNCHECKED, TEST_FILE_CLONE, &attrs_in, NULL, &dst_obj, NULL,
+	     &caller_perm_check);
+  ASSERT_EQ(status.major, 0);
+
+  /* Clone the src file */
+  status = test_root->obj_ops->clone2(src_obj, &off_in, dst_obj, &off_out, cpy_bytes, 0);
+  EXPECT_EQ(status.major, 0);
+
+  // Validate clone
+  read_arg = (struct fsal_io_arg*)alloca(sizeof(struct fsal_io_arg) +
+					 sizeof(struct iovec));
+  read_arg->info = NULL;
+  read_arg->state = NULL;
+  read_arg->offset = OFFSET;
+  read_arg->iov_count = 1;
+  read_arg->iov[0].iov_len = cpy_bytes;
+  read_arg->iov[0].iov_base = r_databuffer;
+  read_arg->io_amount = 0;
+
+  dst_obj->obj_ops->read2(dst_obj, true, callback, read_arg, NULL);
+
+  ret = memcmp(r_databuffer, w_databuffer + off_in, cpy_bytes);
+  EXPECT_EQ(ret, 0);
+
+  free(w_databuffer);
+  free(r_databuffer);
+
   status = src_obj->obj_ops->close2(src_obj, file_state1);
   EXPECT_EQ(status.major, 0);
 
