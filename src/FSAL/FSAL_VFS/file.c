@@ -2196,31 +2196,33 @@ fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 			 struct fsal_obj_handle *dst_hdl, loff_t *off_out,
 			 size_t len, unsigned int flags)
 {
-	int retval = 0, src_fd, dst_fd;
-	struct vfs_fsal_obj_handle *myself;
+	int retval = 0, src_fd = -1, dst_fd = -1;
+	bool has_lock1 = false;
+	bool has_lock2 = false;
+	bool closefd1 = false;
+	bool closefd2 = false;
+	fsal_status_t st = {0, 0};
 	struct file_clone_range *arg;
 
-	LogDebug(COMPONENT_FSAL, "vfs_clone: server-side cloning");
+	LogDebug(COMPONENT_FSAL, "vfs_clone2: server-side cloning");
 
-	myself = container_of(src_hdl, struct vfs_fsal_obj_handle, obj_handle);
-	src_fd = myself->u.file.fd.fd;
-	LogCrit(COMPONENT_FSAL, "src fd : %d", src_fd);
-	if (src_fd < 0) {
-		LogCrit(COMPONENT_FSAL, "vfs_clone: Unable to open src file");
-		goto out;
-	}
+	st = find_fd(&src_fd, src_hdl, false, NULL, FSAL_O_READ,
+                         &has_lock1, &closefd1, false);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "find_fd failed %s", msg_fsal_err(st.major));
+                goto out;
+        }
 
-	myself = container_of(dst_hdl, struct vfs_fsal_obj_handle, obj_handle);
-	dst_fd = myself->u.file.fd.fd;
-	LogCrit(COMPONENT_FSAL, "dst fd : %d", dst_fd);
-	if (dst_fd < 0) {
-		LogCrit(COMPONENT_FSAL, "vfs_clone: Unable to open src file");
-		goto out;
-	}
+	st = find_fd(&dst_fd, dst_hdl, false, NULL, FSAL_O_WRITE,
+                         &has_lock2, &closefd2, false);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "find_fd failed %s", msg_fsal_err(st.major));
+                goto out;
+        }
 
-	PTHREAD_RWLOCK_rdlock(&src_hdl->obj_lock);
 	/* Clone the file */
-	LogCrit(COMPONENT_FSAL, "Calling clone_file");
 	if (len == -1) {
 		// Perform full copy
 		retval = ioctl(dst_fd, FICLONE, src_fd);
@@ -2235,18 +2237,23 @@ fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 		retval = ioctl(dst_fd, FICLONERANGE, arg);
 		free(arg);
 	}
-	//TODO only supported in kernel>=v4.5. 18.04 comes with 4.15 by default
-	//copy_file_range(src_fd, off_in, dst_fd, off_out, len, flags);
-	if (retval < 0) {
-		LogDebug(COMPONENT_FSAL, "vfs_clone: clone failed");
+
+	if (retval != 0) {
+		LogDebug(COMPONENT_FSAL, "vfs_clone2: clone failed");
 		goto out;
 	}
 
-	PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	if (has_lock1)
+                PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	if (has_lock2)
+                PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
 out:
-	PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
-	LogDebug(COMPONENT_FSAL, "Exited vfs_clone");
+	if (has_lock1)
+                PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	if (has_lock2)
+                PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
+	LogDebug(COMPONENT_FSAL, "Exited vfs_clone2");
 	return fsalstat(posix2fsal_error(retval), retval);
 }
