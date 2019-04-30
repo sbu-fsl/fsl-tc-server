@@ -78,7 +78,6 @@ TEST_F(CloneTest, SIMPLE_CLONE)
   memset(w_databuffer, 'a', bytes);
 
   /* Create src file for the test */
-
   file_state1 = op_ctx->fsal_export->exp_ops.alloc_state(op_ctx->fsal_export,
 							STATE_TYPE_SHARE,
 							NULL);

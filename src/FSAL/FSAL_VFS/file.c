@@ -2203,6 +2203,7 @@ fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 	bool closefd2 = false;
 	fsal_status_t st = {0, 0};
 	struct file_clone_range *arg;
+	struct attrlist attrs;
 
 	LogDebug(COMPONENT_FSAL, "vfs_clone2: server-side cloning");
 
@@ -2242,12 +2243,18 @@ fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 		LogDebug(COMPONENT_FSAL, "vfs_clone2: clone failed");
 		goto out;
 	}
-
-	if (has_lock1)
-                PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
-	if (has_lock2)
-                PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+	st = vfs_getattr2(src_hdl, &attrs);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "Unable to get attributes of src file %s", msg_fsal_err(st.major));
+                goto out;
+        }
+	st = vfs_setattr2(dst_hdl, false, NULL, &attrs);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "Unable to set attributes of dst file %s", msg_fsal_err(st.major));
+                goto out;
+        }
 
 out:
 	if (has_lock1)
