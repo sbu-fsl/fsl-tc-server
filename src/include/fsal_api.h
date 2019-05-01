@@ -416,9 +416,9 @@ struct req_op_context {
 	struct fsal_module *fsal_module;	/*< current fsal module */
 	struct fsal_pnfs_ds *fsal_pnfs_ds;	/*< current pNFS DS */
 	/* add new context members here */
-	char **uuids;           /*< The preallocated UUIDs to be used for the
+	char uuid[16];           /*< The preallocated UUIDs to be used for the
 				next new FS object. */
-	int uuids_len;          /*< Number of allocated UUIDs to be used */
+	int uuid_len;          /*< Number of allocated UUIDs to be used */
 	int uuid_index;         /*< The index of the above uuid among all
 				preallocated uuids; should be incremented if
 				uuid is consumed */
