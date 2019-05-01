@@ -1,4 +1,5 @@
 #include "txnfs_methods.h"
+#include "id_manager.h"
 #include <assert.h>
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc) {
@@ -31,9 +32,16 @@ uuid_t txnfs_get_uuid()
 {
 	assert(op_ctx);
 
+	// first time the thread or request is initialized 
+	if (op_ctx->uuid_len == 0) 
+	{
+  	op_ctx->uuid_len = UUID_ALLOC_LIMIT;
+	}
+
 	if (op_ctx->uuid_index >= op_ctx->uuid_len) {
 		// get more uuids
-		memcpy(op_ctx->uuid, uuid_to_buf(uuid_allocate(db, UUID_ALLOC_LIMIT)), TXN_UUID_LEN);
+		uuid_t tuuid = uuid_allocate(db, UUID_ALLOC_LIMIT);
+		memcpy(op_ctx->uuid, uuid_to_buf(tuuid), TXN_UUID_LEN);
 		assert(op_ctx->uuid_len == UUID_ALLOC_LIMIT);
 		// reset index
 		op_ctx->uuid_index = 0;

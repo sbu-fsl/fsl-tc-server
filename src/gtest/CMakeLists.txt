@@ -86,3 +86,5 @@ target_link_libraries(test_rbt
 set_target_properties(test_rbt PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
+# FSAL_TXN specific tests
+add_gtest(test_txn_handle)

@@ -114,7 +114,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
   db = init_db_store(txnfs_module->db_path, true);
   assert(db != NULL);
   assert(initialize_id_manager(db) == 0);
-	
+  
   return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
