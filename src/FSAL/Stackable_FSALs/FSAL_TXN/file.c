@@ -129,10 +129,11 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 	op_ctx->fsal_export = &export->export;
 
 	if (sub_handle) {
+		bool is_creation = createmode != FSAL_NO_CREATE;
 		/* wrap the subfsal handle in a txnfs handle. */
 		return txnfs_alloc_and_check_handle(export, sub_handle,
 						     obj_hdl->fs, new_obj,
-						     status);
+						     status, is_creation);
 	}
 
 	return status;

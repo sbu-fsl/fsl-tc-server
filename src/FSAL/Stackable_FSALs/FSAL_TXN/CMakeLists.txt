@@ -13,6 +13,7 @@ SET(fsaltxn_LIB_SRCS
    xattrs.c
    txnfs_methods.h
    main.c
+	 helper.c
    export.c
 )
 

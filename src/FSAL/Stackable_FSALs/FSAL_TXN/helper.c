@@ -1,0 +1,46 @@
+#include "txnfs_methods.h"
+#include <assert.h>
+
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc) {
+	db_kvpair_t kvpair;
+	uuid_t tuuid = txnfs_get_uuid();
+
+	kvpair.val = (char *) hdl_desc->addr;
+	kvpair.val_len = hdl_desc->len;
+	kvpair.key = (char *) &tuuid; 
+	kvpair.key_len = TXN_UUID_LEN;
+	
+	return put_id_handle(&kvpair, 1, db);
+}
+
+bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
+{
+	db_kvpair_t kvpair;
+
+	LogDebug(COMPONENT_FSAL, "HandleAddr: %p HandleLen: %zu", hdl_desc->addr, hdl_desc->len);
+	kvpair.key = (char *) hdl_desc->addr;
+	kvpair.key_len = hdl_desc->len;
+	kvpair.val = NULL;
+	int res = get_keys(&kvpair, 1, db);
+	LogDebug(COMPONENT_FSAL, "get_keys = %d", res);
+
+	return kvpair.val == NULL;
+}
+
+uuid_t txnfs_get_uuid() 
+{
+	assert(op_ctx);
+
+	if (op_ctx->uuid_index >= op_ctx->uuid_len) {
+		// get more uuids
+		memcpy(op_ctx->uuid, uuid_to_buf(uuid_allocate(db, UUID_ALLOC_LIMIT)), TXN_UUID_LEN);
+		assert(op_ctx->uuid_len == UUID_ALLOC_LIMIT);
+		// reset index
+		op_ctx->uuid_index = 0;
+	}
+
+	// TODO - improve!	
+	memcpy(op_ctx->uuid, uuid_to_buf(uuid_next(buf_to_uuid(op_ctx->uuid))), TXN_UUID_LEN);
+	op_ctx->uuid_index++;
+	return buf_to_uuid(op_ctx->uuid);
+}

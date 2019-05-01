@@ -82,6 +82,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 	result->obj_handle.fs = fs;
 	result->obj_handle.state_hdl = sub_handle->state_hdl;
 	result->refcnt = 1;
+	result->uuid = txnfs_get_uuid();
 
 	return result;
 }
@@ -106,17 +107,33 @@ fsal_status_t txnfs_alloc_and_check_handle(
 		struct fsal_obj_handle *sub_handle,
 		struct fsal_filesystem *fs,
 		struct fsal_obj_handle **new_handle,
-		fsal_status_t subfsal_status)
+		fsal_status_t subfsal_status,
+		bool is_creation)
 {
+	struct gsh_buffdesc fh_desc;
+
+	if (FSAL_IS_ERROR(subfsal_status)) return subfsal_status;
 	/** Result status of the operation. */
 	fsal_status_t status = subfsal_status;
 
-	if (!FSAL_IS_ERROR(subfsal_status)) {
-		struct txnfs_fsal_obj_handle *null_handle;
+	struct txnfs_fsal_obj_handle *txn_handle;
 
-		null_handle = txnfs_alloc_handle(export, sub_handle, fs);
+	txn_handle = txnfs_alloc_handle(export, sub_handle, fs);
 
-		*new_handle = &null_handle->obj_handle;
+	*new_handle = &txn_handle->obj_handle;
+	
+	/* calling subfsal method to get unique key corresponding to the sub-handle*/
+	op_ctx->fsal_export = export->export.sub_export;
+	sub_handle->obj_ops->handle_to_key(sub_handle, &fh_desc);
+	op_ctx->fsal_export = &export->export;	
+	
+	if (is_creation)
+	{
+		txnfs_db_insert_handle(&fh_desc);
+	}
+	else
+	{
+		assert(txnfs_db_handle_exists(&fh_desc));
 	}
 	return status;
 }
@@ -151,7 +168,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, parent->fs,
-					     handle, status);
+					     handle, status, false /* is_creation */);
 }
 
 static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
@@ -180,7 +197,7 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					     new_obj, status);
+					     new_obj, status, true /* is_creation */);
 }
 
 static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
@@ -213,7 +230,7 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					     new_obj, status);
+					     new_obj, status, true /* is_creation */);
 }
 
 /** makesymlink
@@ -252,7 +269,7 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					     new_obj, status);
+					     new_obj, status, true /* is_creation */);
 }
 
 static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
@@ -320,7 +337,7 @@ static enum fsal_dir_result txnfs_readdir_cb(
 	struct fsal_obj_handle *new_obj;
 
 	if (FSAL_IS_ERROR(txnfs_alloc_and_check_handle(state->exp, sub_handle,
-		sub_handle->fs, &new_obj, fsalstat(ERR_FSAL_NO_ERROR, 0)))) {
+		sub_handle->fs, &new_obj, fsalstat(ERR_FSAL_NO_ERROR, 0), false))) {
 		return false;
 	}
 
@@ -572,17 +589,18 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
 
-	struct txnfs_fsal_export *export =
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-			     export);
+	/*LogDebug(COMPONENT_FSAL, "Creating digest for file id %s", handle->uuid);*/
+	if (fh_desc->len >= TXN_UUID_LEN) {
+		memcpy(fh_desc->addr, &handle->uuid, TXN_UUID_LEN);
+		fh_desc->len = TXN_UUID_LEN;
+        } else {
+		LogMajor(COMPONENT_FSAL,
+			 "Space too small for handle.  need %u, have %zu",
+			 TXN_UUID_LEN, fh_desc->len);
+		return fsalstat(ERR_FSAL_TOOSMALL, 0);
+	}
 
-	/* calling subfsal method */
-	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->handle_to_wire(
-		handle->sub_handle, output_type, fh_desc);
-	op_ctx->fsal_export = &export->export;
-
-	return status;
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
 /**
@@ -599,14 +617,8 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
 
-	struct txnfs_fsal_export *export =
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-			     export);
-
-	/* calling subfsal method */
-	op_ctx->fsal_export = export->export.sub_export;
-	handle->sub_handle->obj_ops->handle_to_key(handle->sub_handle, fh_desc);
-	op_ctx->fsal_export = &export->export;
+        fh_desc->addr = (char *)&handle->uuid;
+        fh_desc->len = TXN_UUID_LEN;
 }
 
 /*
@@ -726,6 +738,7 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
 	/** Handle given by the subfsal. */
 	struct fsal_obj_handle *sub_handle = NULL;
 	*handle = NULL;
+	struct gsh_buffdesc fh_desc;
 
 	/* call underlying FSAL ops with underlying FSAL handle */
 	struct txnfs_fsal_export *exp =
@@ -739,13 +752,14 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
 	status = exp->export.sub_export->exp_ops.lookup_path(
 				exp->export.sub_export, path, &sub_handle,
 				attrs_out);
-
+	sub_handle->obj_ops->handle_to_key(sub_handle, &fh_desc);
 	op_ctx->fsal_export = &exp->export;
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
+	
 	return txnfs_alloc_and_check_handle(exp, sub_handle, NULL, handle,
-					     status);
+					     status, !txnfs_db_handle_exists(&fh_desc));
 }
 
 /* create_handle
@@ -774,7 +788,12 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 
 	/* call to subfsal lookup with the good context. */
 	fsal_status_t status;
-
+	
+	// handle should exist in the database
+	if (!txnfs_db_handle_exists(hdl_desc))
+	{
+		return fsalstat(ERR_FSAL_INVAL, 0);
+	}
 	op_ctx->fsal_export = export->export.sub_export;
 
 	status = export->export.sub_export->exp_ops.create_handle(
@@ -786,5 +805,5 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
 	return txnfs_alloc_and_check_handle(export, sub_handle, NULL, handle,
-					     status);
+					     status, false /* is_creation */);
 }

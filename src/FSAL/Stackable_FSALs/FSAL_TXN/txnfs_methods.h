@@ -1,8 +1,11 @@
 /*TXNFS methods for handles
  */
+#include "fsal_api.h"
 #include "id_manager.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
+
+#define UUID_ALLOC_LIMIT 64
 
 struct txnfs_fsal_module {
   struct fsal_module module;
@@ -66,14 +69,8 @@ fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
                                            struct fsal_obj_handle *sub_handle,
                                            struct fsal_filesystem *fs,
                                            struct fsal_obj_handle **new_handle,
-                                           fsal_status_t subfsal_status);
-/*fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
-                                           struct fsal_obj_handle *sub_handle,
-                                           struct fsal_filesystem *fs,
-                                           struct fsal_obj_handle **new_handle,
                                            fsal_status_t subfsal_status,
-                                           const char *uuid, bool
-   is_creation);*/
+                                           bool is_creation);
 
 /*
  * TXNFS internal object handle
@@ -90,9 +87,9 @@ fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
 struct txnfs_fsal_obj_handle {
   struct fsal_obj_handle obj_handle;  /*< Handle containing txnfs data.*/
   struct fsal_obj_handle *sub_handle; /*< Handle of the sub fsal.*/
-  int32_t refcnt;   /*< Reference count.  This is signed to make
-                       mistakes easy to see. */
-  const char *uuid; /*< owned by txnfs_fsal_obj_handle */
+  int32_t refcnt; /*< Reference count.  This is signed to make
+                     mistakes easy to see. */
+  uuid_t uuid;    /*< owned by txnfs_fsal_obj_handle */
 };
 
 int txnfs_fsal_open(struct txnfs_fsal_obj_handle *, int, fsal_errors_t *);
@@ -201,3 +198,10 @@ fsal_status_t txnfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
                                          unsigned int xattr_id);
 fsal_status_t txnfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
                                            const char *xattr_name);
+
+/* helpers */
+uuid_t txnfs_get_uuid();
+
+bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
+
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc);
