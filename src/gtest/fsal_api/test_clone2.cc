@@ -1,3 +1,9 @@
+/*
+ * This test is used to perform clone and range clone on XFS
+ * file system. To perform the test use the following command
+ * ./test_clone2 --log <path> --config /src/config_samples/xfs-test.conf
+ */
+
 #include <sys/types.h>
 #include <iostream>
 #include <thread>
