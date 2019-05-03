@@ -8,7 +8,7 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
   uuid_unparse_lower(uuid, uuid_str);
 	LogDebug(COMPONENT_FSAL, "generate uuid=%s\n", uuid_str);
 	
-	kvpair.key = (char*)uuid; 
+	kvpair.key = uuid; 
 	kvpair.key_len = TXN_UUID_LEN;
 
 	kvpair.val = (char *) hdl_desc->addr;
@@ -28,7 +28,7 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
 	int res = get_id_handle(&kvpair, 1, db, true);
 	LogDebug(COMPONENT_FSAL, "get_id_handle = %d", res);
 
-	if (kvpair.val == NULL)
+	if (kvpair.val_len == 0)
 	{
 		return -1;
 	}
@@ -40,11 +40,23 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
 int txnfs_db_delete_uuid(uuid_t uuid) {
 	db_kvpair_t kvpair;
 
-	kvpair.key = (char*)uuid;
+	kvpair.key = uuid;
 	kvpair.key_len = TXN_UUID_LEN;
 	kvpair.val = NULL;
 	assert(get_id_handle(&kvpair, 1, db, false) == 0);
-	assert(kvpair.val != NULL);
+	LogDebug(COMPONENT_FSAL, "get_keys = %p %zu", kvpair.val, kvpair.val_len);
+	char uuid_str[UUID_STR_LEN];
+  uuid_unparse_lower(uuid, uuid_str);
+	LogDebug(COMPONENT_FSAL, "delete uuid=%s\n", uuid_str);
+	
+
+  // this handle might have been deleted already!
+  // check open2 tests
+	/*assert(kvpair.val_len != 0);*/
+	if (kvpair.val_len == 0)
+	{
+		return -1;
+ 	}
 
 	return delete_id_handle(&kvpair, 1, db, false);
 }

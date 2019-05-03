@@ -42,6 +42,7 @@ void admin_halt(void);
 #include "fsal.h"
 #include "nfs_exports.h"
 #include "sal_data.h"
+#include <uuid/uuid.h>
 /* For MDCACHE bypass.  Use with care */
 #include "../FSAL/Stackable_FSALs/FSAL_MDCACHE/mdcache_debug.h"
 }
@@ -106,12 +107,16 @@ TEST_F(HandleToWireEmptyLatencyTest, SIMPLE) {
 
   status = test_file->obj_ops->handle_to_wire(test_file, FSAL_DIGEST_NFSV4,
                                               &fh_desc);
+  //uuid_t uuid = fh_desc.addr;
   EXPECT_EQ(status.major, 0);
+  char uuid_str[UUID_STR_LEN];
+  uuid_unparse_lower((unsigned char*)fh_desc.addr, uuid_str);
+  LogDebug(COMPONENT_FSAL, "generate uuid=%s\n", uuid_str);
 
   free(fh_desc.addr);
 }
 
-TEST_F(HandleToWireEmptyLatencyTest, SIMPLE_BYPASS_DISABLED) {
+TEST_F(HandleToWireEmptyLatencyTest, SIMPLE_BYPASS) {
   fsal_status_t status;
   struct fsal_obj_handle *sub_hdl;
   struct gsh_buffdesc fh_desc;

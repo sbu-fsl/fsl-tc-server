@@ -65,7 +65,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 		struct txnfs_fsal_export *export,
 		struct fsal_obj_handle *sub_handle,
 		struct fsal_filesystem *fs,
-		uuid_t* uuid)
+		uuid_t uuid)
 {
 	struct txnfs_fsal_obj_handle *result;
 	UDBG;
@@ -86,7 +86,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 	result->refcnt = 1;
 
 	// copy uuid
-	uuid_copy(result->uuid, *uuid);
+	uuid_copy(result->uuid, uuid);
 
 	return result;
 }
@@ -133,7 +133,7 @@ fsal_status_t txnfs_alloc_and_check_handle(
 		uuid_t uuid;
 		int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 		assert(ret == 0);
-		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, &uuid);
+		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, uuid);
 	}
 	else
 	{
@@ -147,7 +147,7 @@ fsal_status_t txnfs_alloc_and_check_handle(
 			int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 			assert(ret == 0);
 		}
-		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, &uuid);
+		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, uuid);
 	}
 	*new_handle = &txn_handle->obj_handle;
 	return status;
@@ -606,7 +606,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 	UDBG;
 	/*LogDebug(COMPONENT_FSAL, "Creating digest for file id %s", handle->uuid);*/
 	if (fh_desc->len >= TXN_UUID_LEN) {
-		memcpy(fh_desc->addr, handle->uuid, TXN_UUID_LEN);
+		uuid_copy(fh_desc->addr, handle->uuid);
 		fh_desc->len = TXN_UUID_LEN;
         } else {
 		LogMajor(COMPONENT_FSAL,

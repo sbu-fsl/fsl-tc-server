@@ -33,7 +33,7 @@ struct next_ops {
 };
 
 #define UDBG                                                                   \
-  LogDebug(COMPONENT_FSAL, "TXDEBUG")
+  //LogDebug(COMPONENT_FSAL, "TXDEBUG")
 /**
  * Structure used to store data for read_dirents callback.
  *
