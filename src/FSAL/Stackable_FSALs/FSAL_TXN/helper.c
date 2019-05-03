@@ -1,5 +1,6 @@
 #include "txnfs_methods.h"
 #include "id_manager.h"
+#include <uuid/uuid.h>
 #include <assert.h>
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t* uuid) {
@@ -73,25 +74,39 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
 
 uuid_t txnfs_get_uuid() 
 {
+	UDBG;
+	uuid_t uuid;
+	/*srand(time(NULL));*/
+uuid_generate(uuid)
+	/*uuid.lo = rand();
+	uuid.hi = rand();	*/
+	LogDebug(COMPONENT_FSAL, "generate uuid=%lu %lu\n", uuid.lo, uuid.hi);
+	return uuid;
+}
+/*uuid_t txnfs_get_uuid() 
+{
 	assert(op_ctx);
 
-	// first time the thread or request is initialized 
+	 [>first time the thread or request is initialized <]
 	if (op_ctx->uuid_len == 0) 
 	{
-  	op_ctx->uuid_len = UUID_ALLOC_LIMIT;
+		op_ctx->uuid_len = UUID_ALLOC_LIMIT;
 	}
 
 	if (op_ctx->uuid_index >= op_ctx->uuid_len) {
-		// get more uuids
+		 [>get more uuids<]
 		uuid_t tuuid = uuid_allocate(db, UUID_ALLOC_LIMIT);
 		memcpy(op_ctx->uuid, uuid_to_buf(tuuid), TXN_UUID_LEN);
 		assert(op_ctx->uuid_len == UUID_ALLOC_LIMIT);
-		// reset index
+		 [>reset index<]
 		op_ctx->uuid_index = 0;
 	}
 
-	// TODO - improve!	
+	 [>TODO - improve!	<]
 	memcpy(op_ctx->uuid, uuid_to_buf(uuid_next(buf_to_uuid(op_ctx->uuid))), TXN_UUID_LEN);
 	op_ctx->uuid_index++;
-	return buf_to_uuid(op_ctx->uuid);
-}
+	uuid_t uuid = buf_to_uuid(op_ctx->uuid);
+	LogDebug(COMPONENT_FSAL, "generate uuid=%lu %lu\n", uuid.lo, uuid.hi);
+	[>LogDebug(COMPONENT_FSAL, "generate uuid=%s\n", uuid_to_string(op_ctx->uuid));<]
+	return uuid;
+}*/
