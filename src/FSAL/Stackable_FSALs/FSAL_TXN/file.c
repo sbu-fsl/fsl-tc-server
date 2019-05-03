@@ -82,6 +82,7 @@ void null_async_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
 
 fsal_status_t txnfs_close(struct fsal_obj_handle *obj_hdl)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -110,6 +111,7 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 			   struct attrlist *attrs_out,
 			   bool *caller_perm_check)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -142,6 +144,7 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 bool txnfs_check_verifier(struct fsal_obj_handle *obj_hdl,
 			   fsal_verifier_t verifier)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -163,6 +166,7 @@ bool txnfs_check_verifier(struct fsal_obj_handle *obj_hdl,
 fsal_openflags_t txnfs_status2(struct fsal_obj_handle *obj_hdl,
 				struct state_t *state)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -185,6 +189,7 @@ fsal_status_t txnfs_reopen2(struct fsal_obj_handle *obj_hdl,
 			     struct state_t *state,
 			     fsal_openflags_t openflags)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -209,6 +214,7 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl,
 		  struct fsal_io_arg *read_arg,
 		  void *caller_arg)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -262,6 +268,7 @@ fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
 			   struct state_t *state,
 			   struct io_info *info)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -284,6 +291,7 @@ fsal_status_t txnfs_io_advise2(struct fsal_obj_handle *obj_hdl,
 				struct state_t *state,
 				struct io_hints *hints)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -305,6 +313,7 @@ fsal_status_t txnfs_io_advise2(struct fsal_obj_handle *obj_hdl,
 fsal_status_t txnfs_commit2(struct fsal_obj_handle *obj_hdl, off_t offset,
 			     size_t len)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -330,6 +339,7 @@ fsal_status_t txnfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 			      fsal_lock_param_t *req_lock,
 			      fsal_lock_param_t *conflicting_lock)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -352,6 +362,7 @@ fsal_status_t txnfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 fsal_status_t txnfs_close2(struct fsal_obj_handle *obj_hdl,
 			    struct state_t *state)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -373,6 +384,7 @@ fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
 			       struct state_t *state, uint64_t offset,
 			       uint64_t length, bool allocate)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *handle =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);

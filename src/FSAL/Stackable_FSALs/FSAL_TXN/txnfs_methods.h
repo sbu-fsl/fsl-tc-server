@@ -32,7 +32,7 @@ struct next_ops {
 };
 
 #define UDBG                                                                   \
-  LogDebug(COMPONENT_FSAL, "TXDEBUG:%s:%s:%d\n", __FILE__, __func__, __LINE__)
+  LogDebug(COMPONENT_FSAL, "TXDEBUG")
 /**
  * Structure used to store data for read_dirents callback.
  *
@@ -204,4 +204,6 @@ uuid_t txnfs_get_uuid();
 
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 
-int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc);
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t* uuid);
+int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t* uuid);
+int txnfs_db_delete_uuid(uuid_t uuid);
