@@ -26,6 +26,10 @@ set(GANESHA_LIBRARIES
 set(ganesha_test_conf
   "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/txn-test.conf")
 
+# delete the files in exports and database
+add_test(dbCleanup "rm" "-rf" "/vfs0/*" "/tmp/txndb")
+set_tests_properties(dbCleanup   PROPERTIES FIXTURES_SETUP  Db)
+
 function(add_gtest testname)
   add_executable(${testname} "${testname}.cc")
   add_sanitizers(${testname})
@@ -43,6 +47,8 @@ function(add_gtest testname)
    "--debug=Debug"
    "--gtest_filter=*SIMPLE*"
    "--config=${ganesha_test_conf}")
+
+	set_tests_properties(${testname} PROPERTIES FIXTURES_REQUIRED Db)
 endfunction()
 
 add_subdirectory(fsal_api)

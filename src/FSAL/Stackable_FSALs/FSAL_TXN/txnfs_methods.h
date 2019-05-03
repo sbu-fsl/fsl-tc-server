@@ -1,7 +1,6 @@
 /*TXNFS methods for handles
  */
 #include "fsal_api.h"
-//#include "id_manager.h"
 #include <uuid/uuid.h>
 #include "lock_manager.h"
 #include "lwrapper.h"
