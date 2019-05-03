@@ -24,7 +24,7 @@ set(GANESHA_LIBRARIES
   )
 
 set(ganesha_test_conf
-  "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/vfs-test.conf")
+  "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/txn-test.conf")
 
 function(add_gtest testname)
   add_executable(${testname} "${testname}.cc")

@@ -347,11 +347,11 @@ static fsal_status_t txnfs_host_to_key(struct fsal_export *exp_hdl,
 			exp->export.sub_export, fh_desc);
 	op_ctx->fsal_export = &exp->export;
 
-	uuid_t uuid;
-	assert(txnfs_db_get_uuid(fh_desc, &uuid) == 0);
+	uuid_t *uuid = (uuid_t*) malloc(sizeof(uuid_t));
+	assert(txnfs_db_get_uuid(fh_desc, *uuid) == 0);
 	assert(fh_desc->len <= TXN_UUID_LEN);
 	
-	memcpy(fh_desc->addr, uuid_to_buf(uuid), TXN_UUID_LEN);
+	fh_desc->addr = *uuid;
 	fh_desc->len = TXN_UUID_LEN;
 
 	return result;

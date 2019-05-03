@@ -1,11 +1,13 @@
 /*TXNFS methods for handles
  */
 #include "fsal_api.h"
-#include "id_manager.h"
+//#include "id_manager.h"
+#include <uuid/uuid.h>
 #include "lock_manager.h"
 #include "lwrapper.h"
 
 #define UUID_ALLOC_LIMIT 64
+#define TXN_UUID_LEN 16
 
 struct txnfs_fsal_module {
   struct fsal_module module;
@@ -200,10 +202,10 @@ fsal_status_t txnfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
                                            const char *xattr_name);
 
 /* helpers */
-uuid_t txnfs_get_uuid();
+//uuid_t txnfs_get_uuid();
 
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 
-int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t* uuid);
-int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t* uuid);
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
+int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_delete_uuid(uuid_t uuid);

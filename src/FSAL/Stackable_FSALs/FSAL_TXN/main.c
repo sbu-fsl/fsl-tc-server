@@ -111,9 +111,9 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
   display_fsinfo(&txnfs_module->module);
 	LogDebug(COMPONENT_FSAL,"dump_config found: %d db_path: %s", found, txnfs_module->db_path);
 	lm = new_lock_manager();
-  db = init_db_store(txnfs_module->db_path, true);
+  db = init_db_store(txnfs_module->db_path, false);
   assert(db != NULL);
-  assert(initialize_id_manager(db) == 0);
+  /*assert(initialize_id_manager(db) == 0);*/
   
   return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

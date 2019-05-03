@@ -86,7 +86,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 	result->refcnt = 1;
 
 	// copy uuid
-	result->uuid = *uuid;
+	uuid_copy(result->uuid, *uuid);
 
 	return result;
 }
@@ -131,20 +131,20 @@ fsal_status_t txnfs_alloc_and_check_handle(
 	if (is_creation)
 	{
 		uuid_t uuid;
-		int ret = txnfs_db_insert_handle(&fh_desc, &uuid);
+		int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 		assert(ret == 0);
 		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, &uuid);
 	}
 	else
 	{
-		uuid_t uuid = uuid_null();
+		uuid_t uuid;
 		
-		int ret = txnfs_db_get_uuid(&fh_desc, &uuid);
+		int ret = txnfs_db_get_uuid(&fh_desc, uuid);
 		
 		if (ret == -1)
 		{
 			LogDebug(COMPONENT_FSAL, "Handle not found, creating one!");
-			int ret = txnfs_db_insert_handle(&fh_desc, &uuid);
+			int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 			assert(ret == 0);
 		}
 		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, &uuid);
@@ -606,7 +606,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 	UDBG;
 	/*LogDebug(COMPONENT_FSAL, "Creating digest for file id %s", handle->uuid);*/
 	if (fh_desc->len >= TXN_UUID_LEN) {
-		memcpy(fh_desc->addr, uuid_to_buf(handle->uuid), TXN_UUID_LEN);
+		memcpy(fh_desc->addr, handle->uuid, TXN_UUID_LEN);
 		fh_desc->len = TXN_UUID_LEN;
         } else {
 		LogMajor(COMPONENT_FSAL,
@@ -633,7 +633,9 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
 
-        fh_desc->addr = (char *)uuid_to_buf(handle->uuid);
+	uuid_t *uuid = malloc(sizeof(uuid_t));
+	uuid_copy(*uuid, handle->uuid);
+        fh_desc->addr = uuid;
         fh_desc->len = TXN_UUID_LEN;
 }
 
