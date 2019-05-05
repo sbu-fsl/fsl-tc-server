@@ -197,10 +197,12 @@ TEST_F(Open2LoopLatencyTest, FSAL_OPEN2)
   // close and delete the files created for test
   for (int i = 0; i < LOOP_COUNT; ++i) {
     sprintf(fname, "f-%08x", i);
-
+ 
+    fprintf(stderr, "fsal_close %s\n", fname);
     status = fsal_close(obj[i]);
     EXPECT_EQ(status.major, 0);
 
+    fprintf(stderr, "fsal_remove %s\n", fname);
     status = fsal_remove(test_root, fname);
     ASSERT_EQ(status.major, 0);
     obj[i]->obj_ops->put_ref(obj[i]);

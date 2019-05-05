@@ -570,6 +570,7 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 				 struct fsal_obj_handle *obj_hdl,
 				 const char *name)
 {
+	UDBG;
 	struct txnfs_fsal_obj_handle *txnfs_dir =
 		container_of(dir_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
@@ -585,6 +586,8 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 	fsal_status_t status = txnfs_dir->sub_handle->obj_ops->unlink(
 		txnfs_dir->sub_handle, txnfs_obj->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
+	
+	txnfs_db_delete_uuid(txnfs_obj->uuid);
 
 	return status;
 }
@@ -666,7 +669,6 @@ static void release(struct fsal_obj_handle *obj_hdl)
 
 	/* cleaning data allocated by txnfs */
 	fsal_obj_handle_fini(&hdl->obj_handle);
-	txnfs_db_delete_uuid(hdl->uuid);
 	gsh_free(hdl);
 }
 

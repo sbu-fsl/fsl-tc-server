@@ -985,6 +985,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			 */
 			res->res_compound4.resarray.resarray_len = i + 1;
 			break;
+			// call end_compound
 		}
 
 		/* NFS_V4.1 specific stuff */
