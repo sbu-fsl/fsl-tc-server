@@ -33,6 +33,8 @@ void admin_halt(void);
 #include "export_mgr.h"
 #include "nfs_exports.h"
 
+#include <arpa/inet.h>
+
 /* LTTng headers */
 #include <lttng/lttng.h>
 
@@ -225,11 +227,17 @@ namespace gtest {
       memset(&req_ctx, 0, sizeof(struct req_op_context));
       memset(&attrs, 0, sizeof(attrs));
       memset(&exp_perms, 0, sizeof(struct export_perms));
+      exp_perms.options |= EXPORT_OPTION_AUTH_NONE;
 
       req_ctx.ctx_export = a_export;
       req_ctx.fsal_export = a_export->fsal_export;
       req_ctx.creds = &user_credentials;
       req_ctx.export_perms = &exp_perms;
+
+      caller_addr.sin_family = AF_INET;
+      caller_addr.sin_port = 100;
+      inet_pton(AF_INET, "127.0.0.1", &caller_addr.sin_addr);
+      req_ctx.caller_addr = (sockaddr_t *)&caller_addr;
 
       /* stashed in tls */
       op_ctx = &req_ctx;
@@ -326,6 +334,7 @@ namespace gtest {
       }
     }
 
+    struct sockaddr_in caller_addr;
     struct req_op_context req_ctx;
     struct user_cred user_credentials;
     struct attrlist attrs;

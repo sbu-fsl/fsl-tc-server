@@ -40,6 +40,7 @@ void admin_halt(void);
 #include "common_utils.h"
 #include "export_mgr.h"
 #include "fsal.h"
+#include "nfs_creds.h"
 #include "nfs_exports.h"
 #include "sal_data.h"
 #include <uuid/uuid.h>
@@ -156,6 +157,21 @@ TEST_F(HandleToWireEmptyLatencyTest, LOOP) {
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 
   free(fh_desc.addr);
+}
+
+TEST_F(HandleToWireEmptyLatencyTest, PermissionCheck) {
+	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	EXPECT_NE(fd, -1);
+
+	SVCXPRT *xprt =
+	    svc_vc_ncreatef(fd, 1024 * 1024, 1024 * 1024,
+			    SVC_CREATE_FLAG_CLOSE | SVC_CREATE_FLAG_LISTEN);
+
+	struct svc_req req;
+        req.rq_xprt = xprt;
+
+	req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
+	EXPECT_EQ(NFS4_OK, nfs4_export_check_access(&req));
 }
 
 TEST_F(HandleToWireEmptyLatencyTest, LOOP_BYPASS) {
