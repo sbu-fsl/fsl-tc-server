@@ -1,9 +1,9 @@
 /*TXNFS methods for handles
  */
 #include "fsal_api.h"
-#include <uuid/uuid.h>
 #include "lock_manager.h"
 #include "lwrapper.h"
+#include <uuid/uuid.h>
 
 #define UUID_ALLOC_LIMIT 64
 #define TXN_UUID_LEN 16
@@ -32,8 +32,7 @@ struct next_ops {
   const struct fsal_up_vector *up_ops; /*< Upcall operations */
 };
 
-#define UDBG                                                                   \
-	LogDebug(COMPONENT_FSAL, "TXDEBUG")
+#define UDBG LogDebug(COMPONENT_FSAL, "TXDEBUG")
 /**
  * Structure used to store data for read_dirents callback.
  *
@@ -199,9 +198,13 @@ fsal_status_t txnfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
                                          unsigned int xattr_id);
 fsal_status_t txnfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
                                            const char *xattr_name);
+fsal_status_t txnfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
+                                   void *data);
+fsal_status_t txnfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
+                                 void *data);
 
 /* helpers */
-//uuid_t txnfs_get_uuid();
+// uuid_t txnfs_get_uuid();
 
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 
