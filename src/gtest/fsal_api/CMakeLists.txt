@@ -72,6 +72,10 @@ target_link_libraries(test_clone2
 set_target_properties(test_clone2 PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
+add_test(test_clone2 test_clone2
+  "--logfile=/tmp/test_clone2.log"
+  # "--debug=Debug"
+  "--config=${ganesha_test_conf_xfs}")
 
 set(test_symlink_latency_SRCS
   test_symlink_latency.cc

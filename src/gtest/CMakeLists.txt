@@ -26,6 +26,9 @@ set(GANESHA_LIBRARIES
 set(ganesha_test_conf
   "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/vfs-test.conf")
 
+set(ganesha_test_conf_xfs
+  "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/xfs-test.conf")
+
 function(add_gtest testname)
   add_executable(${testname} "${testname}.cc")
   set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
