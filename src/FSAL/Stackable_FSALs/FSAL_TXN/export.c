@@ -338,23 +338,8 @@ static fsal_status_t txnfs_host_to_key(struct fsal_export *exp_hdl,
 					  struct gsh_buffdesc *fh_desc)
 {
 	UDBG;
-	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
-
-	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.host_to_key(
-			exp->export.sub_export, fh_desc);
-	op_ctx->fsal_export = &exp->export;
-
-	uuid_t *uuid = (uuid_t*) malloc(sizeof(uuid_t));
-	assert(txnfs_db_get_uuid(fh_desc, *uuid) == 0);
-	assert(fh_desc->len <= TXN_UUID_LEN);
-	
-	fh_desc->addr = *uuid;
-	fh_desc->len = TXN_UUID_LEN;
-
-	return result;
+	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
+	return status;
 }
 
 /* extract a file handle from a buffer.
@@ -369,20 +354,8 @@ static fsal_status_t wire_to_host(struct fsal_export *exp_hdl,
 				    int flags)
 {
 	UDBG;
-	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
-
-	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.wire_to_host(
-			exp->export.sub_export, in_type, fh_desc, flags);
-	op_ctx->fsal_export = &exp->export;
-	
-	if (FSAL_IS_ERROR(result)) 
-		return result;
-	//
-	// we only want to give uuid to the client
-	return txnfs_host_to_key(exp_hdl, fh_desc);
+	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0};
+	return status;
 }
 
 

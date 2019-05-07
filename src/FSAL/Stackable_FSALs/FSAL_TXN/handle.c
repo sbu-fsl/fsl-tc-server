@@ -741,6 +741,10 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->remove_extattr_by_name = txnfs_remove_extattr_by_name;
 
 	ops->is_referral = txnfs_is_referral;
+	
+	/* compound start and end */
+	ops->start_compound = txnfs_start_compound;
+	ops->end_compound = txnfs_end_compound;
 }
 
 /* export methods that create object handles
