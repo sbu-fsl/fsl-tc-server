@@ -197,5 +197,7 @@ fsal_status_t nullfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
 					  unsigned int xattr_id);
 fsal_status_t nullfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 					    const char *xattr_name);
+fsal_status_t nullfs_start_compound(struct fsal_export *exp_hdl, void *data);
+fsal_status_t nullfs_end_compound(struct fsal_export *exp_hdl, void *data);
 
 #endif			/* NULLFS_METHODS_H */

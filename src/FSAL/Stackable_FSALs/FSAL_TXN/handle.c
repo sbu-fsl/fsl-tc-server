@@ -742,9 +742,6 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops)
 
 	ops->is_referral = txnfs_is_referral;
 	
-	/* compound start and end */
-	ops->start_compound = txnfs_start_compound;
-	ops->end_compound = txnfs_end_compound;
 }
 
 /* export methods that create object handles
@@ -831,23 +828,4 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
 	return txnfs_alloc_and_check_handle(export, sub_handle, NULL, handle,
 					     status, false /* is_creation */);
-}
-
-fsal_status_t txnfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				   void *data){
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
-
-	return fsal_status;
-}
-
-fsal_status_t txnfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-				 void *data)
-{
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
-
-	return fsal_status;
 }

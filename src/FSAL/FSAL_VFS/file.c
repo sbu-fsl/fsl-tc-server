@@ -2172,22 +2172,3 @@ fsal_status_t vfs_close2(struct fsal_obj_handle *obj_hdl,
 	return vfs_close_my_fd(my_fd);
 }
 
-fsal_status_t vfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				 void *data)
-{
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_VFS layer.");
-	
-	return fsal_status;
-}
-
-fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-			       void *data)
-{
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_VFS layer.");
-	
-	return fsal_status;
-}

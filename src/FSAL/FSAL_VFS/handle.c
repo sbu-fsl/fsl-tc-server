@@ -1702,8 +1702,6 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 
 	ops->is_referral = fsal_common_is_referral;
 	ops->copy = vfs_copy;
-	ops->start_compound = vfs_start_compound;
-	ops->end_compound = vfs_end_compound;
 }
 
 /* export methods that create object handles

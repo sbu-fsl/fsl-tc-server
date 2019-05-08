@@ -785,9 +785,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
-	struct fsal_obj_handle* root_handle;
-	assert(FSAL_IS_SUCCESS(op_ctx->fsal_export->exp_ops.lookup_path(op_ctx->fsal_export, "/", &root_handle, NULL)));
-	root_handle->obj_ops->start_compound(root_handle, NULL);
+	op_ctx->fsal_export->exp_ops.start_compound(op_ctx->fsal_export, NULL);
 	for (i = 0; i < argarray_len; i++) {
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data.oppos = i;
@@ -1114,7 +1112,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			 nfsstat4_to_str(status), i);
 
 	compound_data_Free(&data);
-	root_handle->obj_ops->end_compound(root_handle, NULL);
+	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, NULL);
 
 	/* release current active export in op_ctx. */
 	if (op_ctx->ctx_export) {
