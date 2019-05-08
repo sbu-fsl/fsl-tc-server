@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "gtest_nfs4.hh"
+#include "nfs_creds.h"
 
 extern "C" {
 /* Manually forward this, an 9P is not C++ safe */
@@ -54,46 +55,84 @@ namespace {
 char *event_list = nullptr;
 char *profile_out = nullptr;
 
-class LookupEmptyLatencyTest : public gtest::GaeshaNFS4BaseTest {};
-
-class LookupFullLatencyTest : public gtest::GaeshaNFS4BaseTest {
-
+class GaneshaCompoundBaseTest : public gtest::GaeshaNFS4BaseTest {
 protected:
   virtual void SetUp() {
-    GaeshaNFS4BaseTest::SetUp();
+    gtest::GaneshaFSALBaseTest::SetUp();
 
-    create_and_prime_many(FILE_COUNT, objs);
+    memset(&data, 0, sizeof(struct compound_data));
+    memset(&arg, 0, sizeof(nfs_arg_t));
+    memset(&resp, 0, sizeof(struct nfs_resop4));
+
+    ops = (struct nfs_argop4 *)gsh_calloc(3, sizeof(struct nfs_argop4));
+    arg.arg_compound4.argarray.argarray_len = 3;
+    arg.arg_compound4.argarray.argarray_val = ops;
+
+    // caller_addr.sin_family = AF_INET;
+    // caller_addr.sin_port = 100;
+    // inet_pton(AF_INET, "127.0.0.1", &caller_addr.sin_addr);
+    // req_ctx.caller_addr = (sockaddr_t *)&caller_addr;
+
+    /* Setup some basic stuff (that will be overrode) so TearDown works. */
+    data.minorversion = 0;
   }
 
   virtual void TearDown() {
-    remove_many(FILE_COUNT, objs);
+    bool rc;
 
-    GaeshaNFS4BaseTest::TearDown();
+    set_current_entry(&data, nullptr);
+
+    nfs4_Compound_FreeOne(&resp);
+
+    /* Free the compound data and response */
+    compound_data_Free(&data);
+
+    /* Free the args structure. */
+    rc = xdr_free((xdrproc_t)xdr_COMPOUND4args, &arg);
+    EXPECT_EQ(rc, true);
+
+    gtest::GaneshaFSALBaseTest::TearDown();
   }
-
-  struct fsal_obj_handle *objs[FILE_COUNT];
 };
-
 } /* namespace */
 
-TEST_F(LookupEmptyLatencyTest, SIMPLE) {
+TEST_F(GaneshaCompoundBaseTest, SIMPLE) {
   int rc;
 
   struct svc_req req = {0};
   nfs_res_t res;
+
+  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  EXPECT_NE(fd, -1);
+
+  SVCXPRT *xprt =
+      svc_vc_ncreatef(fd, 1024 * 1024, 1024 * 1024,
+                      SVC_CREATE_FLAG_CLOSE | SVC_CREATE_FLAG_LISTEN);
+
   req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
-  setCurrentFH(root_entry);
+  req.rq_xprt = xprt;
+  // EXPECT_EQ(NFS4_OK, nfs4_export_check_access(&req));
   setup_rootfh(0);
-  setup_lookup(1, TEST_ROOT);
+  setup_putfh(1, root_entry);
+  setup_lookup(2, TEST_ROOT);
 
   enableEvents(event_list);
 
   rc = nfs4_Compound(&arg, &req, &res);
-  // rc = nfs4_op_lookup(&ops[0], &data, &resp);
 
   EXPECT_EQ(rc, NFS_REQ_OK);
-  // EXPECT_EQ(test_root, data.current_obj);
+  EXPECT_EQ(3, res.res_compound4.resarray.resarray_len);
+  EXPECT_EQ(NFS_OK, res.res_compound4.resarray.resarray_val[0]
+                        .nfs_resop4_u.opputrootfh.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[1].nfs_resop4_u.opputfh.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.oplookup.status);
 
+  cleanup_lookup(2);
+  cleanup_putfh(1);
   disableEvents(event_list);
 }
 
