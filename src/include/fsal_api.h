@@ -416,6 +416,7 @@ struct req_op_context {
   struct fsal_module *fsal_module;   /*< current fsal module */
   struct fsal_pnfs_ds *fsal_pnfs_ds; /*< current pNFS DS */
                                      /* add new context members here */
+  struct glist_head txn_cache;
 };
 
 /**

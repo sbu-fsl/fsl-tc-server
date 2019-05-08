@@ -374,6 +374,7 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 
+	txnfs_cache_init();
 	struct txnfs_fsal_export *exp =
 		container_of(exp_hdl, struct txnfs_fsal_export, export);
 
@@ -388,7 +389,6 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 {
-
 	struct txnfs_fsal_export *exp =
 		container_of(exp_hdl, struct txnfs_fsal_export, export);
 
@@ -397,9 +397,10 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 		exp->export.sub_export->exp_ops.end_compound(
 			exp->export.sub_export, data);
 	op_ctx->fsal_export = &exp->export;
-	
+		
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
-
+	
+	txnfs_cache_cleanup();
 	return result;
 }
 /* txnfs_export_ops_init

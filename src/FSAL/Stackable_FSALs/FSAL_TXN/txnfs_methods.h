@@ -8,6 +8,19 @@
 #define UUID_ALLOC_LIMIT 64
 #define TXN_UUID_LEN 16
 
+enum txnfs_cache_entry_type {
+	txnfs_cache_entry_create = 0,
+	txnfs_cache_entry_delete = 1
+};
+
+struct txnfs_cache_entry {
+  uuid_t uuid;
+  struct gsh_buffdesc hdl_desc;
+	enum txnfs_cache_entry_type entry_type;
+  
+  struct glist_head glist;
+};
+
 struct txnfs_fsal_module {
   struct fsal_module module;
   struct fsal_obj_ops handle_ops;
@@ -205,3 +218,5 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_delete_uuid(uuid_t uuid);
+void txnfs_cache_init(void);
+void txnfs_cache_cleanup(void);
