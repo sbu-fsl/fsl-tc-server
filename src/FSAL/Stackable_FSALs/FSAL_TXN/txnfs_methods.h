@@ -162,10 +162,6 @@ fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
 fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
                          struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
                          uint64_t count, uint64_t *copied);
-fsal_status_t txnfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-                                   void *data);
-fsal_status_t txnfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-                                 void *data);
 fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
                           struct fsal_obj_handle *dir_hdl, char *uuid);
 
@@ -201,7 +197,7 @@ fsal_status_t txnfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 fsal_status_t txnfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
                                    void *data);
 fsal_status_t txnfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-                                 void *data);
+                                   void *data);
 
 /* helpers */
 // uuid_t txnfs_get_uuid();
