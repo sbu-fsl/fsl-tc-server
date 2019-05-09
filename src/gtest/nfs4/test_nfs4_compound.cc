@@ -160,14 +160,17 @@ TEST_F(GaneshaCompoundBaseTest, SimpleCreate) {
   rc = nfs4_Compound(&arg, &req, &res);
 
   EXPECT_EQ(rc, NFS_REQ_OK);
-  EXPECT_EQ(2, res.res_compound4.resarray.resarray_len);
+  EXPECT_EQ(3, res.res_compound4.resarray.resarray_len);
   EXPECT_EQ(NFS_OK, res.res_compound4.resarray.resarray_val[0]
                         .nfs_resop4_u.opputrootfh.status);
   EXPECT_EQ(
       NFS_OK,
-      res.res_compound4.resarray.resarray_val[1].nfs_resop4_u.opcreate.status);
+      res.res_compound4.resarray.resarray_val[1].nfs_resop4_u.opputfh.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.opcreate.status);
 
-  //cleanup_create(1);
+  cleanup_create(2);
   cleanup_putfh(1);
   disableEvents(event_list);
 }

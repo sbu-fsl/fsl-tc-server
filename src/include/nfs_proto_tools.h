@@ -204,7 +204,7 @@ static inline bool attribute_is_set(struct bitmap4 *bits, int attr)
 
 static inline bool set_attribute_in_bitmap(struct bitmap4 *bits, int attr)
 {
-	int offset = attr / 32;
+	u_int offset = attr / 32;
 
 	if (offset >= 3)
 		return false;	/* over upper bound */

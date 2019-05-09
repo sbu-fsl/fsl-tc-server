@@ -29,6 +29,7 @@ extern "C" {
 #include "nfs_file_handle.h"
 #include "nfs_lib.h"
 #include "nfs_proto_functions.h"
+#include "nfs_proto_tools.h"
 }
 
 #ifndef GTEST_GTEST_NFS4_HH
@@ -172,12 +173,71 @@ protected:
 
   void setup_create(int pos, const char *name) {
     gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
+    struct xdr_attrs_args args;
+    struct attrlist attrs;
+    XDR attr_body;
+    memset(&attr_body, 0, sizeof(attr_body));
+    memset(&args, 0, sizeof(args));
+    memset(&attrs, 0, sizeof(attrs));
     ops[pos].argop = NFS4_OP_CREATE;
     ops[pos].nfs_argop4_u.opcreate.objtype.type = NF4DIR;
-    /*ops[pos].nfs_argop4_u.opcreate.fattr4.bitmap4.bitmap4_len = 3;
-    ops[pos].nfs_argop4_u.opcreate.fattr4.bitmap4.map = 0;
-    ops[pos].nfs_argop4_u.opcreate.fattr4.attrlist4.attrlist4_len = 3;
-    ops[pos].nfs_argop4_u.opcreate.fattr4.attrlist4.attrlist4_val = {"foo", "bar", "me"};*/
+    attrs.mode = 0777; /* XXX */
+    attrs.owner = 0;
+    attrs.group = 0;
+    args.attrs = &attrs;
+    args.data = NULL;
+    ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val = (char*)gsh_malloc(NFS4_ATTRVALS_BUFFLEN);
+    xdrmem_create(&attr_body, ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val, NFS4_ATTRVALS_BUFFLEN, XDR_ENCODE);
+    fattr_xdr_result xdr_res;
+    struct fattr4 *Fattr = &ops[pos].nfs_argop4_u.opcreate.createattrs;
+    set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER);
+    set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER_GROUP);
+    set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_MODE);
+    int attribute_to_set = 0;
+    u_int LastOffset;
+    for (attribute_to_set = next_attr_from_bitmap(&Fattr->attrmask, -1);
+	 attribute_to_set != -1;
+	 attribute_to_set =
+	 next_attr_from_bitmap(&Fattr->attrmask, attribute_to_set)) {
+	    /*if (attribute_to_set > max_attr_idx)
+		    break;	[> skip out of bounds <]*/
+
+	    xdr_res = fattr4tab[attribute_to_set].encode(&attr_body, &args);
+	    if (xdr_res == FATTR_XDR_SUCCESS) {
+		    bool res = set_attribute_in_bitmap(&Fattr->attrmask,
+						       attribute_to_set);
+		    assert(res);
+		    LogFullDebug(COMPONENT_NFS_V4,
+				 "Encoded attr %d, name = %s",
+				 attribute_to_set,
+				 fattr4tab[attribute_to_set].name);
+	    } else if (xdr_res == FATTR_XDR_NOOP) {
+		    LogFullDebug(COMPONENT_NFS_V4,
+				 "Attr not supported %d name=%s",
+				 attribute_to_set,
+				 fattr4tab[attribute_to_set].name);
+		    continue;
+	    } else {
+		    LogEvent(COMPONENT_NFS_V4,
+				 "Encode FAILED for attr %d, name = %s",
+				 attribute_to_set,
+				 fattr4tab[attribute_to_set].name);
+
+		    /* signal fail so if(LastOffset > 0) works right */
+		    assert(false);
+	    }
+	    /* mark the attribute in the bitmap should be new bitmap btw */
+    }
+    LastOffset = xdr_getpos(&attr_body);	/* dumb but for now */
+    xdr_destroy(&attr_body);
+
+    if (LastOffset == 0) {	/* no supported attrs so we can free */
+	    assert(Fattr->attrmask.bitmap4_len == 0);
+	    gsh_free(Fattr->attr_vals.attrlist4_val);
+	    Fattr->attr_vals.attrlist4_val = NULL;
+    }
+    Fattr->attr_vals.attrlist4_len = LastOffset;
+
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = strlen(name);
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = gsh_strdup(name);
   }
@@ -186,6 +246,16 @@ protected:
     gsh_free(ops[pos].nfs_argop4_u.oplink.newname.utf8string_val);
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_len = 0;
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_val = nullptr;
+  }
+  
+  void cleanup_create(int pos) {
+    gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
+    gsh_free(ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val);
+    ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = 0;
+    ops[pos].nfs_argop4_u.opcreate.createattrs.attrmask.bitmap4_len = 0;
+    ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val = nullptr;
+    ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_len = 0;
+    ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = nullptr;
   }
 
   struct compound_data data;
