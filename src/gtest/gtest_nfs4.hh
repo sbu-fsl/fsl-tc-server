@@ -170,6 +170,18 @@ protected:
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_val = gsh_strdup(newname);
   }
 
+  void setup_create(int pos, const char *name) {
+    gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
+    ops[pos].argop = NFS4_OP_CREATE;
+    ops[pos].nfs_argop4_u.opcreate.objtype.type = NF4DIR;
+    /*ops[pos].nfs_argop4_u.opcreate.fattr4.bitmap4.bitmap4_len = 3;
+    ops[pos].nfs_argop4_u.opcreate.fattr4.bitmap4.map = 0;
+    ops[pos].nfs_argop4_u.opcreate.fattr4.attrlist4.attrlist4_len = 3;
+    ops[pos].nfs_argop4_u.opcreate.fattr4.attrlist4.attrlist4_val = {"foo", "bar", "me"};*/
+    ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = strlen(name);
+    ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = gsh_strdup(name);
+  }
+  
   void cleanup_link(int pos) {
     gsh_free(ops[pos].nfs_argop4_u.oplink.newname.utf8string_val);
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_len = 0;

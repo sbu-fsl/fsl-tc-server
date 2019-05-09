@@ -91,7 +91,8 @@ void txnfs_cache_cleanup(void)
 		glist_del(&cache_entry->glist);
 		gsh_free(cache_entry);
 	}
-	assert(glist_null(&op_ctx->txn_cache) == 1);
+	
+	/*assert(glist_null(&op_ctx->txn_cache) == 1);*/
 }
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {

@@ -96,7 +96,7 @@ protected:
 };
 } /* namespace */
 
-TEST_F(GaneshaCompoundBaseTest, SIMPLE) {
+TEST_F(GaneshaCompoundBaseTest, SimpleLookup) {
   int rc;
 
   struct svc_req req = {0};
@@ -132,6 +132,42 @@ TEST_F(GaneshaCompoundBaseTest, SIMPLE) {
       res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.oplookup.status);
 
   cleanup_lookup(2);
+  cleanup_putfh(1);
+  disableEvents(event_list);
+}
+
+TEST_F(GaneshaCompoundBaseTest, SimpleCreate) {
+  int rc;
+
+  struct svc_req req = {0};
+  nfs_res_t res;
+
+  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  EXPECT_NE(fd, -1);
+
+  SVCXPRT *xprt =
+      svc_vc_ncreatef(fd, 1024 * 1024, 1024 * 1024,
+                      SVC_CREATE_FLAG_CLOSE | SVC_CREATE_FLAG_LISTEN);
+
+  req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
+  req.rq_xprt = xprt;
+  // EXPECT_EQ(NFS4_OK, nfs4_export_check_access(&req));
+  setup_rootfh(0);
+  setup_putfh(1, root_entry);
+  setup_create(2, "foo");
+  enableEvents(event_list);
+
+  rc = nfs4_Compound(&arg, &req, &res);
+
+  EXPECT_EQ(rc, NFS_REQ_OK);
+  EXPECT_EQ(2, res.res_compound4.resarray.resarray_len);
+  EXPECT_EQ(NFS_OK, res.res_compound4.resarray.resarray_val[0]
+                        .nfs_resop4_u.opputrootfh.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[1].nfs_resop4_u.opcreate.status);
+
+  //cleanup_create(1);
   cleanup_putfh(1);
   disableEvents(event_list);
 }
