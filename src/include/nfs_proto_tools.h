@@ -178,7 +178,7 @@ static inline int check_for_rdattr_error(struct bitmap4 *attr_request)
 
 static inline int next_attr_from_bitmap(struct bitmap4 *bits, int last_attr)
 {
-	int offset, bit;
+	u_int offset, bit;
 
 	for (offset = (last_attr + 1) / 32;
 	     offset >= 0 && offset < bits->bitmap4_len; offset++) {
@@ -195,7 +195,7 @@ static inline int next_attr_from_bitmap(struct bitmap4 *bits, int last_attr)
 
 static inline bool attribute_is_set(struct bitmap4 *bits, int attr)
 {
-	int offset = attr / 32;
+	u_int offset = attr / 32;
 
 	if (offset >= bits->bitmap4_len)
 		return false;
@@ -216,7 +216,7 @@ static inline bool set_attribute_in_bitmap(struct bitmap4 *bits, int attr)
 
 static inline bool clear_attribute_in_bitmap(struct bitmap4 *bits, int attr)
 {
-	int offset = attr / 32;
+	u_int offset = attr / 32;
 
 	if (offset >= bits->bitmap4_len)
 		return false;

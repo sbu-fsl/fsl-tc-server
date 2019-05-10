@@ -186,13 +186,14 @@ protected:
     attrs.group = 0;
     args.attrs = &attrs;
     args.data = NULL;
-    ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val = (char*)gsh_malloc(NFS4_ATTRVALS_BUFFLEN);
-    xdrmem_create(&attr_body, ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val, NFS4_ATTRVALS_BUFFLEN, XDR_ENCODE);
     fattr_xdr_result xdr_res;
     struct fattr4 *Fattr = &ops[pos].nfs_argop4_u.opcreate.createattrs;
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER);
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER_GROUP);
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_MODE);
+    
+    Fattr->attr_vals.attrlist4_val = (char*)gsh_malloc(NFS4_ATTRVALS_BUFFLEN);
+    xdrmem_create(&attr_body, Fattr->attr_vals.attrlist4_val, NFS4_ATTRVALS_BUFFLEN, XDR_ENCODE);
     int attribute_to_set = 0;
     u_int LastOffset;
     for (attribute_to_set = next_attr_from_bitmap(&Fattr->attrmask, -1);

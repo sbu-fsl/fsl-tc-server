@@ -79,20 +79,60 @@ void txnfs_cache_init(void)
 	glist_init(&op_ctx->txn_cache);
 }
 
+//
+// commit entries in `op_ctx->txn_cache` and remove txn log
+int txnfs_cache_commit(void)
+{
+	UDBG;
+	int ret = 0;
+	char *err = NULL;
+	char uuid_str[UUID_STR_LEN];
+  struct txnfs_cache_entry *entry;
+  struct glist_head *glist;
+	
+	leveldb_writebatch_t* commit_batch = leveldb_writebatch_create();
+	glist_for_each(glist, &op_ctx->txn_cache) {
+		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
+
+    uuid_unparse_lower(entry->uuid, uuid_str);
+		
+		if (entry->entry_type == txnfs_cache_entry_create) {
+			leveldb_writebatch_put(commit_batch, entry->uuid, TXN_UUID_LEN, entry->hdl_desc.addr, entry->hdl_desc.len);
+			leveldb_writebatch_put(commit_batch, entry->hdl_desc.addr, entry->hdl_desc.len, entry->uuid, TXN_UUID_LEN);
+			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
+		}
+		else if (entry->entry_type == txnfs_cache_entry_delete) {
+			leveldb_writebatch_delete(commit_batch, entry->uuid, TXN_UUID_LEN);
+			leveldb_writebatch_delete(commit_batch, entry->hdl_desc.addr, entry->hdl_desc.len);
+			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
+		}
+	}
+
+	// TODO - add entry to remove txn log
+
+	leveldb_write(db->db, db->w_options, commit_batch, &err);
+
+	if (err)
+	{
+		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
+		leveldb_free(err);
+		ret = -1;
+	}
+	
+	leveldb_writebatch_destroy(commit_batch);
+	
+	return ret;
+}
+
+//
+// success: commit the entries in `op_ctx->txn_cache` and remove txn log
+// fail: undo executed ops and remove txn log
 void txnfs_cache_cleanup(void)
 {
 	UDBG;
 	assert(glist_null(&op_ctx->txn_cache) == 0);
-	struct txnfs_cache_entry *cache_entry;
-	/* when not doing a takeover, start with an empty list */
-	while ((cache_entry = glist_first_entry(&op_ctx->txn_cache,
-								 struct txnfs_cache_entry,
-								 glist)) != NULL) {
-		glist_del(&cache_entry->glist);
-		gsh_free(cache_entry);
-	}
 	
-	/*assert(glist_null(&op_ctx->txn_cache) == 1);*/
+	(void) txnfs_cache_commit();
 }
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
