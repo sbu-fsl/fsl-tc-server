@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <uuid/uuid.h>
 #include "txn_context.h"
 
 TEST(TxnContextTest, Initialization) {

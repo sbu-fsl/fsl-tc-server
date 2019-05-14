@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <uuid/uuid.h>
 #include <dirent.h>
 
 #include <algorithm>
@@ -12,7 +13,6 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
-#include "id_manager.h"
 #include "txn_context.h"
 #include "txn.pb.h"
 #include "txn_logger.h"
@@ -21,6 +21,9 @@
 using namespace std;
 
 constexpr uint64_t kInvalidTxnId = 0;
+
+const uuid_t kRootUuid = {1, 2,  3,  4,  5,  6,  7,  8,
+                          9, 10, 11, 12, 13, 14, 15, 16};
 
 /**
  * @brief returns FileType from txn FSObjectType
@@ -656,8 +659,13 @@ uint64_t get_txn_id() {
 }
 
 // TODO: Test this.
-uuid_t extract_uuid_from_fh(const nfs_fh4& fh) {
- return buf_to_uuid(fh.nfs_fh4_val);
+void extract_uuid_from_fh(const nfs_fh4& fh, uuid_t uuid) {
+ assert(fh.nfs_fh4_len == sizeof(uuid_t));
+ memcpy(uuid, fh.nfs_fh4_val, sizeof(uuid_t));
+}
+
+string uuid_to_string(const uuid_t& uuid) {
+ return string(uuid, uuid + sizeof(uuid));
 }
 
 string nfs4_string(const utf8string& us) {
@@ -667,13 +675,13 @@ string nfs4_string(const utf8string& us) {
 int build_vcreate_txn(const COMPOUND4args* arg, VCreateTxn* create_txn) {
   const nfs_argop4* const ops = arg->argarray.argarray_val;
   const int ops_len = arg->argarray.argarray_len;
-  uuid_t base = uuid_null();
+  uuid_t base;
   std::vector<string> path_components;
   for (int i = 0; i < ops_len; ++i) {
     if (ops[i].argop == NFS4_OP_PUTROOTFH) {
-      base = uuid_root();
+     uuid_copy(base, kRootUuid);
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
-      base = extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object);
+      extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
@@ -682,9 +690,10 @@ int build_vcreate_txn(const COMPOUND4args* arg, VCreateTxn* create_txn) {
     } else if (ops[i].argop == NFS4_OP_CREATE) {
       CreatedObject* obj = create_txn->add_objects();
       ObjectId* base_id = obj->mutable_base();
-      base_id->set_id_low(base.lo);
-      base_id->set_id_high(base.lo);
+      base_id->set_id_low(0);
+      base_id->set_id_high(0);
       base_id->set_type(FileType::FT_DIRECTORY);
+      *base_id->mutable_uuid() = uuid_to_string(base);
       *obj->mutable_path() = absl::StrJoin(path_components, "/");
     } else {
       std::cerr << "Unknow operation for VCreate: " << ops[i].argop;
@@ -696,13 +705,13 @@ int build_vcreate_txn(const COMPOUND4args* arg, VCreateTxn* create_txn) {
 int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
   const nfs_argop4* const ops = arg->argarray.argarray_val;
   const int ops_len = arg->argarray.argarray_len;
-  uuid_t base = uuid_null();
+  uuid_t base;
   std::vector<string> path_components;
   for (int i = 0; i < ops_len; ++i) {
     if (ops[i].argop == NFS4_OP_PUTROOTFH) {
-      base = uuid_root();
+      uuid_copy(base, kRootUuid);
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
-      base = extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object);
+      extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
@@ -714,9 +723,10 @@ int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
           nfs4_string(open_args->claim.open_claim4_u.file));
       CreatedObject* file = write_txn->add_files();
       ObjectId* base_id = file->mutable_base();
-      base_id->set_id_low(base.lo);
-      base_id->set_id_high(base.lo);
+      base_id->set_id_low(0);
+      base_id->set_id_high(0);
       base_id->set_type(FileType::FT_DIRECTORY);
+      *base_id->mutable_uuid() = uuid_to_string(base);
       *file->mutable_path() = absl::StrJoin(path_components, "/");
       if (open_args->openhow.opentype == OPEN4_CREATE) {
         // TODO: Set allocated_id.

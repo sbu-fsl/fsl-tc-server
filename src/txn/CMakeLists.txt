@@ -71,7 +71,7 @@ add_cpplib(lwrapper leveldb ${GLIB_LIBRARIES})
 
 add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
-add_cpplib(txn_context id_manager)
+add_cpplib(txn_context id_manager uuid)
 
 add_cpplib(lock_manager lwrapper)
 
@@ -89,4 +89,4 @@ message(STATUS "protocol headers: " ${ProtoHeaders})
 add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
-add_cpplib(txn_logger secnfs_proto id_manager protobuf absl_strings)
+add_cpplib(txn_logger secnfs_proto id_manager protobuf absl_strings uuid)

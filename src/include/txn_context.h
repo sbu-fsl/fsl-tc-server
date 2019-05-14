@@ -2,7 +2,7 @@
 #ifndef _TXN_CONTEXT_H
 #define _TXN_CONTEXT_H
 
-#include "id_manager.h"
+#include <uuid/uuid.h>
 #include "nfsv41.h"
 
 // Per-operation context.
@@ -20,5 +20,7 @@ typedef struct {
 
 txn_context_t* new_txn_context(int ops_len, const nfs_argop4* ops);
 void del_txn_context(txn_context_t* txn_context);
+
+#define TXN_UUID_LEN sizeof(uuid_t)
 
 #endif
