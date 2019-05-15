@@ -4,6 +4,7 @@
 
 #include "nfsv41.h"
 #include "lwrapper.h"
+#include "txn_context.h"
 
 #define ENABLE_NORMAL_TEXT_LOGGING 1
 
@@ -85,7 +86,8 @@ int iterate_txn_logs(const char* log_dir,
 		     int (*log_processor)(struct TxnLog* log));
 char *bytes_to_hex(const char *uuid_str);
 
-uint64_t create_txn_log(leveldb_t* db, const COMPOUND4args* arg);
+uint64_t create_txn_log(const db_store_t* db, const COMPOUND4args* arg,
+			txn_context_t* txn_context);
 
 #ifdef __cplusplus
 }

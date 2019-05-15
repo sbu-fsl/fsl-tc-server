@@ -13,9 +13,10 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
+#include "txn_logger.h"
 #include "txn_context.h"
 #include "txn.pb.h"
-#include "txn_logger.h"
+
 #define MAX_LEN 64
 
 using namespace std;
@@ -672,37 +673,8 @@ string nfs4_string(const utf8string& us) {
  return string(us.utf8string_val, us.utf8string_len);
 }
 
-int build_vcreate_txn(const COMPOUND4args* arg, VCreateTxn* create_txn) {
-  const nfs_argop4* const ops = arg->argarray.argarray_val;
-  const int ops_len = arg->argarray.argarray_len;
-  uuid_t base;
-  std::vector<string> path_components;
-  for (int i = 0; i < ops_len; ++i) {
-    if (ops[i].argop == NFS4_OP_PUTROOTFH) {
-     uuid_copy(base, kRootUuid);
-    } else if (ops[i].argop == NFS4_OP_PUTFH) {
-      extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
-    } else if (ops[i].argop == NFS4_OP_LOOKUP) {
-      path_components.emplace_back(
-          nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
-    } else if (ops[i].argop == NFS4_OP_LOOKUPP) {
-      path_components.push_back("..");
-    } else if (ops[i].argop == NFS4_OP_CREATE) {
-      CreatedObject* obj = create_txn->add_objects();
-      ObjectId* base_id = obj->mutable_base();
-      base_id->set_id_low(0);
-      base_id->set_id_high(0);
-      base_id->set_type(FileType::FT_DIRECTORY);
-      *base_id->mutable_uuid() = uuid_to_string(base);
-      *obj->mutable_path() = absl::StrJoin(path_components, "/");
-    } else {
-      std::cerr << "Unknow operation for VCreate: " << ops[i].argop;
-    }
-  }
-  return 0;
-}
-
-int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
+int build_vcreate_txn(const COMPOUND4args* arg, VCreateTxn* create_txn,
+                      txn_context_t* context) {
   const nfs_argop4* const ops = arg->argarray.argarray_val;
   const int ops_len = arg->argarray.argarray_len;
   uuid_t base;
@@ -710,8 +682,52 @@ int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
   for (int i = 0; i < ops_len; ++i) {
     if (ops[i].argop == NFS4_OP_PUTROOTFH) {
       uuid_copy(base, kRootUuid);
+      uuid_copy(context->op_contexts[i].id, base);
+      context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
       extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
+      uuid_copy(context->op_contexts[i].id, base);
+      context->op_contexts[i].is_new = false;
+    } else if (ops[i].argop == NFS4_OP_LOOKUP) {
+      path_components.emplace_back(
+          nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
+    } else if (ops[i].argop == NFS4_OP_LOOKUPP) {
+      path_components.push_back("..");
+    } else if (ops[i].argop == NFS4_OP_CREATE) {
+      path_components.emplace_back(
+          nfs4_string(ops[i].nfs_argop4_u.opcreate.objname));
+      CreatedObject* obj = create_txn->add_objects();
+      ObjectId* base_id = obj->mutable_base();
+      base_id->set_id_low(0);
+      base_id->set_id_high(0);
+      base_id->set_type(FileType::FT_DIRECTORY);
+      *base_id->mutable_uuid() = uuid_to_string(base);
+      *obj->mutable_path() = absl::StrJoin(path_components, "/");
+
+      uuid_generate(context->op_contexts[i].id);
+      context->op_contexts[i].is_new = true;
+    } else {
+      std::cerr << "Unknow operation for VCreate: " << ops[i].argop;
+    }
+  }
+  return 0;
+}
+
+int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn,
+                     txn_context_t* context) {
+  const nfs_argop4* const ops = arg->argarray.argarray_val;
+  const int ops_len = arg->argarray.argarray_len;
+  uuid_t base;
+  std::vector<string> path_components;
+  for (int i = 0; i < ops_len; ++i) {
+    if (ops[i].argop == NFS4_OP_PUTROOTFH) {
+      uuid_copy(base, kRootUuid);
+      uuid_copy(context->op_contexts[i].id, base);
+      context->op_contexts[i].is_new = false;
+    } else if (ops[i].argop == NFS4_OP_PUTFH) {
+      extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
+      uuid_copy(context->op_contexts[i].id, base);
+      context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
@@ -729,7 +745,8 @@ int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
       *base_id->mutable_uuid() = uuid_to_string(base);
       *file->mutable_path() = absl::StrJoin(path_components, "/");
       if (open_args->openhow.opentype == OPEN4_CREATE) {
-        // TODO: Set allocated_id.
+        uuid_generate(context->op_contexts[i].id);
+        context->op_contexts[i].is_new = true;
       }
     } else {
       std::cerr << "Unknow operation for VWrite: " << ops[i].argop;
@@ -740,16 +757,18 @@ int build_vwrite_txn(const COMPOUND4args* arg, VWriteTxn* write_txn) {
 
 }  // namespace internal
 
-uint64_t create_txn_log(const db_store_t* db, const COMPOUND4args* arg) {
+uint64_t create_txn_log(const db_store_t* db, const COMPOUND4args* arg,
+                        txn_context_t* context) {
   TransactionLog txn_log;
   txn_log.set_id(internal::get_txn_id());
   txn_log.set_type(internal::get_txn_type(arg));
   if (txn_log.type() == TransactionType::VCREATE) {
-    internal::build_vcreate_txn(arg, txn_log.mutable_creates());
+    internal::build_vcreate_txn(arg, txn_log.mutable_creates(), context);
   } else if (txn_log.type() == TransactionType::VWRITE) {
-    internal::build_vwrite_txn(arg, txn_log.mutable_writes());
+    internal::build_vwrite_txn(arg, txn_log.mutable_writes(), context);
   }
 
+  context->txn_id = txn_log.id();
   const string key = absl::StrCat("txn-", txn_log.id());
 
   // Write txn_log to database.

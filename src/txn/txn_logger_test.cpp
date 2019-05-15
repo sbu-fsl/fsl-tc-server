@@ -3,6 +3,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 
 #include <fstream>
 #include <functional>
@@ -10,10 +11,12 @@
 #include <iostream>
 #include <set>
 
+#include <absl/strings/str_cat.h>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 
 #include "txn_logger.h"
+#include "lwrapper.h"
 
 using namespace std;
 
@@ -125,6 +128,41 @@ TEST_F(TxnTest, SimpleTest) {
   txn_log.compound_type = txn_VNone;
   EXPECT_EQ(0, write_txn_log(&txn_log, "/tmp/log"));
   EXPECT_EQ(0, remove_txn_log(9990, "/tmp/log"));
+}
+
+TEST_F(TxnTest, CreateTxnLogTest) {
+  db_store_t* db = init_db_store("test_db", true);
+
+  char filename[] = "foo";
+  nfs_argop4 nfs4ops[2];
+  nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
+  nfs4ops[1].argop = NFS4_OP_CREATE;
+  nfs4ops[1].nfs_argop4_u.opcreate.objtype.type = NF4DIR;
+  nfs4ops[1].nfs_argop4_u.opcreate.objname.utf8string_val = filename;
+  nfs4ops[1].nfs_argop4_u.opcreate.objname.utf8string_len = strlen(filename);
+
+  COMPOUND4args args;
+  args.minorversion = 1;
+  args.argarray.argarray_len = 2;
+  args.argarray.argarray_val = nfs4ops;
+
+  txn_context_t* context = new_txn_context(2, nfs4ops);
+
+  uint64_t txn_id = create_txn_log(db, &args, context);
+  EXPECT_TRUE(context->op_contexts[1].is_new);
+  EXPECT_FALSE(uuid_is_null(context->op_contexts[1].id));
+  EXPECT_EQ(txn_id, context->txn_id);
+
+  size_t value_len = 0;
+  char* err = nullptr;
+  string key = absl::StrCat("txn-", txn_id);
+  char *value = leveldb_get(db->db, db->r_options, key.data(), key.size(),
+                            &value_len, &err);
+  EXPECT_GT(value_len, 0);
+  EXPECT_NE(value, nullptr);
+
+  del_txn_context(context);
+  destroy_db_store(db);
 }
 
 #if 0
