@@ -372,9 +372,19 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 }
 
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
+	COMPOUND4args* args = data;
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
-
+	LogDebug(COMPONENT_FSAL, "Compound operations: %d", args->argarray.argarray_len);
+	
+	// TODO - create transaction log
+	// assert(create_txn_log(db, args) == 0);	
+	
+	// TODO - snapshot files
+	assert(txnfs_compound_snapshot(args) == 0);
+	
+	// initialize txn cache
 	txnfs_cache_init();
+	
 	struct txnfs_fsal_export *exp =
 		container_of(exp_hdl, struct txnfs_fsal_export, export);
 

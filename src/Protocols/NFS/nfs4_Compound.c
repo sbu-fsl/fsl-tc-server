@@ -785,7 +785,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
-	op_ctx->fsal_export->exp_ops.start_compound(op_ctx->fsal_export, NULL);
+	op_ctx->fsal_export->exp_ops.start_compound(op_ctx->fsal_export, &arg->arg_compound4);
 	for (i = 0; i < argarray_len; i++) {
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data.oppos = i;
@@ -1012,6 +1012,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	}			/* for */
 
 	server_stats_compound_done(argarray_len, status);
+	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, NULL);
 
 	/* Complete the reply, in particular, tell where you stopped if
 	 * unsuccessfull COMPOUD
@@ -1112,7 +1113,6 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			 nfsstat4_to_str(status), i);
 
 	compound_data_Free(&data);
-	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, NULL);
 
 	/* release current active export in op_ctx. */
 	if (op_ctx->ctx_export) {

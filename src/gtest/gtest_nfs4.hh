@@ -171,6 +171,13 @@ protected:
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_val = gsh_strdup(newname);
   }
 
+  void setup_remove(int pos, const char *name) {
+    gsh_free(ops[pos].nfs_argop4_u.opremove.target.utf8string_val);
+    ops[pos].argop = NFS4_OP_REMOVE;
+    ops[pos].nfs_argop4_u.opremove.target.utf8string_len = strlen(name);
+    ops[pos].nfs_argop4_u.opremove.target.utf8string_val = gsh_strdup(name);
+  }
+  
   void setup_create(int pos, const char *name) {
     gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
     struct xdr_attrs_args args;
@@ -241,6 +248,13 @@ protected:
 
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = strlen(name);
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = gsh_strdup(name);
+  }
+ 
+   
+  void cleanup_remove(int pos) {
+    gsh_free(ops[pos].nfs_argop4_u.opremove.target.utf8string_val);
+    ops[pos].nfs_argop4_u.opremove.target.utf8string_len = 0;
+    ops[pos].nfs_argop4_u.opremove.target.utf8string_val = nullptr;
   }
   
   void cleanup_link(int pos) {

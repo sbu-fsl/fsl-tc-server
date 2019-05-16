@@ -220,3 +220,5 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_delete_uuid(uuid_t uuid);
 void txnfs_cache_init(void);
 void txnfs_cache_cleanup(void);
+
+int txnfs_compound_snapshot(COMPOUND4args* args);

@@ -13,7 +13,7 @@ int txnfs_cache_insert(
 	entry->entry_type = entry_type;
 	
 	assert((entry_type == txnfs_cache_entry_create && hdl_desc) || 
-					entry_type == txnfs_cache_entry_create);
+					entry_type == txnfs_cache_entry_delete);
 	if (hdl_desc) {	
 		entry->hdl_desc.addr = gsh_malloc(hdl_desc->len);
 		entry->hdl_desc.len = hdl_desc->len;
@@ -216,4 +216,11 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
     return 0;
   }
   return txnfs_db_get_uuid(hdl_desc, uuid) == 0;
+}
+
+
+int txnfs_compound_snapshot(COMPOUND4args* args) {
+	LogDebug(COMPONENT_FSAL, "snapshot compound");
+	
+	return 0;
 }
