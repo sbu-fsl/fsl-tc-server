@@ -1012,12 +1012,12 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	}			/* for */
 
 	server_stats_compound_done(argarray_len, status);
-	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, NULL);
 
 	/* Complete the reply, in particular, tell where you stopped if
 	 * unsuccessfull COMPOUD
 	 */
 	res->res_compound4.status = status;
+	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, &res->res_compound4);
 
 	/* Manage session's DRC: keep NFS4.1 replay for later use, but don't
 	 * save a replayed result again.

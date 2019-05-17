@@ -376,11 +376,18 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d", args->argarray.argarray_len);
 	
-	// TODO - create transaction log
-	// assert(create_txn_log(db, args) == 0);	
+	// generate txnid
+	uuid_generate(op_ctx->txnid);
 	
-	// TODO - snapshot files
-	assert(txnfs_compound_snapshot(args) == 0);
+	char uuid_str[UUID_STR_LEN];
+	uuid_unparse_lower(op_ctx->txnid, uuid_str);
+	LogDebug(COMPONENT_FSAL, "generated txnid=%s\n", uuid_str);
+	
+	// TODO - create transaction log
+	// assert(create_txn_log(db, op->txnid, args) == 0);
+	
+	// TODO - backup files
+	assert(txnfs_compound_backup(op_ctx->txnid, args) == 0);
 	
 	// initialize txn cache
 	txnfs_cache_init();
@@ -399,6 +406,8 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 {
+	COMPOUND4res* res = data;
+	
 	struct txnfs_fsal_export *exp =
 		container_of(exp_hdl, struct txnfs_fsal_export, export);
 
@@ -409,8 +418,23 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	op_ctx->fsal_export = &exp->export;
 		
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
+	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d", res->status, res->resarray.resarray_len);
 	
+	if (res->status == NFS4_OK)
+	{
+	    // commit entries to leveldb and remove txnlog entry
+	    txnfs_cache_commit();
+	}
+	else
+	{
+	   // TODO: restore backups
+	   assert(txnfs_compound_restore(op_ctx->txnid, res) == 0);
+	   // remove txn log entry
+	}
+	
+	// clear the list of entry in op_ctx->txn_cache	
 	txnfs_cache_cleanup();
+
 	return result;
 }
 /* txnfs_export_ops_init

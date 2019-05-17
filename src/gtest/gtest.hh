@@ -251,11 +251,11 @@ protected:
   }
 
   virtual void TearDown() {
-    /*fsal_status_t status;
+    fsal_status_t status;
 
     status = test_root->obj_ops->unlink(root_entry, test_root,
 					env->get_test_root_name());
-    EXPECT_EQ(0, status.major);*/
+    EXPECT_EQ(0, status.major);
     test_root->obj_ops->put_ref(test_root);
     test_root = NULL;
 

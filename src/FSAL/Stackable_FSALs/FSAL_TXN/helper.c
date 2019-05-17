@@ -109,6 +109,10 @@ int txnfs_cache_commit(void)
 	}
 
 	// TODO - add entry to remove txn log
+	/*char txnkey[20];
+	strcpy(txnkey, "txn-", 4);
+	uuid_copy(txnkey + 4, op_ctx->uuid);
+	leveldb_writebatch_delete(commit_batch, txnkey, TXN_UUID_LEN + 4);*/
 
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
@@ -125,14 +129,25 @@ int txnfs_cache_commit(void)
 }
 
 //
-// success: commit the entries in `op_ctx->txn_cache` and remove txn log
-// fail: undo executed ops and remove txn log
-void txnfs_cache_cleanup(void)
+// cleanup txn entries
+void txnfs_cache_cleanup()
 {
 	UDBG;
 	assert(glist_null(&op_ctx->txn_cache) == 0);
 	
-	(void) txnfs_cache_commit();
+  struct txnfs_cache_entry *entry;
+  struct glist_head *glist, *glistn;
+	
+	glist_for_each_safe(glist, glistn, &op_ctx->txn_cache) {
+		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
+
+		/* Remove this entry from list */
+		glist_del(&entry->glist);
+		
+		/* And free it */
+		gsh_free(entry);
+	}
+
 }
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
@@ -140,26 +155,34 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
 	uuid_generate(uuid);
 	char uuid_str[UUID_STR_LEN];
   uuid_unparse_lower(uuid, uuid_str);
+  int ret = 0;
+	char *err = NULL;
 	LogDebug(COMPONENT_FSAL, "generate uuid=%s\n", uuid_str);
   
 	if (!glist_null(&op_ctx->txn_cache)) {
     return txnfs_cache_insert(txnfs_cache_entry_create, hdl_desc, uuid);
   }
 	
-  db_kvpair_t kvpair;
-	
-	kvpair.key = uuid; 
-	kvpair.key_len = TXN_UUID_LEN;
+	/* write to database */
+	leveldb_writebatch_t* commit_batch = leveldb_writebatch_create();
+	leveldb_writebatch_put(commit_batch, uuid, TXN_UUID_LEN, hdl_desc->addr, hdl_desc->len);
+	leveldb_writebatch_put(commit_batch, hdl_desc->addr, hdl_desc->len, uuid, TXN_UUID_LEN);
+	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
-	kvpair.val = (char *) hdl_desc->addr;
-	kvpair.val_len = hdl_desc->len;
+	if (err)
+	{
+		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
+		leveldb_free(err);
+		ret = -1;
+	}
 	
-	return put_id_handle(&kvpair, 1, db);
+	leveldb_writebatch_destroy(commit_batch);
+	
+	return ret;
 }
 
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
 	UDBG;
-	db_kvpair_t kvpair;
   
   // search txnfs compound cache
   if (!glist_null(&op_ctx->txn_cache) && txnfs_cache_get_uuid(hdl_desc, uuid) == 0)
@@ -168,42 +191,64 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid) {
   }
 	
   LogDebug(COMPONENT_FSAL, "HandleAddr: %p HandleLen: %zu", hdl_desc->addr, hdl_desc->len);
-	kvpair.key = (char *) hdl_desc->addr;
-	kvpair.key_len = hdl_desc->len;
-	kvpair.val = NULL;
-	kvpair.val_len = TXN_UUID_LEN;
-	int res = get_id_handle(&kvpair, 1, db, true);
-	LogDebug(COMPONENT_FSAL, "get_id_handle = %d", res);
+	
+	char *val;
+	char *err = NULL;
+	size_t val_len;
+	val = leveldb_get(db->db, db->r_options, hdl_desc->addr, (size_t)hdl_desc->len, &val_len, &err);
 
-	if (kvpair.val_len == 0)
+	if (err)
+	{
+		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
+		leveldb_free(err);
+	}
+	
+	if (!val)
 	{
 		return -1;
 	}
 	
-	uuid_copy(uuid, kvpair.val);
+	assert(val_len == TXN_UUID_LEN);
+	uuid_copy(uuid, val);
+	free(val);
 	return 0;
 }
 
 int txnfs_db_delete_uuid(uuid_t uuid) {
-	db_kvpair_t kvpair;
 	UDBG;
   
   if (!glist_null(&op_ctx->txn_cache)) {
     return txnfs_cache_delete_uuid(uuid);
   }
 
-	kvpair.key = uuid;
-	kvpair.key_len = TXN_UUID_LEN;
-	kvpair.val = NULL;
-	assert(get_id_handle(&kvpair, 1, db, false) == 0);
-	LogDebug(COMPONENT_FSAL, "get_keys = %p %zu", kvpair.val, kvpair.val_len);
+	char *val;
+	char *err = NULL;
+	size_t val_len;
+	val = leveldb_get(db->db, db->r_options, uuid, TXN_UUID_LEN, &val_len, &err);
+	assert(val);
+
+	if (err)
+	{
+		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
+		leveldb_free(err);
+		
+		return -1;
+	}
+
 	char uuid_str[UUID_STR_LEN];
   uuid_unparse_lower(uuid, uuid_str);
 	LogDebug(COMPONENT_FSAL, "delete uuid=%s\n", uuid_str);
 	
-	assert(kvpair.val_len != 0);
+	leveldb_delete(db->db, db->w_options, uuid, TXN_UUID_LEN, &err);
+
+	if (err)
+	{
+		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
+		leveldb_free(err);
+		return -1;
+	}
 	
-	return delete_id_handle(&kvpair, 1, db, false);
+	return 0;
 }
 
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
@@ -218,9 +263,3 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
   return txnfs_db_get_uuid(hdl_desc, uuid) == 0;
 }
 
-
-int txnfs_compound_snapshot(COMPOUND4args* args) {
-	LogDebug(COMPONENT_FSAL, "snapshot compound");
-	
-	return 0;
-}

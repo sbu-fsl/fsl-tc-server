@@ -27,6 +27,9 @@ struct txnfs_fsal_module {
 
   /** Config - database path */
   char *db_path;
+  
+	/** Config - backup path */
+	char *backup_path;
 };
 
 extern struct txnfs_fsal_module TXNFS;
@@ -211,14 +214,18 @@ fsal_status_t txnfs_start_compound(struct fsal_export* exp_hdl, void* data);
 fsal_status_t txnfs_end_compound(struct fsal_export* exp_hdl, void* data);
 
 /* helpers */
-// uuid_t txnfs_get_uuid();
 
+/* txn handle */
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
-
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_delete_uuid(uuid_t uuid);
+
+/* txn entries related */
 void txnfs_cache_init(void);
+int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 
-int txnfs_compound_snapshot(COMPOUND4args* args);
+/* txn backup and restore */
+int txnfs_compound_backup(uuid_t txnid, COMPOUND4args* args);
+int txnfs_compound_restore(uuid_t txnid, COMPOUND4res* res);

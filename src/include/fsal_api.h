@@ -46,6 +46,7 @@
 #include "fsal_pnfs.h"
 #include "fsal_types.h"
 #include "sal_shared.h"
+#include "uuid/uuid.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -417,6 +418,7 @@ struct req_op_context {
   struct fsal_pnfs_ds *fsal_pnfs_ds; /*< current pNFS DS */
                                      /* add new context members here */
   struct glist_head txn_cache;
+  uuid_t txnid;
 };
 
 /**

@@ -15,6 +15,7 @@ SET(fsaltxn_LIB_SRCS
    main.c
 	 helper.c
    export.c
+   backup.c
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
