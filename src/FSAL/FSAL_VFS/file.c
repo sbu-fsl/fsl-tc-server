@@ -31,7 +31,7 @@
  */
 
 #include "config.h"
-
+#include <errno.h>
 #include <assert.h>
 #include "fsal.h"
 #include "FSAL/access_check.h"
@@ -2190,4 +2190,77 @@ fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_VFS layer.");
 	
 	return fsal_status;
+}
+
+fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+			 struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+			 size_t len, unsigned int flags)
+{
+	int retval = 0, src_fd = -1, dst_fd = -1;
+	bool has_lock1 = false;
+	bool has_lock2 = false;
+	bool closefd1 = false;
+	bool closefd2 = false;
+	fsal_status_t st = {0, 0};
+	struct file_clone_range *arg;
+	struct attrlist attrs;
+
+	LogDebug(COMPONENT_FSAL, "vfs_clone2: server-side cloning");
+
+	st = find_fd(&src_fd, src_hdl, false, NULL, FSAL_O_READ,
+                         &has_lock1, &closefd1, false);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "find_fd failed %s", msg_fsal_err(st.major));
+                goto out;
+        }
+
+	st = find_fd(&dst_fd, dst_hdl, false, NULL, FSAL_O_WRITE,
+                         &has_lock2, &closefd2, false);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "find_fd failed %s", msg_fsal_err(st.major));
+                goto out;
+        }
+
+	/* Clone the file */
+	if (len == -1) {
+		// Perform full copy
+		retval = ioctl(dst_fd, FICLONE, src_fd);
+	}
+	else {
+		// Perform range copy
+		arg = (struct file_clone_range *)malloc(sizeof(struct file_clone_range));
+		arg->src_fd = src_fd;
+		arg->src_offset = *off_in;
+		arg->src_length = len;
+		arg->dest_offset = *off_out;
+		retval = ioctl(dst_fd, FICLONERANGE, arg);
+		free(arg);
+	}
+
+	if (retval != 0) {
+		LogDebug(COMPONENT_FSAL, "vfs_clone2: clone failed");
+		goto out;
+	}
+	st = vfs_getattr2(src_hdl, &attrs);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "Unable to get attributes of src file %s", msg_fsal_err(st.major));
+                goto out;
+        }
+	st = vfs_setattr2(dst_hdl, false, NULL, &attrs);
+	if (FSAL_IS_ERROR(st)) {
+                LogDebug(COMPONENT_FSAL,
+                         "Unable to set attributes of dst file %s", msg_fsal_err(st.major));
+                goto out;
+        }
+
+out:
+	if (has_lock1)
+                PTHREAD_RWLOCK_unlock(&src_hdl->obj_lock);
+	if (has_lock2)
+                PTHREAD_RWLOCK_unlock(&dst_hdl->obj_lock);
+	LogDebug(COMPONENT_FSAL, "Exited vfs_clone2");
+	return fsalstat(posix2fsal_error(retval), retval);
 }

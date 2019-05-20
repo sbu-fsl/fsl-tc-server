@@ -738,6 +738,7 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->start_compound = txnfs_start_compound;
 	ops->end_compound = txnfs_end_compound;
 	ops->clone = txnfs_clone;
+	ops->clone2 = txnfs_clone2;
 
 	/* xattr related functions */
 	ops->list_ext_attrs = txnfs_list_ext_attrs;

@@ -1319,6 +1319,10 @@ struct fsal_obj_ops {
 			       char **dst_name,
 			       struct fsal_obj_handle *dir_hd,
 			       char *file_uuid);
+
+	fsal_status_t (*clone2)(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+				struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+				size_t len, unsigned int flags);
 /**
  * @brief Copy file content.
  *

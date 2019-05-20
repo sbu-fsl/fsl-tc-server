@@ -30,10 +30,15 @@
 #ifndef VFS_METHODS_H
 #define VFS_METHODS_H
 
+#include <sys/ioctl.h>
+#include <linux/fs.h>
 #include "fsal_handle_syscalls.h"
 #include "fsal_api.h"
 #include "FSAL/fsal_commonlib.h"
 #include "FSAL/access_check.h"
+
+#define FICLONE _IOW(0x94, 9, int)
+#define FICLONERANGE _IOW(0x94, 13, struct file_clone_range)
 
 struct vfs_fsal_obj_handle;
 struct vfs_fsal_export;
@@ -374,6 +379,10 @@ fsal_status_t vfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
 
 fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
 			       void *data);
+
+fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+			 struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+			 size_t len, unsigned int flags);
 
 fsal_status_t check_hsm_by_fd(int fd);
 

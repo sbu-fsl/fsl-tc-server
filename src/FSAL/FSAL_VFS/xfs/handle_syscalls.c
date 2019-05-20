@@ -153,7 +153,7 @@ int vfs_fd_to_handle(int fd, struct fsal_filesystem *fs,
 	void *data;
 	size_t sz;
 	int rv = 0;
-
+	LogCrit(COMPONENT_FSAL, "vfs_fd_to_handle : %d", fd);
 	if (fd_to_handle(fd, &data, &sz) < 0)
 		return -1;
 
@@ -188,6 +188,7 @@ int vfs_name_to_handle(int fd,
 		if (tmpfd < 0)
 			return -1;
 
+		LogCrit(COMPONENT_FSAL, "vfs_name_to_handle : %s", name);
 		retval = vfs_fd_to_handle(tmpfd, fs, fh);
 		e = errno;
 		close(tmpfd);

@@ -919,3 +919,20 @@ fsal_status_t mdcache_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
 	LogDebug(COMPONENT_FSAL, "Returned to MDCACHE layer");
 	return fsal_status;
 }
+
+fsal_status_t mdcache_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+			     struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+			     size_t len, unsigned int flags)
+{
+	fsal_status_t fsal_status;
+	mdcache_entry_t *entry =
+	    container_of(src_hdl, mdcache_entry_t, obj_handle);
+	mdcache_entry_t *entry1 =
+	    container_of(dst_hdl, mdcache_entry_t, obj_handle);
+
+	LogCrit(COMPONENT_FSAL, "Clone2 in MDCACHE layer");
+	subcall(fsal_status = entry->sub_handle->obj_ops->clone2(
+	      entry->sub_handle, off_in, entry1->sub_handle, off_out, len, flags););
+	LogDebug(COMPONENT_FSAL, "Returned to MDCACHE layer");
+	return fsal_status;
+}

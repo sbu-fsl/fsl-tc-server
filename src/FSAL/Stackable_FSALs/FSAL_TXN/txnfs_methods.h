@@ -179,6 +179,10 @@ fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl,
 			  struct fsal_obj_handle *dir_hdl,
 			  char *uuid);
 
+fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+			   struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+			   size_t len, unsigned int flags);
+
 /* extended attributes management */
 fsal_status_t txnfs_list_ext_attrs(struct fsal_obj_handle *obj_hdl,
 				    unsigned int cookie,
