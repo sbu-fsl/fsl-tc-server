@@ -28,6 +28,8 @@ target_link_libraries(fsaltxnfs
   leveldb
   lwrapper
   id_manager
+  txn_context
+  txn_logger
   lock_manager
 )
 

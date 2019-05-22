@@ -6,13 +6,6 @@
 #include "nfsv41.h"
 #include "txn_context.h"
 
-namespace txnfs {
-namespace proto {
-class TransactionLog;
-}
-} // namespace txnfs
-
-using namespace txnfs;
 #define ENABLE_NORMAL_TEXT_LOGGING 0
 
 #ifdef __cplusplus
@@ -37,19 +30,19 @@ struct ObjectId {
 };
 
 struct CreatedObject {
-  ObjectId base_id;
+  struct ObjectId base_id;
   char path[PATH_MAX];
-  ObjectId allocated_id;
+  struct ObjectId allocated_id;
 };
 
 struct UnlinkId {
-  ObjectId parent_id;
+  struct ObjectId parent_id;
   char name[NAME_MAX];
 };
 
 struct SymlinkId {
   char src_path[PATH_MAX];
-  ObjectId parent_id;
+  struct ObjectId parent_id;
   char name[NAME_MAX];
 };
 
@@ -70,8 +63,8 @@ typedef struct SymlinkId SymlinkId;
 struct RenameId {
   const char *src_path;
   const char *dst_path;
-  FileId src_fileid;
-  FileId dst_fileid;
+  struct FileId src_fileid;
+  struct FileId dst_fileid;
   bool is_directory;
 };
 
@@ -79,10 +72,10 @@ typedef struct RenameId RenameId;
 
 struct TxnLog {
   uint64_t txn_id;
-  CreatedObject *created_file_ids;
-  UnlinkId *created_unlink_ids;
-  SymlinkId *created_symlink_ids;
-  RenameId *created_rename_ids;
+  struct CreatedObject *created_file_ids;
+  struct UnlinkId *created_unlink_ids;
+  struct SymlinkId *created_symlink_ids;
+  struct RenameId *created_rename_ids;
   int num_files;
   int num_unlinks;
   int num_symlinks;
@@ -92,10 +85,6 @@ struct TxnLog {
 };
 
 typedef struct TxnLog TxnLog;
-
-int txn_log_from_pb(proto::TransactionLog *txnpb, struct TxnLog *txn_log);
-int txn_log_to_pb(struct TxnLog *txn_log, proto::TransactionLog *txnpb);
-void txn_log_free(struct TxnLog *txn_log);
 uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
                         txn_context_t *txn_context);
 

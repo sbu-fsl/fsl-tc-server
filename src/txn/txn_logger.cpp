@@ -13,6 +13,7 @@
 #include "txn.pb.h"
 #include "txn_context.h"
 #include "txn_logger.h"
+#include "txn_logger_internal.h"
 #define MAX_LEN 64
 
 using namespace std;

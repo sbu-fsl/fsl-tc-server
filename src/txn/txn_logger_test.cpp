@@ -15,6 +15,7 @@
 
 #include "txn.pb.h"
 #include "txn_logger.h"
+#include "txn_logger_internal.h"
 
 using namespace std;
 
