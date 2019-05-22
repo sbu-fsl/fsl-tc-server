@@ -5,19 +5,19 @@
 #include "lwrapper.h"
 #include <uuid/uuid.h>
 
-#define UUID_ALLOC_LIMIT 64
 #define TXN_UUID_LEN 16
+#define TXN_BKP_DIR ".txn"
 
 enum txnfs_cache_entry_type {
-	txnfs_cache_entry_create = 0,
-	txnfs_cache_entry_delete = 1
+  txnfs_cache_entry_create = 0,
+  txnfs_cache_entry_delete = 1
 };
 
 struct txnfs_cache_entry {
   uuid_t uuid;
   struct gsh_buffdesc hdl_desc;
-	enum txnfs_cache_entry_type entry_type;
-  
+  enum txnfs_cache_entry_type entry_type;
+
   struct glist_head glist;
 };
 
@@ -27,9 +27,9 @@ struct txnfs_fsal_module {
 
   /** Config - database path */
   char *db_path;
-  
-	/** Config - backup path */
-	char *backup_path;
+
+  /** Config - backup path */
+  char *backup_path;
 };
 
 extern struct txnfs_fsal_module TXNFS;
@@ -210,8 +210,8 @@ fsal_status_t txnfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
                                          unsigned int xattr_id);
 fsal_status_t txnfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
                                            const char *xattr_name);
-fsal_status_t txnfs_start_compound(struct fsal_export* exp_hdl, void* data);
-fsal_status_t txnfs_end_compound(struct fsal_export* exp_hdl, void* data);
+fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data);
+fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 
 /* helpers */
 
@@ -227,5 +227,5 @@ int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 
 /* txn backup and restore */
-int txnfs_compound_backup(uuid_t txnid, COMPOUND4args* args);
-int txnfs_compound_restore(uuid_t txnid, COMPOUND4res* res);
+int txnfs_compound_backup(uint64_t txnid, COMPOUND4args *args);
+int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);

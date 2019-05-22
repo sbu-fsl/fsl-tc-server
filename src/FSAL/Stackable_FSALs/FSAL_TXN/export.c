@@ -48,6 +48,7 @@
 #include "txnfs_methods.h"
 #include "nfs_exports.h"
 #include "export_mgr.h"
+#include "txn_logger.h"
 
 /* helpers to/from other NULL objects
  */
@@ -376,18 +377,8 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d", args->argarray.argarray_len);
 	
-	// generate txnid
-	uuid_generate(op_ctx->txnid);
-	
-	char uuid_str[UUID_STR_LEN];
-	uuid_unparse_lower(op_ctx->txnid, uuid_str);
-	LogDebug(COMPONENT_FSAL, "generated txnid=%s\n", uuid_str);
-	
-	// TODO - create transaction log
-	// assert(create_txn_log(db, op->txnid, args) == 0);
-	
-	// TODO - backup files
-	assert(txnfs_compound_backup(op_ctx->txnid, args) == 0);
+	// generate txnid and create transaction log
+	op_ctx->txnid = create_txn_log(db->db, args);
 	
 	// initialize txn cache
 	txnfs_cache_init();
@@ -557,6 +548,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 
 	fsal_export_stack(op_ctx->fsal_export, &myself->export);
 
+		  
 	fsal_export_init(&myself->export);
 	txnfs_export_ops_init(&myself->export.exp_ops);
 #ifdef EXPORT_OPS_INIT
@@ -571,6 +563,29 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
 	 */
+	op_ctx->fsal_export = &myself->export;
+	  
+	// create txn backup directory
+	op_ctx->fsal_export = myself->export.sub_export;
+
+	 struct fsal_obj_handle* root_entry = NULL, *txnroot = NULL;
+	 struct attrlist attrs;
+	 struct attrlist attrs_out;
+	  fsal_status_t status = op_ctx->fsal_export->exp_ops.lookup_path(op_ctx->fsal_export, op_ctx->ctx_export->fullpath, &root_entry, &attrs);
+	  assert(status.major == 0);
+	  assert(root_entry);
+	  
+    FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+    attrs.mode = 0777; /* XXX */
+    attrs.owner = 667;
+    attrs.group = 766;
+    fsal_prepare_attrs(&attrs_out, 0);
+
+	  status = fsal_create(root_entry, TXN_BKP_DIR, DIRECTORY,
+			       &attrs, NULL, &txnroot, &attrs_out);
+	  assert(status.major == 0);
+	  assert(txnroot);
+    fsal_release_attrs(&attrs_out);
 	op_ctx->fsal_export = &myself->export;
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

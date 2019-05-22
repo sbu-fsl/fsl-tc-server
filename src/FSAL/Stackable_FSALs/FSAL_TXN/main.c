@@ -55,8 +55,8 @@ struct txnfs_fsal_module TXNFS = {
 static struct config_item txn_items[] = {
 	CONF_MAND_PATH("DbPath", 1, MAXPATHLEN, "/tmp/txndb",
 		       txnfs_fsal_module, db_path),
-  CONF_MAND_PATH("BackupPath", 1, MAXPATHLEN, "/tmp/txnbackup",
-           txnfs_fsal_module, backup_path),
+  /*CONF_MAND_PATH("BackupPath", 1, MAXPATHLEN, "/tmp/txnbackup",
+           txnfs_fsal_module, backup_path),*/
 	CONFIG_EOL
 };
 

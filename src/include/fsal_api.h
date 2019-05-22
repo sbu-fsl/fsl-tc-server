@@ -418,7 +418,7 @@ struct req_op_context {
   struct fsal_pnfs_ds *fsal_pnfs_ds; /*< current pNFS DS */
                                      /* add new context members here */
   struct glist_head txn_cache;
-  uuid_t txnid;
+  uint64_t txnid;
 };
 
 /**
@@ -1172,10 +1172,9 @@ struct export_ops {
   /**
    * Compound events
    */
-  fsal_status_t (*start_compound)(struct fsal_export *exp_hdl, void* data);
+  fsal_status_t (*start_compound)(struct fsal_export *exp_hdl, void *data);
 
-  fsal_status_t (*end_compound)(struct fsal_export *exp_hdl, void* data);
-
+  fsal_status_t (*end_compound)(struct fsal_export *exp_hdl, void *data);
 };
 
 /**
@@ -2488,7 +2487,6 @@ struct fsal_obj_ops {
    */
 
   /**@}*/
-  
 };
 
 /**
