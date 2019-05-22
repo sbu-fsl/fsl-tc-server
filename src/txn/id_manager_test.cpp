@@ -92,6 +92,8 @@ TEST_F(IdManagerTest, UUIDBasics) {
     EXPECT_EQ(1ULL, root.hi);
     uuid = uuid_next(uuid);
   }
+
+  EXPECT_TRUE(uuid_is_null(uuid_null()));
 }
 
 TEST_F(IdManagerTest, SimulateFailure) {

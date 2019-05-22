@@ -13,6 +13,7 @@ SET(fsalxfs_LIB_SRCS
    ../state.c
    ../vfs_methods.h
    ../empty_check_hsm.c
+   ../splice_copy.c
    subfsal_xfs.c
   )
 

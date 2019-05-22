@@ -51,8 +51,13 @@ uuid_t uuid_allocate(const db_store_t *db, int n);
 // TXN_UUID_LEN.
 char* uuid_to_buf(uuid_t id);
 
+// |buf| should be allocated and memory size is at least |TXN_UUID_LEN|.
+void uuid_serialize(uuid_t id, char* buf);
+
 // Decodes uuid in |buf| whose size is fixed to TXN_UUID_LEN.
 uuid_t buf_to_uuid(const char* buf);
+
+inline bool uuid_is_null(uuid_t id) { return (id.lo == 0) && (id.hi == 0); }
 
 #ifdef __cplusplus
 }

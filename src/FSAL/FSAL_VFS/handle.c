@@ -1702,6 +1702,8 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 
 	ops->is_referral = fsal_common_is_referral;
 	ops->copy = vfs_copy;
+	/* transaction related function */
+	ops->clone2 = vfs_clone2;
 }
 
 /* export methods that create object handles

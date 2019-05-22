@@ -30,6 +30,9 @@ set(ganesha_test_conf
 add_test(dbCleanup "rm" "-rf" "/vfs0/*" "/tmp/txndb")
 set_tests_properties(dbCleanup   PROPERTIES FIXTURES_SETUP  Db)
 
+set(ganesha_test_conf_xfs
+  "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/xfs-test.conf")
+
 function(add_gtest testname)
   add_executable(${testname} "${testname}.cc")
   add_sanitizers(${testname})

@@ -46,7 +46,6 @@
 #include "fsal_pnfs.h"
 #include "fsal_types.h"
 #include "sal_shared.h"
-#include "uuid/uuid.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -416,7 +415,7 @@ struct req_op_context {
   void *fsal_private;                /*< private for FSAL use */
   struct fsal_module *fsal_module;   /*< current fsal module */
   struct fsal_pnfs_ds *fsal_pnfs_ds; /*< current pNFS DS */
-                                     /* add new context members here */
+  /* add new context members here */
   struct glist_head txn_cache;
   uint64_t txnid;
 };
@@ -1169,12 +1168,6 @@ struct export_ops {
 
   bool (*is_superuser)(struct fsal_export *exp_hdl,
                        const struct user_cred *creds);
-  /**
-   * Compound events
-   */
-  fsal_status_t (*start_compound)(struct fsal_export *exp_hdl, void *data);
-
-  fsal_status_t (*end_compound)(struct fsal_export *exp_hdl, void *data);
 };
 
 /**
@@ -1301,8 +1294,21 @@ struct fsal_io_arg {
 struct fsal_obj_ops {
   /**@{*/
 
+  /**
+   * Compound events
+   */
+  fsal_status_t (*start_compound)(struct fsal_obj_handle *root_backup_hdl,
+                                  void *data);
+
+  fsal_status_t (*end_compound)(struct fsal_obj_handle *root_backup_hdl,
+                                void *data);
+
   fsal_status_t (*clone)(struct fsal_obj_handle *src_hdl, char **dst_name,
                          struct fsal_obj_handle *dir_hd, char *file_uuid);
+
+  fsal_status_t (*clone2)(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+                          struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+                          size_t len, unsigned int flags);
   /**
    * @brief Copy file content.
    *

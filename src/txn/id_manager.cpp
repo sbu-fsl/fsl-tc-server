@@ -165,6 +165,10 @@ char *uuid_to_buf(uuid_t id) {
   return uint128_to_buf(absl::bit_cast<absl::uint128>(id));
 }
 
+void uuid_serialize(uuid_t id, char* buf) {
+  memcpy(buf, (void *)&id, TXN_UUID_LEN);
+}
+
 uuid_t buf_to_uuid(const char* buf) {
   return absl::bit_cast<uuid_t>(buf_to_uint128(buf));
 }

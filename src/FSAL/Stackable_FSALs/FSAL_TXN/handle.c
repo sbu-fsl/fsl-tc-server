@@ -729,6 +729,9 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->setattr2 = txnfs_setattr2;
 	ops->close2 = txnfs_close2;
 	ops->fallocate = txnfs_fallocate;
+	ops->copy = txnfs_copy;
+	ops->clone = txnfs_clone;
+	ops->clone2 = txnfs_clone2;
 
 	/* xattr related functions */
 	ops->list_ext_attrs = txnfs_list_ext_attrs;

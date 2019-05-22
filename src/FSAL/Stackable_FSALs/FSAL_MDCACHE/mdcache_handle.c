@@ -1471,6 +1471,7 @@ void mdcache_handle_ops_init(struct fsal_obj_ops *ops)
 
 	/*transaction compound functions*/
 	ops->clone = mdcache_clone;
+	ops->clone2 = mdcache_clone2;
 }
 
 /*
