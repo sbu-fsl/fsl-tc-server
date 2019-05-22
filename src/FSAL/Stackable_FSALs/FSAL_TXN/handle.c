@@ -613,7 +613,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 		fh_desc->len = TXN_UUID_LEN;
         } else {
 		LogMajor(COMPONENT_FSAL,
-			 "Space too small for handle.  need %u, have %zu",
+			 "Space too small for handle.  need %zu, have %zu",
 			 TXN_UUID_LEN, fh_desc->len);
 		return fsalstat(ERR_FSAL_TOOSMALL, 0);
 	}

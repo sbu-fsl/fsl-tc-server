@@ -3,9 +3,9 @@
 #include "fsal_api.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
+#include "txn_context.h"
 #include <uuid/uuid.h>
 
-#define TXN_UUID_LEN 16
 #define TXN_BKP_DIR ".txn"
 
 enum txnfs_cache_entry_type {
@@ -182,8 +182,8 @@ fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
                           struct fsal_obj_handle *dir_hdl, char *uuid);
 
 fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
-			   struct fsal_obj_handle *dst_hdl, loff_t *off_out,
-			   size_t len, unsigned int flags);
+                           struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+                           size_t len, unsigned int flags);
 
 /* extended attributes management */
 fsal_status_t

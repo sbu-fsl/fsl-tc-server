@@ -1168,6 +1168,12 @@ struct export_ops {
 
   bool (*is_superuser)(struct fsal_export *exp_hdl,
                        const struct user_cred *creds);
+  /**
+   * Compound events
+   */
+  fsal_status_t (*start_compound)(struct fsal_export *exp_hdl, void *data);
+
+  fsal_status_t (*end_compound)(struct fsal_export *exp_hdl, void *data);
 };
 
 /**
