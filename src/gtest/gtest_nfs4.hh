@@ -177,7 +177,25 @@ protected:
     ops[pos].nfs_argop4_u.opremove.target.utf8string_len = strlen(name);
     ops[pos].nfs_argop4_u.opremove.target.utf8string_val = gsh_strdup(name);
   }
-  
+
+  void setup_open(int pos, const char *name) {
+    ops[pos].argop = NVFS4_OP_OPEN;
+    ops[pos].nfs_argop4_u.opopen.openhow.opentype = OPEN4_CREATE;
+    ops[pos].nfs_argop4_u.opopen.openhow.openflag4_u.how.mode = GUARDED4;
+    ops[pos]
+        .nfs_argop4_u.opopen.openhow.openflag4_u.how.createhow4_u.createattrs =
+        GUARDED4;
+  }
+
+  void setup_write(int pos, char *data) {
+    ops[pos].argop = NVFS4_OP_WRITE;
+    // ops[pos].nfs_argop4_u.opwrite.stateid;
+    ops[pos].nfs_argop4_u.opwrite.offset = 0;
+    ops[pos].nfs_argop4_u.opwrite.stable = DATA_SYNC4;
+    ops[pos].nfs_argop4_u.opwrite.data.data_len = 3;
+    ops[pos].nfs_argop4_u.opwrite.data.data_val = gsh_strdup(data);
+  }
+
   void setup_create(int pos, const char *name) {
     gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
     struct xdr_attrs_args args;
@@ -198,77 +216,71 @@ protected:
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER);
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER_GROUP);
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_MODE);
-    
-    Fattr->attr_vals.attrlist4_val = (char*)gsh_malloc(NFS4_ATTRVALS_BUFFLEN);
-    xdrmem_create(&attr_body, Fattr->attr_vals.attrlist4_val, NFS4_ATTRVALS_BUFFLEN, XDR_ENCODE);
+
+    Fattr->attr_vals.attrlist4_val = (char *)gsh_malloc(NFS4_ATTRVALS_BUFFLEN);
+    xdrmem_create(&attr_body, Fattr->attr_vals.attrlist4_val,
+                  NFS4_ATTRVALS_BUFFLEN, XDR_ENCODE);
     int attribute_to_set = 0;
     u_int LastOffset;
     for (attribute_to_set = next_attr_from_bitmap(&Fattr->attrmask, -1);
-	 attribute_to_set != -1;
-	 attribute_to_set =
-	 next_attr_from_bitmap(&Fattr->attrmask, attribute_to_set)) {
-	    /*if (attribute_to_set > max_attr_idx)
-		    break;	[> skip out of bounds <]*/
+         attribute_to_set != -1; attribute_to_set = next_attr_from_bitmap(
+                                     &Fattr->attrmask, attribute_to_set)) {
+      /*if (attribute_to_set > max_attr_idx)
+              break;	[> skip out of bounds <]*/
 
-	    xdr_res = fattr4tab[attribute_to_set].encode(&attr_body, &args);
-	    if (xdr_res == FATTR_XDR_SUCCESS) {
-		    bool res = set_attribute_in_bitmap(&Fattr->attrmask,
-						       attribute_to_set);
-		    assert(res);
-		    LogFullDebug(COMPONENT_NFS_V4,
-				 "Encoded attr %d, name = %s",
-				 attribute_to_set,
-				 fattr4tab[attribute_to_set].name);
-	    } else if (xdr_res == FATTR_XDR_NOOP) {
-		    LogFullDebug(COMPONENT_NFS_V4,
-				 "Attr not supported %d name=%s",
-				 attribute_to_set,
-				 fattr4tab[attribute_to_set].name);
-		    continue;
-	    } else {
-		    LogEvent(COMPONENT_NFS_V4,
-				 "Encode FAILED for attr %d, name = %s",
-				 attribute_to_set,
-				 fattr4tab[attribute_to_set].name);
+      xdr_res = fattr4tab[attribute_to_set].encode(&attr_body, &args);
+      if (xdr_res == FATTR_XDR_SUCCESS) {
+        bool res = set_attribute_in_bitmap(&Fattr->attrmask, attribute_to_set);
+        assert(res);
+        LogFullDebug(COMPONENT_NFS_V4, "Encoded attr %d, name = %s",
+                     attribute_to_set, fattr4tab[attribute_to_set].name);
+      } else if (xdr_res == FATTR_XDR_NOOP) {
+        LogFullDebug(COMPONENT_NFS_V4, "Attr not supported %d name=%s",
+                     attribute_to_set, fattr4tab[attribute_to_set].name);
+        continue;
+      } else {
+        LogEvent(COMPONENT_NFS_V4, "Encode FAILED for attr %d, name = %s",
+                 attribute_to_set, fattr4tab[attribute_to_set].name);
 
-		    /* signal fail so if(LastOffset > 0) works right */
-		    assert(false);
-	    }
-	    /* mark the attribute in the bitmap should be new bitmap btw */
+        /* signal fail so if(LastOffset > 0) works right */
+        assert(false);
+      }
+      /* mark the attribute in the bitmap should be new bitmap btw */
     }
-    LastOffset = xdr_getpos(&attr_body);	/* dumb but for now */
+    LastOffset = xdr_getpos(&attr_body); /* dumb but for now */
     xdr_destroy(&attr_body);
 
-    if (LastOffset == 0) {	/* no supported attrs so we can free */
-	    assert(Fattr->attrmask.bitmap4_len == 0);
-	    gsh_free(Fattr->attr_vals.attrlist4_val);
-	    Fattr->attr_vals.attrlist4_val = NULL;
+    if (LastOffset == 0) { /* no supported attrs so we can free */
+      assert(Fattr->attrmask.bitmap4_len == 0);
+      gsh_free(Fattr->attr_vals.attrlist4_val);
+      Fattr->attr_vals.attrlist4_val = NULL;
     }
     Fattr->attr_vals.attrlist4_len = LastOffset;
 
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = strlen(name);
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = gsh_strdup(name);
   }
- 
-   
+
   void cleanup_remove(int pos) {
     gsh_free(ops[pos].nfs_argop4_u.opremove.target.utf8string_val);
     ops[pos].nfs_argop4_u.opremove.target.utf8string_len = 0;
     ops[pos].nfs_argop4_u.opremove.target.utf8string_val = nullptr;
   }
-  
+
   void cleanup_link(int pos) {
     gsh_free(ops[pos].nfs_argop4_u.oplink.newname.utf8string_val);
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_len = 0;
     ops[pos].nfs_argop4_u.oplink.newname.utf8string_val = nullptr;
   }
-  
+
   void cleanup_create(int pos) {
     gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
-    gsh_free(ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val);
+    gsh_free(
+        ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val);
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = 0;
     ops[pos].nfs_argop4_u.opcreate.createattrs.attrmask.bitmap4_len = 0;
-    ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val = nullptr;
+    ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_val =
+        nullptr;
     ops[pos].nfs_argop4_u.opcreate.createattrs.attr_vals.attrlist4_len = 0;
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = nullptr;
   }

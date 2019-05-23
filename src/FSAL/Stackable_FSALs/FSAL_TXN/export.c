@@ -378,9 +378,9 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d", args->argarray.argarray_len);
 	
 	// generate txnid and create transaction log
-	txn_context_t *context = new_txn_context((int)args->argarray.argarray_len, (const nfs_argop4*)args->argarray.argarray_val);
+	/*txn_context_t *context = new_txn_context(args->argarray.argarray_len, args->argarray.argarray_val);*/
 
-	op_ctx->txnid = create_txn_log(db, args, context);
+	/*op_ctx->txnid = create_txn_log(db, args, context);*/
 	
 	// initialize txn cache
 	txnfs_cache_init();
