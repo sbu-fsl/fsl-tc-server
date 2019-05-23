@@ -567,27 +567,5 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	 */
 	op_ctx->fsal_export = &myself->export;
 	  
-	// create txn backup directory
-	op_ctx->fsal_export = myself->export.sub_export;
-
-	 struct fsal_obj_handle* root_entry = NULL, *txnroot = NULL;
-	 struct attrlist attrs;
-	 struct attrlist attrs_out;
-	  fsal_status_t status = op_ctx->fsal_export->exp_ops.lookup_path(op_ctx->fsal_export, op_ctx->ctx_export->fullpath, &root_entry, &attrs);
-	  assert(status.major == 0);
-	  assert(root_entry);
-	  
-    FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-    attrs.mode = 0777; /* XXX */
-    attrs.owner = 667;
-    attrs.group = 766;
-    fsal_prepare_attrs(&attrs_out, 0);
-
-	  status = fsal_create(root_entry, TXN_BKP_DIR, DIRECTORY,
-			       &attrs, NULL, &txnroot, &attrs_out);
-	  assert(status.major == 0);
-	  assert(txnroot);
-    fsal_release_attrs(&attrs_out);
-	op_ctx->fsal_export = &myself->export;
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
