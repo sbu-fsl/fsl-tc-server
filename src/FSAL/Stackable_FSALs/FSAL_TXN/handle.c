@@ -610,8 +610,8 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 	/*LogDebug(COMPONENT_FSAL, "Creating digest for file id %s", handle->uuid);*/
 	if (fh_desc->len >= TXN_UUID_LEN) {
 		uuid_copy(fh_desc->addr, handle->uuid);
-		fh_desc->len = TXN_UUID_LEN;
-        } else {
+		fh_desc->len = sizeof(uuid_t);
+	} else {
 		LogMajor(COMPONENT_FSAL,
 			 "Space too small for handle.  need %zu, have %zu",
 			 TXN_UUID_LEN, fh_desc->len);

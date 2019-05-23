@@ -10,6 +10,7 @@
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 
+#include "nfs_fh.h"
 #include "txn.pb.h"
 #include "txn_context.h"
 #include "txn_logger.h"
@@ -599,8 +600,9 @@ uint64_t get_txn_id() {
 
 // TODO: Test this.
 void extract_uuid_from_fh(const nfs_fh4 &fh, uuid_t uuid) {
-  assert(fh.nfs_fh4_len == sizeof(uuid_t));
-  memcpy(uuid, fh.nfs_fh4_val, sizeof(uuid_t));
+  struct file_handle_v4 *fh4 = (struct file_handle_v4 *)fh.nfs_fh4_val;
+  assert(fh4->fs_len == sizeof(uuid_t));
+  uuid_copy(uuid, fh4->fsopaque);
 }
 
 string uuid_to_string(const uuid_t &uuid) {
