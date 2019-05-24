@@ -256,16 +256,18 @@ TEST_F(GaneshaCompoundBaseTest, SimpleWrite) {
   rc = nfs_client_id_insert(unconf);
   rc = nfs_client_id_confirm(unconf, COMPONENT_CLIENTID);
   nfs_end_grace();
-  init_args(3 /*nops*/);
+  init_args(5 /*nops*/);
   setup_putfh(0, root_entry);
   setup_open(1, "foo", clientid);
   setup_write(2, "foo");
+  setup_write(3, "bar");
+  setup_write(4, "baz");
   enableEvents(event_list);
 
   rc = nfs4_Compound(&arg, &req, &res);
 
   EXPECT_EQ(rc, NFS_REQ_OK);
-  EXPECT_EQ(3, res.res_compound4.resarray.resarray_len);
+  EXPECT_EQ(5, res.res_compound4.resarray.resarray_len);
   EXPECT_EQ(NFS_OK, res.res_compound4.resarray.resarray_val[0]
                         .nfs_resop4_u.opputrootfh.status);
   EXPECT_EQ(
@@ -273,9 +275,15 @@ TEST_F(GaneshaCompoundBaseTest, SimpleWrite) {
       res.res_compound4.resarray.resarray_val[1].nfs_resop4_u.opputfh.status);
   EXPECT_EQ(
       NFS_OK,
-      res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.opcreate.status);
+      res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.opopen.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[3].nfs_resop4_u.opopen.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[4].nfs_resop4_u.opopen.status);
 
-  cleanup_create(2);
+  // cleanup_open(2);
   cleanup_putfh(1);
   disableEvents(event_list);
 }

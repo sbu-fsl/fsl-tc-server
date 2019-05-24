@@ -17,7 +17,6 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_han
 	assert(root_entry);
 	FSAL_CLEAR_MASK(attrs.valid_mask); 
 	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-  assert(!FSAL_TEST_MASK(attrs.valid_mask, ATTR_SIZE));
 	attrs.mode = 0666; 
 	attrs.owner = 0;
 	attrs.group = 0;
@@ -34,12 +33,16 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_han
     assert(txn_handle);
   }
   
-  // create txnid directory
-  status = fsal_create(txn_handle, txnid, DIRECTORY,
-             &attrs, NULL, bkp_handle, NULL);
-  assert(status.major == 0);
-  assert(*bkp_handle);
-
+  status = fsal_lookup(txn_handle, txnid, bkp_handle, NULL);
+  
+  if (status.major == ERR_FSAL_NOENT)
+  {
+    // create txnid directory
+    status = fsal_create(txn_handle, txnid, DIRECTORY,
+               &attrs, NULL, bkp_handle, NULL);
+    assert(status.major == 0);
+    assert(*bkp_handle);
+  }
   return status;
 }
 
