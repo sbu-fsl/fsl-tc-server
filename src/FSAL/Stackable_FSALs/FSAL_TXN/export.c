@@ -49,6 +49,7 @@
 #include "nfs_exports.h"
 #include "export_mgr.h"
 #include "txn_logger.h"
+#include "nfs_proto_data.h"
 
 /* helpers to/from other NULL objects
  */
@@ -378,9 +379,9 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data){
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d", args->argarray.argarray_len);
 	
 	// generate txnid and create transaction log
-	/*txn_context_t *context = new_txn_context(args->argarray.argarray_len, args->argarray.argarray_val);*/
+	/*txn_context_t *context = new_txn_context(args->argarray.argarray_len, args->argarray.argarray_val);
 
-	/*op_ctx->txnid = create_txn_log(db, args, context);*/
+	op_ctx->txnid = create_txn_log(db, args, context);*/
 	
 	// initialize txn cache
 	txnfs_cache_init();
@@ -430,6 +431,42 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 
 	return result;
 }
+
+fsal_status_t txnfs_backup_nfs4_op(struct fsal_export* exp_hdl,
+			  unsigned int opidx,
+			  void *compound_data,
+			  struct nfs_argop4 *op)
+{
+	compound_data_t *data = compound_data;
+	struct attrlist attr_out;
+	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
+	struct fsal_obj_handle *handle = NULL;
+	switch (op->argop)
+	{
+	  case NFS4_OP_OPEN:
+		// lookup first
+		if (op->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE)
+		{
+		   status = fsal_lookup(data->current_obj, op->nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val, &handle, &attr_out);
+		   assert(status.major == 0);
+		   txnfs_backup_file(opidx, handle);
+		}
+		break;
+	  case NFS4_OP_WRITE:
+		// check handle in db
+		txnfs_backup_file(opidx, data->current_obj);
+		break;
+	  case NFS4_OP_REMOVE:
+		// lookup first
+		status = fsal_lookup(data->current_obj, op->nfs_argop4_u.opremove.target.utf8string_val, &handle, &attr_out);
+		assert(status.major == 0);
+		txnfs_backup_file(opidx, handle);
+	  default:
+		return status;
+	}
+
+	return status;
+}
 /* txnfs_export_ops_init
  * overwrite vector entries with the methods that we support
  */
@@ -462,6 +499,7 @@ void txnfs_export_ops_init(struct export_ops *ops)
 	/* compound start and end */
 	ops->start_compound = txnfs_start_compound;
 	ops->end_compound = txnfs_end_compound;
+	ops->backup_nfs4_op = txnfs_backup_nfs4_op;
 }
 
 struct txnfsal_args {

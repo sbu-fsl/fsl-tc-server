@@ -62,7 +62,7 @@ protected:
     arg.arg_compound4.argarray.argarray_len = nops;
     arg.arg_compound4.argarray.argarray_val = ops;
   }
-  
+
   virtual void SetUp() {
     gtest::GaneshaFSALBaseTest::SetUp();
 
@@ -109,7 +109,7 @@ TEST_F(GaneshaCompoundBaseTest, SimpleLookup) {
   req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
   req.rq_xprt = xprt;
 
-  init_args(3 /*nops*/); 
+  init_args(3 /*nops*/);
   setup_rootfh(0);
   setup_putfh(1, root_entry);
   setup_lookup(2, TEST_ROOT);
@@ -149,8 +149,8 @@ TEST_F(GaneshaCompoundBaseTest, SimpleCreate) {
 
   req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
   req.rq_xprt = xprt;
-  
-  init_args(3 /*nops*/); 
+
+  init_args(3 /*nops*/);
   setup_rootfh(0);
   setup_putfh(1, root_entry);
   setup_create(2, "foo");
@@ -189,8 +189,8 @@ TEST_F(GaneshaCompoundBaseTest, SimpleRemove) {
 
   req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
   req.rq_xprt = xprt;
-  
-  init_args(3 /*nops*/); 
+
+  init_args(3 /*nops*/);
   setup_rootfh(0);
   setup_putfh(1, root_entry);
   setup_remove(2, TEST_ROOT);
@@ -210,6 +210,46 @@ TEST_F(GaneshaCompoundBaseTest, SimpleRemove) {
       res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.opremove.status);
 
   cleanup_remove(2);
+  cleanup_putfh(1);
+  disableEvents(event_list);
+}
+
+TEST_F(GaneshaCompoundBaseTest, SimpleWrite) {
+  int rc;
+
+  struct svc_req req = {0};
+  nfs_res_t res;
+
+  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  EXPECT_NE(fd, -1);
+
+  SVCXPRT *xprt =
+      svc_vc_ncreatef(fd, 1024 * 1024, 1024 * 1024,
+                      SVC_CREATE_FLAG_CLOSE | SVC_CREATE_FLAG_LISTEN);
+
+  req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
+  req.rq_xprt = xprt;
+
+  init_args(3 /*nops*/);
+  setup_putfh(0, root_entry);
+  setup_open(1, "foo");
+  setup_write(2, "foo");
+  enableEvents(event_list);
+
+  rc = nfs4_Compound(&arg, &req, &res);
+
+  EXPECT_EQ(rc, NFS_REQ_OK);
+  EXPECT_EQ(3, res.res_compound4.resarray.resarray_len);
+  EXPECT_EQ(NFS_OK, res.res_compound4.resarray.resarray_val[0]
+                        .nfs_resop4_u.opputrootfh.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[1].nfs_resop4_u.opputfh.status);
+  EXPECT_EQ(
+      NFS_OK,
+      res.res_compound4.resarray.resarray_val[2].nfs_resop4_u.opcreate.status);
+
+  cleanup_create(2);
   cleanup_putfh(1);
   disableEvents(event_list);
 }

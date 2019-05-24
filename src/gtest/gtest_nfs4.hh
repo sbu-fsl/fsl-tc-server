@@ -179,40 +179,45 @@ protected:
   }
 
   void setup_open(int pos, const char *name) {
-    ops[pos].argop = NVFS4_OP_OPEN;
+    op_ctx->export_perms->options = EXPORT_OPTION_ACCESS_MASK;
+    ops[pos].argop = NFS4_OP_OPEN;
     ops[pos].nfs_argop4_u.opopen.openhow.opentype = OPEN4_CREATE;
     ops[pos].nfs_argop4_u.opopen.openhow.openflag4_u.how.mode = GUARDED4;
-    ops[pos]
-        .nfs_argop4_u.opopen.openhow.openflag4_u.how.createhow4_u.createattrs =
-        GUARDED4;
+    ops[pos].nfs_argop4_u.opopen.claim.claim = CLAIM_NULL;
+    ops[pos].nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val =
+        gsh_strdup(name);
+    ops[pos].nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_len =
+        strlen(name);
+    setattr(&ops[pos]
+                 .nfs_argop4_u.opopen.openhow.openflag4_u.how.createhow4_u
+                 .createattrs);
   }
 
-  void setup_write(int pos, char *data) {
-    ops[pos].argop = NVFS4_OP_WRITE;
+  void setup_write(int pos, const char *data) {
+    ops[pos].argop = NFS4_OP_WRITE;
     // ops[pos].nfs_argop4_u.opwrite.stateid;
     ops[pos].nfs_argop4_u.opwrite.offset = 0;
     ops[pos].nfs_argop4_u.opwrite.stable = DATA_SYNC4;
-    ops[pos].nfs_argop4_u.opwrite.data.data_len = 3;
+    ops[pos].nfs_argop4_u.opwrite.data.data_len = strlen(data);
     ops[pos].nfs_argop4_u.opwrite.data.data_val = gsh_strdup(data);
   }
 
-  void setup_create(int pos, const char *name) {
-    gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
+  void setattr(struct fattr4 *Fattr) {
     struct xdr_attrs_args args;
     struct attrlist attrs;
     XDR attr_body;
+    fattr_xdr_result xdr_res;
+
     memset(&attr_body, 0, sizeof(attr_body));
     memset(&args, 0, sizeof(args));
     memset(&attrs, 0, sizeof(attrs));
-    ops[pos].argop = NFS4_OP_CREATE;
-    ops[pos].nfs_argop4_u.opcreate.objtype.type = NF4DIR;
+
     attrs.mode = 0777; /* XXX */
     attrs.owner = 0;
     attrs.group = 0;
     args.attrs = &attrs;
     args.data = NULL;
-    fattr_xdr_result xdr_res;
-    struct fattr4 *Fattr = &ops[pos].nfs_argop4_u.opcreate.createattrs;
+
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER);
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_OWNER_GROUP);
     set_attribute_in_bitmap(&Fattr->attrmask, FATTR4_MODE);
@@ -256,7 +261,14 @@ protected:
       Fattr->attr_vals.attrlist4_val = NULL;
     }
     Fattr->attr_vals.attrlist4_len = LastOffset;
+  }
 
+  void setup_create(int pos, const char *name) {
+    gsh_free(ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val);
+    ops[pos].argop = NFS4_OP_CREATE;
+    ops[pos].nfs_argop4_u.opcreate.objtype.type = NF4DIR;
+
+    setattr(&ops[pos].nfs_argop4_u.opcreate.createattrs);
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_len = strlen(name);
     ops[pos].nfs_argop4_u.opcreate.objname.utf8string_val = gsh_strdup(name);
   }

@@ -1174,6 +1174,10 @@ struct export_ops {
   fsal_status_t (*start_compound)(struct fsal_export *exp_hdl, void *data);
 
   fsal_status_t (*end_compound)(struct fsal_export *exp_hdl, void *data);
+
+  fsal_status_t (*backup_nfs4_op)(struct fsal_export *exp_hdl,
+                                  unsigned int opidx, void *data,
+                                  struct nfs_argop4 *op);
 };
 
 /**

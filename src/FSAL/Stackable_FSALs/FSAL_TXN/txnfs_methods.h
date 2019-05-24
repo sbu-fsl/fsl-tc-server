@@ -231,5 +231,6 @@ int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 
 /* txn backup and restore */
-int txnfs_compound_backup(uint64_t txnid, COMPOUND4args *args);
+fsal_status_t txnfs_backup_file(unsigned int opidx,
+                                struct fsal_obj_handle *src_hdl);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
