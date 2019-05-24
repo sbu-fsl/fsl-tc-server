@@ -178,11 +178,15 @@ protected:
     ops[pos].nfs_argop4_u.opremove.target.utf8string_val = gsh_strdup(name);
   }
 
-  void setup_open(int pos, const char *name) {
+  void setup_open(int pos, const char *name, clientid4 clientid) {
     op_ctx->export_perms->options = EXPORT_OPTION_ACCESS_MASK;
     ops[pos].argop = NFS4_OP_OPEN;
+    ops[pos].nfs_argop4_u.opopen.share_access = OPEN4_SHARE_ACCESS_BOTH;
     ops[pos].nfs_argop4_u.opopen.openhow.opentype = OPEN4_CREATE;
     ops[pos].nfs_argop4_u.opopen.openhow.openflag4_u.how.mode = GUARDED4;
+    ops[pos].nfs_argop4_u.opopen.owner.clientid = clientid;
+    ops[pos].nfs_argop4_u.opopen.owner.owner.owner_val = "foo";
+    ops[pos].nfs_argop4_u.opopen.owner.owner.owner_len = 3;
     ops[pos].nfs_argop4_u.opopen.claim.claim = CLAIM_NULL;
     ops[pos].nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val =
         gsh_strdup(name);

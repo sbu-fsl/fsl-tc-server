@@ -33,15 +33,31 @@
 #include <thread>
 #include <vector>
 
+//#include "fsal.h"
 #include "gtest_nfs4.hh"
 #include "nfs_creds.h"
+//#include "nfs_proto_functions.h"
+//#include "sal_functions.h"
 
 extern "C" {
 /* Manually forward this, an 9P is not C++ safe */
 void admin_halt(void);
-/* Ganesha headers */
-//#include "sal_data.h"
-//#include "common_utils.h"
+
+clientid_status_t nfs_client_id_confirm(nfs_client_id_t *clientid,
+                                        log_components_t component);
+
+clientid4 new_clientid(void);
+nfs_client_id_t *create_client_id(clientid4 clientid,
+                                  nfs_client_record_t *client_record,
+                                  nfs_client_cred_t *credential,
+                                  uint32_t minorversion);
+
+clientid_status_t nfs_client_id_insert(nfs_client_id_t *clientid);
+
+nfs_client_record_t *get_client_record(const char *const value,
+                                       const size_t len,
+                                       const uint32_t pnfs_flags,
+                                       const uint32_t server_addr);
 /* For MDCACHE bypass.  Use with care */
 #include "../FSAL/Stackable_FSALs/FSAL_MDCACHE/mdcache_debug.h"
 }
@@ -229,10 +245,19 @@ TEST_F(GaneshaCompoundBaseTest, SimpleWrite) {
 
   req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
   req.rq_xprt = xprt;
+  req_ctx.client = get_gsh_client((sockaddr_t *)&caller_addr, false);
+
+  // create client entry
+  clientid4 clientid = new_clientid();
+  nfs_client_record_t *client_record = get_client_record("client", 6, 0, 0);
+  nfs_client_id_t *unconf =
+      create_client_id(clientid, client_record, &data.credential, 0);
+  rc = nfs_client_id_insert(unconf);
+  rc = nfs_client_id_confirm(unconf, COMPONENT_CLIENTID);
 
   init_args(3 /*nops*/);
   setup_putfh(0, root_entry);
-  setup_open(1, "foo");
+  setup_open(1, "foo", clientid);
   setup_write(2, "foo");
   enableEvents(event_list);
 
