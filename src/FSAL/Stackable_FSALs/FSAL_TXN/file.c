@@ -403,6 +403,55 @@ fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
 	return status;
 }
 
+fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
+                           struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+                           uint64_t count, uint64_t *copied)
+{
+	struct txnfs_fsal_obj_handle *txn_src_hdl =
+		container_of(src_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+
+	struct txnfs_fsal_obj_handle *txn_dst_hdl =
+		container_of(dst_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+	struct txnfs_fsal_export *export =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
+	fsal_status_t status;
+
+	op_ctx->fsal_export = export->export.sub_export;
+	status = txn_src_hdl->sub_handle->obj_ops->copy(
+	    txn_src_hdl->sub_handle, src_offset, txn_dst_hdl->sub_handle,
+	    dst_offset, count, copied);
+	op_ctx->fsal_export = &export->export;
+	return status;
+}
+
+
+fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
+			    struct fsal_obj_handle *dst_hdl, char *file_uuid)
+{
+	fsal_status_t fsal_status;
+	struct txnfs_fsal_obj_handle *txn_src_hdl =
+		container_of(src_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+
+	struct txnfs_fsal_obj_handle *txn_dst_hdl =
+		container_of(dst_hdl, struct txnfs_fsal_obj_handle,
+			     obj_handle);
+	struct txnfs_fsal_export *export =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
+
+	LogDebug(COMPONENT_FSAL, "Clone in TXNFS layer");
+	op_ctx->fsal_export = export->export.sub_export;
+	fsal_status = txn_src_hdl->sub_handle->obj_ops->clone(
+		    txn_src_hdl->sub_handle, dst_name, txn_dst_hdl->sub_handle, file_uuid);
+	op_ctx->fsal_export = &export->export;
+	LogDebug(COMPONENT_FSAL, "Returned to TXNFS layer");
+	return fsal_status;
+}
+
 fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 			   struct fsal_obj_handle *dst_hdl, loff_t *off_out,
 			   size_t len, unsigned int flags)
@@ -414,11 +463,16 @@ fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 	struct txnfs_fsal_obj_handle *txn_hdl1 =
 		container_of(dst_hdl, struct txnfs_fsal_obj_handle,
 			     obj_handle);
+	struct txnfs_fsal_export *export =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
 	LogCrit(COMPONENT_FSAL, "txn: clone2");
 
+	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = txn_hdl->sub_handle->obj_ops->clone2(
 	    txn_hdl->sub_handle, off_in, txn_hdl1->sub_handle, off_out,
 	    len, flags);
+	op_ctx->fsal_export = &export->export;
 
 	return status;
 }

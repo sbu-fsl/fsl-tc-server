@@ -42,6 +42,7 @@
 extern "C" {
 /* Manually forward this, an 9P is not C++ safe */
 void admin_halt(void);
+void nfs_end_grace(void);
 
 clientid_status_t nfs_client_id_confirm(nfs_client_id_t *clientid,
                                         log_components_t component);
@@ -254,7 +255,7 @@ TEST_F(GaneshaCompoundBaseTest, SimpleWrite) {
       create_client_id(clientid, client_record, &data.credential, 0);
   rc = nfs_client_id_insert(unconf);
   rc = nfs_client_id_confirm(unconf, COMPONENT_CLIENTID);
-
+  nfs_end_grace();
   init_args(3 /*nops*/);
   setup_putfh(0, root_entry);
   setup_open(1, "foo", clientid);

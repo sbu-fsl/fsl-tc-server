@@ -3,6 +3,7 @@
 
 fsal_status_t txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 {
+  UDBG;
 	// create txn backup directory
 	struct fsal_obj_handle* root_entry = NULL;
 	struct attrlist attrs;
@@ -33,6 +34,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_han
 
 fsal_status_t txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
 {
+  UDBG;
 	struct fsal_obj_handle *dst_hdl = NULL;
 	struct fsal_obj_handle *root_entry = NULL;
   uint64_t copied = 0;
@@ -58,9 +60,11 @@ fsal_status_t txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_
   assert(status.major == 0);
 
   // copy src to backup dir
-  status = fsal_copy(src_hdl, 0 /* src_offset */, dst_hdl, 0 /* dst_offset */, attrs_out.filesize, &copied);
-  assert(status.major == 0);
-
+  if (attrs_out.filesize > 0)
+  {
+    status = fsal_copy(src_hdl, 0 /* src_offset */, dst_hdl, 0 /* dst_offset */, attrs_out.filesize, &copied);
+    assert(status.major == 0);
+  }
   return status;
 }
 

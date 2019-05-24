@@ -440,13 +440,16 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export* exp_hdl,
 	compound_data_t *data = compound_data;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	struct fsal_obj_handle *handle = NULL;
+	struct txnfs_fsal_obj_handle *cur_hdl =
+		container_of(data->current_obj, struct txnfs_fsal_obj_handle,
+			     obj_handle);
 	switch (op->argop)
 	{
 	  case NFS4_OP_OPEN:
 		// lookup first
 		if (op->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE)
 		{
-		   status =  data->current_obj->obj_ops->lookup(data->current_obj, op->nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val, &handle, NULL);
+		   status =  cur_hdl->sub_handle->obj_ops->lookup(cur_hdl->sub_handle, op->nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val, &handle, NULL);
 		   if (status.major == ERR_FSAL_NO_ERROR)
 		   {
 			txnfs_backup_file(opidx, handle);
@@ -459,11 +462,11 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export* exp_hdl,
 		break;
 	  case NFS4_OP_WRITE:
 		// TODO: check handle in db
-		txnfs_backup_file(opidx, data->current_obj);
+		txnfs_backup_file(opidx, cur_hdl->sub_handle);
 		break;
 	  case NFS4_OP_REMOVE:
 		// lookup first
-		status =  data->current_obj->obj_ops->lookup(data->current_obj, op->nfs_argop4_u.opremove.target.utf8string_val, &handle, NULL);
+		status =  cur_hdl->sub_handle->obj_ops->lookup(cur_hdl->sub_handle, op->nfs_argop4_u.opremove.target.utf8string_val, &handle, NULL);
 		if (status.major == ERR_FSAL_NO_ERROR)
 		{
 			txnfs_backup_file(opidx, handle);
