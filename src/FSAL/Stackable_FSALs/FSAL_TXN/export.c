@@ -443,13 +443,18 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export* exp_hdl,
 	struct txnfs_fsal_obj_handle *cur_hdl =
 		container_of(data->current_obj, struct txnfs_fsal_obj_handle,
 			     obj_handle);
+	struct txnfs_fsal_export *exp =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+
 	switch (op->argop)
 	{
 	  case NFS4_OP_OPEN:
 		// lookup first
 		if (op->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE)
 		{
+		   op_ctx->fsal_export = exp->export.sub_export;
 		   status =  cur_hdl->sub_handle->obj_ops->lookup(cur_hdl->sub_handle, op->nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val, &handle, NULL);
+		   op_ctx->fsal_export = &exp->export;
 		   if (status.major == ERR_FSAL_NO_ERROR)
 		   {
 			txnfs_backup_file(opidx, handle);
@@ -466,7 +471,9 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export* exp_hdl,
 		break;
 	  case NFS4_OP_REMOVE:
 		// lookup first
+		op_ctx->fsal_export = exp->export.sub_export;
 		status =  cur_hdl->sub_handle->obj_ops->lookup(cur_hdl->sub_handle, op->nfs_argop4_u.opremove.target.utf8string_val, &handle, NULL);
+		op_ctx->fsal_export = &exp->export;
 		if (status.major == ERR_FSAL_NO_ERROR)
 		{
 			txnfs_backup_file(opidx, handle);
