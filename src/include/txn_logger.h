@@ -5,6 +5,7 @@
 #include "lwrapper.h"
 #include "nfsv41.h"
 #include "txn_context.h"
+#include "uuid/uuid.h"
 
 #define ENABLE_NORMAL_TEXT_LOGGING 0
 
@@ -24,8 +25,7 @@ struct FileId {
 };
 
 struct ObjectId {
-  uint64_t id_low;
-  uint64_t id_high;
+  uuid_t id;
   enum FSObjectType file_type; /* File or Directory */
 };
 
