@@ -61,11 +61,11 @@
  *
  * @return The new handle, or NULL if the allocation failed.
  */
-static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
-		struct txnfs_fsal_export *export,
-		struct fsal_obj_handle *sub_handle,
-		struct fsal_filesystem *fs,
-		uuid_t uuid)
+static struct txnfs_fsal_obj_handle *
+txnfs_alloc_handle(struct txnfs_fsal_export *export,
+		   struct fsal_obj_handle *sub_handle,
+		   struct fsal_filesystem *fs,
+		   uuid_t uuid)
 {
 	struct txnfs_fsal_obj_handle *result;
 	UDBG;
@@ -106,44 +106,42 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
  *
  * @return An error code for the function.
  */
-fsal_status_t txnfs_alloc_and_check_handle(
-		struct txnfs_fsal_export *export,
-		struct fsal_obj_handle *sub_handle,
-		struct fsal_filesystem *fs,
-		struct fsal_obj_handle **new_handle,
-		fsal_status_t subfsal_status,
-		bool is_creation)
+fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
+					   struct fsal_obj_handle *sub_handle,
+					   struct fsal_filesystem *fs,
+					   struct fsal_obj_handle **new_handle,
+					   fsal_status_t subfsal_status,
+					   bool is_creation)
 {
 	struct gsh_buffdesc fh_desc;
 	UDBG;
 
-	if (FSAL_IS_ERROR(subfsal_status)) return subfsal_status;
+	if (FSAL_IS_ERROR(subfsal_status))
+		return subfsal_status;
 	/** Result status of the operation. */
 	fsal_status_t status = subfsal_status;
 
 	struct txnfs_fsal_obj_handle *txn_handle;
 
-	/* calling subfsal method to get unique key corresponding to the sub-handle*/
+	/* calling subfsal method to get unique key
+	 * corresponding to the sub-handle
+	 */
 	op_ctx->fsal_export = export->export.sub_export;
 	sub_handle->obj_ops->handle_to_key(sub_handle, &fh_desc);
 	op_ctx->fsal_export = &export->export;	
 	
-	if (is_creation)
-	{
+	if (is_creation) {
 		uuid_t uuid;
 		int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 		assert(ret == 0);
 		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, uuid);
-	}
-	else
-	{
+	} else {
 		uuid_t uuid;
-		
 		int ret = txnfs_db_get_uuid(&fh_desc, uuid);
 		
-		if (ret == -1)
-		{
-			LogDebug(COMPONENT_FSAL, "Handle not found, creating one!");
+		if (ret == -1) {
+			LogDebug(COMPONENT_FSAL,
+				 "Handle not found, creating one!");
 			int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 			assert(ret == 0);
 		}
@@ -167,8 +165,8 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 
 	/** Handle given by the subfsal. */
 	struct fsal_obj_handle *sub_handle = NULL;
-
 	*handle = NULL;
+
 	UDBG;
 	/* call to subfsal lookup with the good context. */
 	fsal_status_t status;
@@ -177,13 +175,22 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
 			     export);
 	op_ctx->fsal_export = export->export.sub_export;
-	status = txn_parent->sub_handle->obj_ops->lookup(
-			txn_parent->sub_handle, path, &sub_handle, attrs_out);
+	status = txn_parent
+		 ->sub_handle
+		 ->obj_ops
+		 ->lookup(txn_parent->sub_handle,
+			  path,
+			  &sub_handle,
+			  attrs_out);
 	op_ctx->fsal_export = &export->export;
 
 	/* wraping the subfsal handle in a txnfs handle. */
-	return txnfs_alloc_and_check_handle(export, sub_handle, parent->fs,
-					     handle, status, false /* is_creation */);
+	return txnfs_alloc_and_check_handle(export, sub_handle,
+					    parent->fs,
+					    handle,
+					    status,
+					    false /* is_creation */
+					    );
 }
 
 static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
@@ -206,13 +213,20 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 	UDBG;
 	/* Creating the directory with a subfsal handle. */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = parent_hdl->sub_handle->obj_ops->mkdir(
-		parent_hdl->sub_handle, name, attrs_in, &sub_handle, attrs_out);
+	fsal_status_t status = parent_hdl
+			       ->sub_handle
+			       ->obj_ops
+			       ->mkdir(parent_hdl->sub_handle,
+				       name,
+				       attrs_in,
+				       &sub_handle,
+				       attrs_out);
 	op_ctx->fsal_export = &export->export;
 
 	/* wraping the subfsal handle in a txnfs handle. */
-	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					     new_obj, status, true /* is_creation */);
+	return txnfs_alloc_and_check_handle(export, sub_handle,
+					    dir_hdl->fs, new_obj,
+					    status, true /* is_creation */);
 }
 
 static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
@@ -238,14 +252,25 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 
 	/* Creating the node with a subfsal handle. */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = txnfs_dir->sub_handle->obj_ops->mknode(
-		txnfs_dir->sub_handle, name, nodetype, attrs_in,
-		&sub_handle, attrs_out);
+	fsal_status_t status = txnfs_dir
+			       ->sub_handle
+			       ->obj_ops
+			       ->mknode(txnfs_dir->sub_handle,
+					name,
+					nodetype,
+					attrs_in,
+					&sub_handle,
+					attrs_out);
 	op_ctx->fsal_export = &export->export;
 
 	/* wraping the subfsal handle in a txnfs handle. */
-	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					     new_obj, status, true /* is_creation */);
+	return txnfs_alloc_and_check_handle(export,
+					    sub_handle,
+					    dir_hdl->fs,
+					    new_obj,
+					    status,
+					    true /* is_creation */
+					    );
 }
 
 /** makesymlink
@@ -277,14 +302,25 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 
 	/* creating the file with a subfsal handle. */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = txnfs_dir->sub_handle->obj_ops->symlink(
-		txnfs_dir->sub_handle, name, link_path, attrs_in, &sub_handle,
-		attrs_out);
+	fsal_status_t status = txnfs_dir
+			       ->sub_handle
+			       ->obj_ops
+			       ->symlink(txnfs_dir->sub_handle,
+					 name,
+					 link_path,
+					 attrs_in,
+					 &sub_handle,
+					 attrs_out);
 	op_ctx->fsal_export = &export->export;
 
 	/* wraping the subfsal handle in a txnfs handle. */
-	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					     new_obj, status, true /* is_creation */);
+	return txnfs_alloc_and_check_handle(export,
+					    sub_handle,
+					    dir_hdl->fs,
+					    new_obj,
+					    status,
+					    true /* is_creation */
+					    );
 }
 
 static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
@@ -299,9 +335,11 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 	UDBG;
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status =
-		handle->sub_handle->obj_ops->readlink(handle->sub_handle,
-						     link_content, refresh);
+	fsal_status_t status = handle
+			       ->sub_handle
+			       ->obj_ops
+			       ->readlink(handle->sub_handle,
+					  link_content, refresh);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -321,8 +359,12 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 	UDBG;
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->link(
-		handle->sub_handle, txnfs_dir->sub_handle, name);
+	fsal_status_t status = handle
+			       ->sub_handle
+			       ->obj_ops
+			       ->link(handle->sub_handle,
+				      txnfs_dir->sub_handle,
+				      name);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -341,18 +383,21 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
  *
  * @return Result coming from the upper layer.
  */
-static enum fsal_dir_result txnfs_readdir_cb(
-					const char *name,
-					struct fsal_obj_handle *sub_handle,
-					struct attrlist *attrs,
-					void *dir_state, fsal_cookie_t cookie)
+static enum fsal_dir_result
+txnfs_readdir_cb(const char *name, struct fsal_obj_handle *sub_handle,
+		 struct attrlist *attrs, void *dir_state,
+		 fsal_cookie_t cookie)
 {
 	struct txnfs_readdir_state *state =
 		(struct txnfs_readdir_state *) dir_state;
 	struct fsal_obj_handle *new_obj;
 	UDBG;
-	if (FSAL_IS_ERROR(txnfs_alloc_and_check_handle(state->exp, sub_handle,
-		sub_handle->fs, &new_obj, fsalstat(ERR_FSAL_NO_ERROR, 0), false))) {
+	if (FSAL_IS_ERROR(
+		txnfs_alloc_and_check_handle(
+			state->exp, sub_handle, sub_handle->fs, &new_obj,
+			fsalstat(ERR_FSAL_NO_ERROR, 0), false)
+		)
+	) {
 		return false;
 	}
 
@@ -397,9 +442,15 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	UDBG;
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status =
-		handle->sub_handle->obj_ops->readdir(handle->sub_handle,
-		whence, &cb_state, txnfs_readdir_cb, attrmask, eof);
+	fsal_status_t status = handle
+			       ->sub_handle
+			       ->obj_ops
+			       ->readdir(handle->sub_handle,
+					 whence,
+					 &cb_state,
+					 txnfs_readdir_cb,
+					 attrmask,
+					 eof);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -439,8 +490,10 @@ fsal_cookie_t compute_readdir_cookie(struct fsal_obj_handle *parent,
 	UDBG;
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	cookie = handle->sub_handle->obj_ops->compute_readdir_cookie(
-						handle->sub_handle, name);
+	cookie = handle
+		 ->sub_handle
+		 ->obj_ops
+		 ->compute_readdir_cookie(handle->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
 	return cookie;
 }
@@ -482,9 +535,10 @@ int dirent_cmp(struct fsal_obj_handle *parent,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	rc = handle->sub_handle->obj_ops->dirent_cmp(handle->sub_handle,
-						    name1, cookie1,
-						    name2, cookie2);
+	rc = handle
+	     ->sub_handle
+	     ->obj_ops
+	     ->dirent_cmp(handle->sub_handle, name1, cookie1, name2, cookie2);
 	op_ctx->fsal_export = &export->export;
 	return rc;
 }
@@ -511,9 +565,14 @@ static fsal_status_t renamefile(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = txnfs_olddir->sub_handle->obj_ops->rename(
-		txnfs_obj->sub_handle, txnfs_olddir->sub_handle,
-		old_name, txnfs_newdir->sub_handle, new_name);
+	fsal_status_t status = txnfs_olddir
+			       ->sub_handle
+			       ->obj_ops
+			       ->rename(txnfs_obj->sub_handle,
+					txnfs_olddir->sub_handle,
+					old_name,
+					txnfs_newdir->sub_handle,
+					new_name);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -555,8 +614,13 @@ static fsal_status_t txnfs_setattr2(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = handle->sub_handle->obj_ops->setattr2(
-		handle->sub_handle, bypass, state, attrs);
+	fsal_status_t status = handle
+			       ->sub_handle
+			       ->obj_ops
+			       ->setattr2(handle->sub_handle,
+					  bypass,
+					  state,
+					  attrs);
 	op_ctx->fsal_export = &export->export;
 
 	return status;
@@ -583,8 +647,12 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = txnfs_dir->sub_handle->obj_ops->unlink(
-		txnfs_dir->sub_handle, txnfs_obj->sub_handle, name);
+	fsal_status_t status = txnfs_dir
+			       ->sub_handle
+			       ->obj_ops
+			       ->unlink(txnfs_dir->sub_handle,
+					txnfs_obj->sub_handle,
+					name);
 	op_ctx->fsal_export = &export->export;
 	
 	txnfs_db_delete_uuid(txnfs_obj->uuid);
@@ -673,8 +741,8 @@ static void release(struct fsal_obj_handle *obj_hdl)
 }
 
 static bool txnfs_is_referral(struct fsal_obj_handle *obj_hdl,
-			       struct attrlist *attrs,
-			       bool cache_attrs)
+			      struct attrlist *attrs,
+			      bool cache_attrs)
 {
 	struct txnfs_fsal_obj_handle *hdl =
 		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
@@ -687,8 +755,10 @@ static bool txnfs_is_referral(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	result = hdl->sub_handle->obj_ops->is_referral(hdl->sub_handle, attrs,
-						      cache_attrs);
+	result = hdl
+		 ->sub_handle
+		 ->obj_ops
+		 ->is_referral(hdl->sub_handle, attrs, cache_attrs);
 	op_ctx->fsal_export = &export->export;
 
 	return result;
@@ -756,9 +826,9 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops)
  */
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
-				 const char *path,
-				 struct fsal_obj_handle **handle,
-				 struct attrlist *attrs_out)
+				const char *path,
+				struct fsal_obj_handle **handle,
+				struct attrlist *attrs_out)
 {
 	/** Handle given by the subfsal. */
 	struct fsal_obj_handle *sub_handle = NULL;
@@ -774,9 +844,12 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
 
 	op_ctx->fsal_export = exp->export.sub_export;
 
-	status = exp->export.sub_export->exp_ops.lookup_path(
-				exp->export.sub_export, path, &sub_handle,
-				attrs_out);
+	status = exp->
+		 export
+		 .sub_export
+		 ->exp_ops
+		 .lookup_path(exp->export.sub_export,
+			      path, &sub_handle, attrs_out);
 	sub_handle->obj_ops->handle_to_key(sub_handle, &fh_desc);
 	op_ctx->fsal_export = &exp->export;
 
@@ -784,7 +857,8 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
 	
 	return txnfs_alloc_and_check_handle(exp, sub_handle, NULL, handle,
-					     status, !txnfs_db_handle_exists(&fh_desc));
+					    status,
+					    !txnfs_db_handle_exists(&fh_desc));
 }
 
 /* create_handle
@@ -800,9 +874,9 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl,
  */
 
 fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
-				   struct gsh_buffdesc *hdl_desc,
-				   struct fsal_obj_handle **handle,
-				   struct attrlist *attrs_out)
+				  struct gsh_buffdesc *hdl_desc,
+				  struct fsal_obj_handle **handle,
+				  struct attrlist *attrs_out)
 {
 	/** Current txnfs export. */
 	struct txnfs_fsal_export *export =
@@ -815,15 +889,19 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	fsal_status_t status;
 	
 	// handle should exist in the database
-	if (!txnfs_db_handle_exists(hdl_desc))
-	{
+	if (!txnfs_db_handle_exists(hdl_desc)) {
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	op_ctx->fsal_export = export->export.sub_export;
 
-	status = export->export.sub_export->exp_ops.create_handle(
-			export->export.sub_export, hdl_desc, &sub_handle,
-			attrs_out);
+	status = export
+		 ->export
+		 .sub_export
+		 ->exp_ops
+		 .create_handle(export->export.sub_export,
+				hdl_desc,
+				&sub_handle,
+				attrs_out);
 
 	op_ctx->fsal_export = &export->export;
 

@@ -55,8 +55,8 @@ struct txnfs_fsal_module TXNFS = {
 static struct config_item txn_items[] = {
 	CONF_MAND_PATH("DbPath", 1, MAXPATHLEN, "/tmp/txndb",
 		       txnfs_fsal_module, db_path),
-  /*CONF_MAND_PATH("BackupPath", 1, MAXPATHLEN, "/tmp/txnbackup",
-           txnfs_fsal_module, backup_path),*/
+	/*CONF_MAND_PATH("BackupPath", 1, MAXPATHLEN, "/tmp/txnbackup",
+	 * txnfs_fsal_module, backup_path),*/
 	CONFIG_EOL
 };
 
@@ -92,40 +92,41 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
 	 * diverse exports.
 	 */
 
-  UDBG;
+	UDBG;
 	LogDebug(COMPONENT_FSAL,
 		 "FSAL_TXN INIT: Supported attributes mask = 0x%" PRIx64,
 		 fsal_module->fs_info.supported_attrs);
 	struct txnfs_fsal_module *txnfs_module =
-	    container_of(fsal_module, struct txnfs_fsal_module, module);
+		container_of(fsal_module, struct txnfs_fsal_module, module);
 	/* if we have fsal specific params, do them here
 	 * fsal_hdl->name is used to find the block containing the
 	 * params.
 	 */
-  int found = load_config_from_parse(config_struct,
-				      &txn_block,
-				      txnfs_module,
-				      true,
-				      err_type);
+	int found = load_config_from_parse(config_struct,
+					   &txn_block,
+					   txnfs_module,
+					   true,
+					   err_type);
 	if (!config_error_is_harmless(err_type))
 		return fsalstat(ERR_FSAL_INVAL, 0);
-	
-  display_fsinfo(&txnfs_module->module);
-	LogDebug(COMPONENT_FSAL,"dump_config found: %d db_path: %s", found, txnfs_module->db_path);
+
+	display_fsinfo(&txnfs_module->module);
+	LogDebug(COMPONENT_FSAL, "dump_config found: %d db_path: %s", found,
+		 txnfs_module->db_path);
 	lm = new_lock_manager();
-  db = init_db_store(txnfs_module->db_path, true);
-  assert(db != NULL);
-  
-  return fsalstat(ERR_FSAL_NO_ERROR, 0);
+	db = init_db_store(txnfs_module->db_path, true);
+	assert(db != NULL);
+	
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
 /* Internal TXNFS method linkage to export object
  */
 
 fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
-				   void *parse_node,
-				   struct config_error_type *err_type,
-				   const struct fsal_up_vector *up_ops);
+				  void *parse_node,
+				  struct config_error_type *err_type,
+				  const struct fsal_up_vector *up_ops);
 
 /* Module initialization.
  * Called by dlopen() to register the module
@@ -136,7 +137,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
  */
 MODULE_INIT void txnfs_init(void)
 {
-  UDBG;
+	UDBG;
 	int retval;
 	struct fsal_module *myself = &TXNFS.module;
 
@@ -156,7 +157,7 @@ MODULE_INIT void txnfs_init(void)
 MODULE_FINI void txnfs_unload(void)
 {
 	int retval;
-  UDBG;
+	UDBG;
 
 	retval = unregister_fsal(&TXNFS.module);
 	if (retval != 0) {
