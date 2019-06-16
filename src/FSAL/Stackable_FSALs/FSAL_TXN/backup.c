@@ -1,5 +1,106 @@
 #include "txnfs_methods.h"
+#include "log.h"
 #include <assert.h>
+
+static void get_txn_root(struct fsal_obj_handle **root_handle,
+			 struct attrlist *attrs)
+{
+	struct fsal_obj_handle *root_entry = NULL;
+	fsal_status_t ret = op_ctx
+			    ->fsal_export
+			    ->exp_ops
+			    .lookup_path(op_ctx->fsal_export,
+					 op_ctx->ctx_export->fullpath,
+					 &root_entry,
+					 attrs);
+	assert(ret.major == 0);
+	*root_handle = root_entry;
+}
+
+/**
+ * @brief Find the global backup directory
+ *
+ * This function checks if the global TXNFS backup root exists, and
+ * outputs its object handle. It will return NULL if it does not exist.
+ * If an error other than @c ERR_FSAL_NOENT occurs, this will call
+ * @c abort() to terminate the server.
+ *
+ * NOTE: This function assumes LOWER fsal, so the caller should
+ * replace @c op_ctx->fsal_export with the corresponding @c sub_export.
+ *
+ * @param[in] txn_root		The root obj handle of the TXNFS export
+ *
+ * @return The @c fsal_obj_handle pointer of the backup root directory
+ * 	   or NULL if the directory doesn't exist.
+ */
+static fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
+{
+	struct fsal_obj_handle *txn_backup_root;
+	struct txn_fsal_obj_handle *txn_root_entry;
+	fsal_status_t ret;
+
+	txn_root_entry = container_of(txn_root, struct txnfs_fsal_obj_handle,
+				      obj_handle);
+	assert(txn_root_entry);
+
+	/* lookup the txnfs backup directory
+	 * TXN_BKP_DIR is ".txn"
+	 * We don't need attrs here so the last arg is NULL.
+	 */
+	ret = fsal_lookup(txn_root_entry->sub_handle, TXN_BKP_DIR,
+			  &txn_backup_root, NULL);
+
+	if (ret.major == 0)
+		return txn_backup_root;
+	else if (ret.major == ERR_FSAL_NOENT)
+		return NULL;
+	else {
+		LogFatal(COMPONENT_FSAL, "query_backup_root failed: %d",
+			 ret.major);
+		/* This is bad, so we should panic */
+		abort();
+	}
+}
+
+/**
+ * @brief Check if the particular transcation's backup directory exists
+ *
+ * This function checks if the backup directory for the given transaction
+ * exists, and returns its object handle. Similarly, if an errror other than
+ * @c ERR_FSAL_NOENT occurs, this will abort the system.
+ *
+ * NOTE: This function assumes LOWER fsal, so the caller should
+ * replace @c op_ctx->fsal_export with the corresponding @c sub_export.
+ *
+ * @param[in] backup_root	TXNFS's global backup directory. This should
+ * 				be the @c sub_handle.
+ * @param[in] txnid		Transaction ID
+ *
+ * @return The @c fsal_obj_handle pointer of the backup folder for the given
+ * 	   transaction
+ */
+static fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
+					 uint64_t txnid)
+{
+	struct fsal_obj_handle *backup_dir = NULL;
+	fsal_status_t ret;
+	char dir_name[20];
+
+	/* construct backup folder name */
+	sprintf(dir_name, "%lu", txnid);
+
+	ret = fsal_lookup(backup_root, dir_name, &backup_dir, NULL);
+
+	if (ret.major == 0)
+		return backup_dir;
+	else if (ret.major == ERR_FSAL_NOENT)
+		return NULL;
+	else {
+		LogFatal(COMPONENT_FSAL, "query_txn_backup failed: %d",
+			 ret.major);
+		abort();
+	}
+}
 
 fsal_status_t
 txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
@@ -8,43 +109,33 @@ txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 	// create txn backup directory
 	struct fsal_obj_handle* root_entry = NULL;
 	struct fsal_obj_handle* txn_handle = NULL;
+	struct fsal_obj_handle* bkp_handle = NULL;
 	struct attrlist attrs;
-        char txnid[20];
+	uint64_t txnid = op_ctx->txnid;
 
         memset(&attrs, 0, sizeof(struct attrlist));
-        sprintf(txnid, "%lu", op_ctx->txnid);
-	
-        fsal_status_t status = op_ctx
-			       ->fsal_export
-			       ->exp_ops
-			       .lookup_path(op_ctx->fsal_export,
-					    op_ctx->ctx_export->fullpath,
-					    &root_entry,
-					    &attrs);
 
-	assert(status.major == 0);
+	/* get txnfs root directory handle */
+	get_txn_root(&root_entry, &attrs);
+	
 	struct txnfs_fsal_export *exp = 
 		container_of(op_ctx->fsal_export,
 			     struct txnfs_fsal_export, export);
 
+	/* Switch to the lower fsal */ 
 	op_ctx->fsal_export = exp->export.sub_export;
 
-	struct txnfs_fsal_obj_handle *txn_root_entry = 
-		container_of(root_entry, struct txnfs_fsal_obj_handle,
-			     obj_handle);
-	assert(txn_root_entry);
-
+	/* Config attributes if we need to create something */
 	FSAL_CLEAR_MASK(attrs.valid_mask); 
 	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
 	attrs.mode = 0666; 
 	attrs.owner = 0;
 	attrs.group = 0;
   
-        // check if txn backup root exists
-        status = fsal_lookup(txn_root_entry->sub_handle, TXN_BKP_DIR,
-                             &txn_handle, NULL);
+        /* check if txn backup root exists */
+	txn_handle = query_backup_root(root_entry);
  
-        if (status.major == ERR_FSAL_NOENT) {
+        if (txn_handle == NULL) {
 		// create txn backup root 
 		status = fsal_create(txn_root_entry->sub_handle, TXN_BKP_DIR,
 				     DIRECTORY, &attrs, NULL, &txn_handle,
@@ -53,9 +144,9 @@ txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 		assert(txn_handle);
 	}
   
-	status = fsal_lookup(txn_handle, txnid, bkp_handle, NULL);
+	bkp_handle = query_txn_backup(txn_handle, txnid);
   
-	if (status.major == ERR_FSAL_NOENT) {
+	if (bkp_handle == NULL) {
 		// create txnid directory
 	    	status = fsal_create(txn_handle, txnid, DIRECTORY,
 				     &attrs, NULL, bkp_handle, NULL);
@@ -125,11 +216,80 @@ txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
 	return status;
 }
 
+/**
+ * @brief Rollback a transaction
+ *
+ * This function will be called if a transaction failed because of reasons
+ * other than server crash. It will iterate through the compound to see
+ * what have been done successfully, and try to undo these operations given
+ * the backup files.
+ *
+ * @param[in] txnid	Transaction ID
+ * @param[in] res	NFSv4 Compound object
+ *
+ * @return Status code. Will return 0 if done successfully.
+ */
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res* res)
 {
 	UDBG;	
-	// assert backup dir exists
-	// assert txn backup dir exists
+	struct fsal_obj_handle *root_entry = NULL;
+	struct fsal_obj_handle *backup_root = NULL;
+	struct fsal_obj_handle *backup_dir = NULL;
+	struct attrlist root_attrs;
+	char bkp_folder_name[20], bkp_file_name[20];
+
+	get_txn_root(&root_entry, &root_attrs);
+
+	/* assert backup dir exists */
+	backup_root = query_backup_root(root_entry);
+	/* If backup root doesn't exist, there must be something very wrong
+	 * so we should abort the system.
+	 */
+	assert(backup_dir);
+
+	/* assert txn backup dir exists */
+	backup_dir = query_txn_backup(backup_root, txnid);
+	if (backup_dir == NULL) {
+		LogWarn(COMPONENT_FSAL, "txn %#x's backup folder doesn't exist",
+			txnid);
+		return ERR_FSAL_NOENT;
+	}
+
+	/* it makes no sense to call this if compound operation is completed */
+	assert(res->status != NFS4_OK);
+	for (u_int i = 0; i < res->resarray.resarray_len; i++) {
+		struct nfs_resop4 *cur_op = &res->resarray.resarray_val[i];
+
+		/* TODO: perform the rollback if res is OK */
+		switch (cur_op->resop) {
+		case NFS4_OP_CREATE:
+			LogTest("current op: create");
+			break;
+
+		case NFS4_OP_LINK:
+			LogTest("current op: link");
+			break;
+
+		case NFS4_OP_REMOVE:
+			LogTest("current op: remove");
+			break;
+
+		case NFS4_OP_RENAME:
+			LogTest("current op: rename");
+			break;
+
+		case NFS4_OP_SETATTR:
+			LogTest("current op: setattr");
+			break;
+
+		case NFS4_OP_WRITE:
+			LogTest("current op: write");
+			break;
+
+		default:
+			LogTest("current op_num: %d", cur_op->resop);
+			break;
+	}
 
 	return 0;
 }
