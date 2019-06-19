@@ -2,21 +2,6 @@
 #include "log.h"
 #include <assert.h>
 
-static void get_txn_root(struct fsal_obj_handle **root_handle,
-			 struct attrlist *attrs)
-{
-	struct fsal_obj_handle *root_entry = NULL;
-	fsal_status_t ret = op_ctx
-			    ->fsal_export
-			    ->exp_ops
-			    .lookup_path(op_ctx->fsal_export,
-					 op_ctx->ctx_export->fullpath,
-					 &root_entry,
-					 attrs);
-	assert(ret.major == 0);
-	*root_handle = root_entry;
-}
-
 /**
  * @brief Find the global backup directory
  *

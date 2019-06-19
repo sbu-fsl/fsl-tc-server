@@ -281,3 +281,18 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
 	return txnfs_db_get_uuid(hdl_desc, uuid) == 0;
 }
 
+void get_txn_root(struct fsal_obj_handle **root_handle,
+			 struct attrlist *attrs)
+{
+	struct fsal_obj_handle *root_entry = NULL;
+	fsal_status_t ret = op_ctx
+			    ->fsal_export
+			    ->exp_ops
+			    .lookup_path(op_ctx->fsal_export,
+					 op_ctx->ctx_export->fullpath,
+					 &root_entry,
+					 attrs);
+	assert(ret.major == 0);
+	*root_handle = root_entry;
+}
+

@@ -230,6 +230,7 @@ int txnfs_db_delete_uuid(uuid_t uuid);
 void txnfs_cache_init(void);
 int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
+void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
 
 /* txn backup and restore */
 fsal_status_t txnfs_backup_file(unsigned int opidx,
