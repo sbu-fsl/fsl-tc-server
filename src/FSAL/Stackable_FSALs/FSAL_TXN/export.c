@@ -413,6 +413,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 			       ->exp_ops.start_compound(exp->export.sub_export,
 							data);
 	op_ctx->fsal_export = &exp->export;
+	op_ctx->op_args = args;
 
 	return result;
 }

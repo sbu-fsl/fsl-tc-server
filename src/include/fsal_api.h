@@ -418,6 +418,7 @@ struct req_op_context {
   /* add new context members here */
   struct glist_head txn_cache;
   uint64_t txnid;
+  COMPOUND4args *args;
 };
 
 /**

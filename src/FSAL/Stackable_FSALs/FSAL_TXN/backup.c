@@ -236,6 +236,7 @@ int txnfs_compound_restore(uint64_t txnid, COMPOUND4res* res)
 	struct fsal_obj_handle *backup_root = NULL;
 	struct fsal_obj_handle *backup_dir = NULL;
 	struct attrlist root_attrs;
+	int ret = 0;
 	char bkp_folder_name[20], bkp_file_name[20];
 
 	get_txn_root(&root_entry, &root_attrs);
@@ -257,39 +258,9 @@ int txnfs_compound_restore(uint64_t txnid, COMPOUND4res* res)
 
 	/* it makes no sense to call this if compound operation is completed */
 	assert(res->status != NFS4_OK);
-	for (u_int i = 0; i < res->resarray.resarray_len; i++) {
-		struct nfs_resop4 *cur_op = &res->resarray.resarray_val[i];
 
-		/* TODO: perform the rollback if res is OK */
-		switch (cur_op->resop) {
-		case NFS4_OP_CREATE:
-			LogTest("current op: create");
-			break;
+	/* call the payload function */
+	ret = do_txn_rollback(txnid, res);
 
-		case NFS4_OP_LINK:
-			LogTest("current op: link");
-			break;
-
-		case NFS4_OP_REMOVE:
-			LogTest("current op: remove");
-			break;
-
-		case NFS4_OP_RENAME:
-			LogTest("current op: rename");
-			break;
-
-		case NFS4_OP_SETATTR:
-			LogTest("current op: setattr");
-			break;
-
-		case NFS4_OP_WRITE:
-			LogTest("current op: write");
-			break;
-
-		default:
-			LogTest("current op_num: %d", cur_op->resop);
-			break;
-	}
-
-	return 0;
+	return ret;
 }

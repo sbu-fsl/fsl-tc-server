@@ -116,6 +116,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
 	lm = new_lock_manager();
 	db = init_db_store(txnfs_module->db_path, true);
 	assert(db != NULL);
+	txnfs_module->db = db;
 	
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

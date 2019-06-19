@@ -13,13 +13,14 @@ SET(fsaltxn_LIB_SRCS
    xattrs.c
    txnfs_methods.h
    main.c
-	 helper.c
+   helper.c
    export.c
    backup.c
+   undo.c
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
-   
+
 link_directories(${PROJECT_SOURCE_DIR}/leveldb/out-static/)
 include_directories(${PROJECT_SOURCE_DIR}/leveldb/include/)
 

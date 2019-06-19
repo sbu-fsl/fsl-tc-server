@@ -26,7 +26,8 @@ struct txnfs_fsal_module {
   struct fsal_obj_ops handle_ops;
 
   /** Config - database path */
-  char *db_path;
+  char db_path;
+  db_store_t *db;
 
   /** Config - backup path */
   char *backup_path;
@@ -234,3 +235,4 @@ void txnfs_cache_cleanup(void);
 fsal_status_t txnfs_backup_file(unsigned int opidx,
                                 struct fsal_obj_handle *src_hdl);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
+int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);
