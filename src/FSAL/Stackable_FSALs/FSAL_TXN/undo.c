@@ -112,15 +112,6 @@ static inline char *extract_create_name(struct nfs_argop4 *arg)
 	return name;
 }
 
-/**
- * @brief Extract the creation type from CREATE operation's args
- */
-static inline nfs_ftype4 extract_create_type(struct nfs_argop4 *arg)
-{
-	return arg->nfs_argop4_u.opcreate.objtype.type;
-}
-
-
 /** 
  * @brief Undo CREATE operation
  *
@@ -138,22 +129,16 @@ static inline nfs_ftype4 extract_create_type(struct nfs_argop4 *arg)
 static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 {
 	char *name = extract_create_name(curop_arg);
-	nfs_fhtype type = extract_create_type(curop_arg);
 	fsal_statrus_t status;
-	if (type == NF4DIR) {
-		/* TODO: we may have to deal with directories differently
-		 * considering dependency issues */
-	} else {
-		/* otherwise, just delete it using unlink*/
-		fsal_obj_handle *created;
-		status = cur->obj_ops->lookup(cur, name, &created, NULL);
-		assert(status.major == ERR_FSAL_NO_ERROR);
-		status = cur->obj_ops->unlink(cur, created, name);
-		if (status.major != 0) {
-			LogWarn(COMPONENT_FSAL, "undo create failed:");
-			LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
-			return status.major;
-		}
+	/* otherwise, just delete it using unlink*/
+	fsal_obj_handle *created;
+	status = cur->obj_ops->lookup(cur, name, &created, NULL);
+	assert(status.major == ERR_FSAL_NO_ERROR);
+	status = cur->obj_ops->unlink(cur, created, name);
+	if (status.major != 0) {
+		LogWarn(COMPONENT_FSAL, "undo create failed:");
+		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
+		return status.major;
 	}
 
 	return 0;
