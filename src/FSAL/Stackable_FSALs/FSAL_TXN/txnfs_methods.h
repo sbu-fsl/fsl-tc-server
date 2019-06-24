@@ -233,7 +233,10 @@ void txnfs_cache_cleanup(void);
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
 
 /* txn backup and restore */
+fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root);
+fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
+				  uint64_t txnid);
 fsal_status_t txnfs_backup_file(unsigned int opidx,
-                                struct fsal_obj_handle *src_hdl);
+                		struct fsal_obj_handle *src_hdl);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
 int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);

@@ -18,7 +18,7 @@
  * @return The @c fsal_obj_handle pointer of the backup root directory
  * 	   or NULL if the directory doesn't exist.
  */
-static fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
+fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
 {
 	struct fsal_obj_handle *txn_backup_root;
 	struct txn_fsal_obj_handle *txn_root_entry;
@@ -64,8 +64,8 @@ static fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
  * @return The @c fsal_obj_handle pointer of the backup folder for the given
  * 	   transaction
  */
-static fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
-					 uint64_t txnid)
+fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
+				  uint64_t txnid)
 {
 	struct fsal_obj_handle *backup_dir = NULL;
 	fsal_status_t ret;
