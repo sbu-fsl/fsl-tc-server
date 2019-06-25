@@ -271,7 +271,7 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 			ret = status.major;
 			goto end;
 		}
-		*cur = target;
+		exchange_cfh(cur, target);
 	}
 	/* if name is NULL then CURRENT is to be opened */
 	current = *cur;
@@ -283,8 +283,7 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	 * operation indicates a newly created file. In this case we will
 	 * remove that file*/
 	if (is_created && mode == GUARDED4) {
-		status = current->obj_ops->unlink(current, created,
-							  name);
+		status = current->obj_ops->unlink(current, created, name);
 		ret = status.major;
 	}
 end:
@@ -354,7 +353,63 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 				      current, real_name);
 
 	gsh_free(real_name);
+	root->obj_ops->put_ref(root);
+	backup_root->obj_ops->put_ref(backup_root);
+	backup_dir->obj_ops->put_ref(backup_dir);
 	return status.major;
+}
+
+static inline uint64_t get_file_size(struct fsal_obj_handle *f)
+{
+	struct attrlist attrs;
+	fsal_status_t status;
+	status = f->obj_ops->getattrs(f, &attrs);
+	if (status.major != 0) {
+		LogWarn(COMPONENT_FSAL, "get_file_size: getattr failed. "
+			"err = %d, fileid = %d", status.major, f->fileid);
+		return 0;
+	}
+	return attrs.filesize;
+}
+
+static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
+{
+	char backup_name[20] = { '\0' };
+	struct fsal_obj_handle *root;
+	struct fsal_obj_handle *backup_root, *backup_dir, *backup_file = NULL;
+	fsal_status_t status;
+	int ret = 0;
+	loff_t in = 0, out = 0;
+
+	/* construct names */
+	sprintf(backup_name, "%d.bkp", opidx);
+	
+	/* lookup backup file */
+	get_txn_root(&root, NULL);
+	backup_root = query_backup_root(root);
+	backup_dir = query_txn_backup(backup_root, txnid);
+	status = backup_dir->obj_ops->lookup(backup_dir, backup_name,
+					     &backup_file, NULL);
+	if (status.major != 0) {
+		ret = status.major;
+		LogWarn(COMPONENT_FSAL, "undo_write: can't lookup backup. "
+			"err=%d, txnid=%lu, opidx=%d", ret, txnid, opidx);
+		goto end;
+	}
+
+	/* overwrite the source file. CFH is the file being written */
+	status = backup_file->obj_ops->clone2(backup_file, &in, cur, &out,
+					      get_file_size(backup_file), 0);
+	ret = status.major;
+
+end:
+	root->obj_ops->put_ref(root);
+	backup_root->obj_ops->put_ref(backup_root);
+	backup_dir->obj_ops->put_ref(backup_dir);
+	if (backup_file)
+		backup_file->obj_ops->put_ref(backup_file);
+
+	return ret;
 }
 
 static int dispatch_undoer(struct op_vector *vec)
@@ -381,6 +436,7 @@ static int dispatch_undoer(struct op_vector *vec)
 			break;
 
 		case NFS4_OP_WRITE:
+			ret = undo_write(el->cwh, vec->txnid, opidx);
 			break;
 
 		case NFS4_OP_COPY:
