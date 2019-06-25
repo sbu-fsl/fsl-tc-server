@@ -125,6 +125,9 @@ static inline int replay_lookup(struct nfs_argop4 *arg,
 	status = (*current)->obj_ops->lookup(*current, name, &queried,
 					     &queried_attrs);
 
+	/* cleanup *name after use */
+	gsh_free(name);
+
 	if (status.major != ERR_FSAL_NO_ERROR) {
 		LogWarn(COMPONENT_FSAL, "replay lookup failed:");
 		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
@@ -177,6 +180,10 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 	status = cur->obj_ops->lookup(cur, name, &created, NULL);
 	assert(status.major == ERR_FSAL_NO_ERROR);
 	status = cur->obj_ops->unlink(cur, created, name);
+
+	/* cleanup name */
+	gsh_free(name);
+
 	if (status.major != 0) {
 		LogWarn(COMPONENT_FSAL, "undo create failed:");
 		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
@@ -309,6 +316,8 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 		LogWarn(COMPONENT_FSAL, "undo link failed:");
 		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
 	}
+
+	gsh_free(name);
 	return status.major;
 }
 
@@ -343,6 +352,8 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	/* perform moving */
 	status = cur->obj_ops->rename(cur, backup_dir, backup_name,
 				      current, real_name);
+
+	gsh_free(real_name);
 	return status.major;
 }
 
