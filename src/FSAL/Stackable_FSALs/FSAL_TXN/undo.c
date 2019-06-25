@@ -19,6 +19,48 @@ static inline COMPOUND4args* get_compoud_args()
 }
 
 /**
+ * @brief Exchange current file handle with a new one / Save current fh
+ * / Restore saved fh to current
+ *
+ * These wrappers are here because we need to take care of ref count.
+ * NOTE: We are assuming that the @c new object already has ref count
+ * incremented (e.g. @c fsal_obj_handle objects created by @c lookup or
+ * @c txnfs_create_handle methods are already ref counted), so here we don't
+ * call @c new->obj_ops->get method.
+ */
+static inline void exchange_cfh(struct fsal_obj_handle **current,
+				struct fsal_obj_handle *new)
+{
+	if (!new)
+		return;
+	if (*current)
+		(*current)->obj_ops->put_ref(*current);
+	*current = new;
+}
+
+static inline void save_cfh(struct fsal_obj_handle **saved,
+			    struct fsal_obj_handle *current)
+{
+	if (!current)
+		return;
+	if (*saved)
+		(*saved)->obj_ops->put_ref(*saved);
+	*saved = current;
+	current->obj_ops->get_ref(current);
+}
+
+static inline void restore_cfs(struct fsal_obj_handle **current,
+			       struct fsal_obj_handle *saved)
+{
+	if (!saved)
+		return;
+	if (*current)
+		(*current)->obj_ops->put_ref(*current);
+	saved->obj_ops->get_ref(saved);
+	*current = saved;
+}
+
+/**
  * @brief Convert NFS4 file handle into @c fsal_obj_handle
  *
  * @param[in] fh	NFSv4 file handle presented in compound args
@@ -145,6 +187,46 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 }
 
 /**
+ * @brief Extract the name for the file to be opened
+ *
+ * This helper extract the name of a file from a given OPEN4args.claim
+ * structure. Note that OPEN is very complex and we have to consider multiple
+ * scenario depending on OPEN4args.(open_claim4)claim.(open_claim_type4)claim.
+ *
+ * @param[in] claim	The given open_claim4 structure pointer
+ *
+ * @return	The C-style char * string. If it's a NULL pointer, use
+ * 		the current file handle instead.
+ */
+static char *extract_open_name(open_claim4 *claim)
+{
+	char *str = NULL;
+	switch(claim->claim) {
+	case CLAIM_NULL:
+		nfs4_utf8string2dynamic(&claim->open_claim4_u.file,
+					UTF8_SCAN_ALL, &str);
+		break;
+
+	case CLAIM_DELEGATE_CUR:
+		nfs4_utf8string2dynamic(&claim->open_claim4_u
+						.delegate_cur_info
+						.file,
+					UTF8_SCAN_ALL, &str);
+		break;
+
+	case CLAIM_PREVIOUS:
+	case CLAIM_FH:
+	case CLAIM_DELEG_PREV_FH:
+	case CLAIM_DELEG_CUR_FH:
+	default:
+		break;
+
+	}
+
+	return str;
+}
+
+/**
  * @brief Undo OPEN operation
  *
  * OPEN operation may create a regular file that does not exist before, which
@@ -164,37 +246,42 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
  */
 static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 {
-	/* TODO: do we need to update current file handle? */
-	/* 1 = OPEN4_CREATE */
 	bool is_create = arg->nfs_argop4_u.opopen.openhow.opentype == 1;
 	int ret = 0;
 	createmode4 mode = arg->nfs_argop4_u.opopen.openhow.openflag4_u.how;
-	utf8string *str = &arg->nfs_argop4_u.opopen.claim.open_claim4_u.file;
-	char *name;
-	struct fsal_obj_handle *created;
-	struct fsal_obj_handle *current = *cur;
+	char *name = extract_open_name(&arg->nfs_argop4_u.opopen.claim);
+	struct fsal_obj_handle *target;
+	
+	struct fsal_obj_handle *current;
 	fsal_status_t status;
 
-	/* don't do anything for non-creation mode */
-	if (!is_create)
-		return 0;
+	/* update current file handle */
+	if (name) {
+		status = (*cur)->obj_ops->lookup(*cur, name, &target, NULL);
+		if (status.major != 0) {
+			LogWarn(COMPONENT_FSAL, "undo_open: lookup fail: "
+				"%d, name=%s", status.major, name);
+			ret = status.major;
+			goto end;
+		}
+		*cur = target;
+	}
+	/* if name is NULL then CURRENT is to be opened */
+	current = *cur;
+
+	/* to undo, let's close the file */
+	current->obj_ops->close(current);
 
 	/* if mode is GUARDED4, then it's guaranteed that a successful open
-	 * operation indicates a newly created file */
-	if (mode == GUARDED4) {
-		nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &name);
-		status = current->obj_ops->lookup(current, name, &created,
-						  NULL);
-		ret = status.major;
-		if (status.major == 0) {
-			status = current->obj_ops->unlink(current, created,
+	 * operation indicates a newly created file. In this case we will
+	 * remove that file*/
+	if (is_created && mode == GUARDED4) {
+		status = current->obj_ops->unlink(current, created,
 							  name);
-			ret = status.major;
-		}
-		
-	} else {
-		/* TODe: discussion needed */
+		ret = status.major;
 	}
+end:
+	gsh_free(name);
 	return ret;
 }
 
@@ -246,7 +333,7 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 
 	/* construct names */
 	sprintf(backup_name, "%d.bkp", opidx);
-	nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &name);
+	nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &real_name);
 
 	/* lookup backup directory */
 	get_txn_root(&root, NULL);
@@ -340,7 +427,8 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 
 	/* let's start from ROOT */
 	get_txn_root(&root, &cur_attr);
-	current = root;
+	root->obj_ops->get_ref(root);
+	exchange_cfh(&current, root);
 
 	for (i = 0; i < res->resarray.resarray_len; i++) {
 		struct nfs_resop4 *curop_res = &res->resarray.resarray_val[i];
@@ -352,13 +440,16 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 		
 		/* real payload here */
 		int op = curop_res->resop;
+		struct fsal_obj_handle *temp;
 		nfs_fh4 *fh = NULL;
 
 		switch (op) {
 		case NFS4_OP_PUTFH:
 			/* update current file handle */
 			fh = &curop_arg->nfs_argop4_u.opputfh.object;
-			current = fh_to_obj_handle(fh, &cur_attr);
+
+			temp = fh_to_obj_handle(fh, &cur_attr);
+			exchange_cfh(&current, temp);
 			if (!current) {
 				LogWarn(COMPONENT_FSAL,
 					"Can't find obj_handle from fh.");
@@ -368,12 +459,11 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 
 		case NFS4_OP_PUTROOTFH:
 			/* update current fh to root */
-			get_txn_root(&current, &cur_attr);
-			assert(current);
+			exchange_cfh(&current, root);
 			break;
 
 		case NFS4_OP_SAVEFH:
-			saved = current;
+			save_cfh(&saved, current);
 			break;
 
 		case NFS4_OP_RESTOREFH:
@@ -381,21 +471,28 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 				ret = ERR_FSAL_FAULT;
 				break;
 			}
-			current = saved;
+			restore_cfh(&current, saved);
 			break;
 
 		case NFS4_OP_LOOKUP:
 			/* update current fh to the queried one */
-			ret = replay_lookup(curop_arg, &current, &cur_attr);
+			ret = replay_lookup(curop_arg, &temp, &cur_attr);
+			exchange_cfh(&current, temp);
 			break;
 
 		case NFS4_OP_LOOKUPP:
 			/* update current fh to its parent */
-			current->obj_ops->lookup(current, "..", &current,
-						 &cur_attr);
+			ret = current->obj_ops->lookup(current, "..", &temp,
+						       &cur_attr);
+			exchange_cfh(&current, temp);
 			break;
 
-		/* we should treat OPEN in a different way */
+		/* we should treat OPEN in a different way, because
+		 * OPEN will change the current file handle and may also
+		 * generate new file which should be undone here. 
+		 *
+		 * Since OPEN only creates REGULAR files, it's safe to
+		 * undo them in forward order.*/
 		case NFS4_OP_OPEN:
 			ret = undo_open(curop_arg, &current);
 			break;
