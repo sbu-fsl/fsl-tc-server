@@ -359,6 +359,9 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	return status.major;
 }
 
+/**
+ * @brief Retrieve the size of a file
+ */
 static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 {
 	struct attrlist attrs;
@@ -372,6 +375,31 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 	return attrs.filesize;
 }
 
+/**
+ * @brief Truncate a file by setting its size to 0. 
+ *
+ * The lower-level FSAL_VFS will finally take care of this by calling
+ * @c ftruncate().
+ */
+static inline void truncate_file(struct fsal_obj_handle *f)
+{
+	struct attrlist attrs = {
+		.filesize = 0;
+	};
+	fsal_status_t ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
+	if (ret.major != 0)
+		LogWarn(COMPONENT_FSAL, "truncate_file failed: error %d,"
+			" fileid=%lu", ret.major, f->fileid);
+}
+
+/**
+ * @brief Undo file write/copy
+ *
+ * This function should apply to both write and copy operations, on condition
+ * that they are not inter-server communications.
+ *
+ * Basically this will rewrite the file with the backup.
+ */
 static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 {
 	char backup_name[20] = { '\0' };
@@ -396,6 +424,9 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 			"err=%d, txnid=%lu, opidx=%d", ret, txnid, opidx);
 		goto end;
 	}
+
+	/* truncate the source file */
+	truncate_file(cur);
 
 	/* overwrite the source file. CFH is the file being written */
 	status = backup_file->obj_ops->clone2(backup_file, &in, cur, &out,
@@ -436,13 +467,9 @@ static int dispatch_undoer(struct op_vector *vec)
 			break;
 
 		case NFS4_OP_WRITE:
-			ret = undo_write(el->cwh, vec->txnid, opidx);
-			break;
-
 		case NFS4_OP_COPY:
-			break;
-
 		case NFS4_OP_CLONE:
+			ret = undo_write(el->cwh, vec->txnid, opidx);
 			break;
 
 		default:
