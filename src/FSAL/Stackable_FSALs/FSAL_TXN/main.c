@@ -96,6 +96,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
 	LogDebug(COMPONENT_FSAL,
 		 "FSAL_TXN INIT: Supported attributes mask = 0x%" PRIx64,
 		 fsal_module->fs_info.supported_attrs);
+	db_store_t *db = NULL;
 	struct txnfs_fsal_module *txnfs_module =
 		container_of(fsal_module, struct txnfs_fsal_module, module);
 	/* if we have fsal specific params, do them here

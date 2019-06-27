@@ -9,14 +9,6 @@
 
 #define VEC_INIT_SIZE	16
 
-struct op_vector {
-	op_desc *v;
-	uint64_t txnid;
-	unsigned int len;
-	unsigned int max;
-	nfs_opnum4 op;
-};
-
 struct op_desc {
 	nfs_opnum4 opcode;
 	struct nfs_argop4 *arg;
@@ -25,6 +17,14 @@ struct op_desc {
 	struct fsal_obj_handle *cwh;
 	/* saved handle */
 	struct fsal_obj_handle *savedh;
+};
+
+struct op_vector {
+	struct op_desc *v;
+	uint64_t txnid;
+	unsigned int len;
+	unsigned int max;
+	nfs_opnum4 op;
 };
 
 void opvec_init(struct op_vector *vec, uint64_t txnid);

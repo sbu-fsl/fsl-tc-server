@@ -18,10 +18,10 @@
  * @return The @c fsal_obj_handle pointer of the backup root directory
  * 	   or NULL if the directory doesn't exist.
  */
-fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
+struct fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
 {
 	struct fsal_obj_handle *txn_backup_root;
-	struct txn_fsal_obj_handle *txn_root_entry;
+	struct txnfs_fsal_obj_handle *txn_root_entry;
 	fsal_status_t ret;
 
 	txn_root_entry = container_of(txn_root, struct txnfs_fsal_obj_handle,
@@ -64,8 +64,8 @@ fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
  * @return The @c fsal_obj_handle pointer of the backup folder for the given
  * 	   transaction
  */
-fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
-				  uint64_t txnid)
+struct fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
+					 uint64_t txnid)
 {
 	struct fsal_obj_handle *backup_dir = NULL;
 	fsal_status_t ret;
@@ -94,9 +94,10 @@ txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 	// create txn backup directory
 	struct fsal_obj_handle* root_entry = NULL;
 	struct fsal_obj_handle* txn_handle = NULL;
-	struct fsal_obj_handle* bkp_handle = NULL;
 	struct attrlist attrs;
 	uint64_t txnid = op_ctx->txnid;
+	char txnid_name[20] = { '\0' };
+	fsal_status_t status;
 
         memset(&attrs, 0, sizeof(struct attrlist));
 
@@ -122,18 +123,19 @@ txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
  
         if (txn_handle == NULL) {
 		// create txn backup root 
-		status = fsal_create(txn_root_entry->sub_handle, TXN_BKP_DIR,
+		status = fsal_create(root_entry, TXN_BKP_DIR,
 				     DIRECTORY, &attrs, NULL, &txn_handle,
 				     NULL);
 		assert(status.major == 0);
 		assert(txn_handle);
 	}
   
-	bkp_handle = query_txn_backup(txn_handle, txnid);
+	*bkp_handle = query_txn_backup(txn_handle, txnid);
   
-	if (bkp_handle == NULL) {
+	if (*bkp_handle == NULL) {
 		// create txnid directory
-	    	status = fsal_create(txn_handle, txnid, DIRECTORY,
+		sprintf(txnid_name, "%lu", txnid);
+	    	status = fsal_create(txn_handle, txnid_name, DIRECTORY,
 				     &attrs, NULL, bkp_handle, NULL);
 		assert(status.major == 0);
 		assert(*bkp_handle);
@@ -222,7 +224,6 @@ int txnfs_compound_restore(uint64_t txnid, COMPOUND4res* res)
 	struct fsal_obj_handle *backup_dir = NULL;
 	struct attrlist root_attrs;
 	int ret = 0;
-	char bkp_folder_name[20], bkp_file_name[20];
 
 	get_txn_root(&root_entry, &root_attrs);
 
@@ -236,7 +237,7 @@ int txnfs_compound_restore(uint64_t txnid, COMPOUND4res* res)
 	/* assert txn backup dir exists */
 	backup_dir = query_txn_backup(backup_root, txnid);
 	if (backup_dir == NULL) {
-		LogWarn(COMPONENT_FSAL, "txn %#x's backup folder doesn't exist",
+		LogWarn(COMPONENT_FSAL, "txn %lu's backup folder doesn't exist",
 			txnid);
 		return ERR_FSAL_NOENT;
 	}

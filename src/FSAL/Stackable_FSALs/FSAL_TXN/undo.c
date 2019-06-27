@@ -1,3 +1,5 @@
+#include <fsal_api.h>
+#include <nfs_proto_tools.h>
 #include "txnfs_methods.h"
 #include "log.h"
 #include "opvec.h"
@@ -13,7 +15,7 @@
  *
  */
 
-static inline COMPOUND4args* get_compoud_args()
+static inline COMPOUND4args* get_compound_args()
 {
 	return op_ctx->op_args;
 }
@@ -49,7 +51,7 @@ static inline void save_cfh(struct fsal_obj_handle **saved,
 	current->obj_ops->get_ref(current);
 }
 
-static inline void restore_cfs(struct fsal_obj_handle **current,
+static inline void restore_cfh(struct fsal_obj_handle **current,
 			       struct fsal_obj_handle *saved)
 {
 	if (!saved)
@@ -67,8 +69,8 @@ static inline void restore_cfs(struct fsal_obj_handle **current,
  *
  * @return corresponding fsal_obj_handle
  */
-static inline fsal_obj_handle* fh_to_obj_handle(nfs_fh4 *fh,
-						struct attrlist *attrs)
+static inline struct fsal_obj_handle*
+fh_to_obj_handle(nfs_fh4 *fh, struct attrlist *attrs)
 {
 	struct gsh_buffdesc buf = {
 		.addr = (void *)fh->nfs_fh4_val,
@@ -78,13 +80,13 @@ static inline fsal_obj_handle* fh_to_obj_handle(nfs_fh4 *fh,
 	struct attrlist _attrs;
 	fsal_status_t ret = txnfs_create_handle(op_ctx->fsal_export,
 						&buf, &handle, &_attrs);
-	if (ret == 0) {
+	if (ret.major == 0) {
 		if (attrs)
 			*attrs = _attrs;
 		return handle;
 	} else {
 		LogWarn(COMPONENT_FSAL, "can't get obj handle from fh: %d",
-			ret);
+			ret.major);
 		return NULL;
 	}
 }
@@ -130,7 +132,7 @@ static inline int replay_lookup(struct nfs_argop4 *arg,
 
 	if (status.major != ERR_FSAL_NO_ERROR) {
 		LogWarn(COMPONENT_FSAL, "replay lookup failed:");
-		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
+		LogWarn(COMPONENT_FSAL, "%s", msg_fsal_err(status.major));
 		return status.major;
 	}
 
@@ -173,10 +175,10 @@ static inline char *extract_create_name(struct nfs_argop4 *arg)
  */
 static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 {
-	char *name = extract_create_name(curop_arg);
-	fsal_statrus_t status;
+	char *name = extract_create_name(arg);
+	fsal_status_t status;
 	/* otherwise, just delete it using unlink*/
-	fsal_obj_handle *created;
+	struct fsal_obj_handle *created;
 	status = cur->obj_ops->lookup(cur, name, &created, NULL);
 	assert(status.major == ERR_FSAL_NO_ERROR);
 	status = cur->obj_ops->unlink(cur, created, name);
@@ -186,7 +188,7 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 
 	if (status.major != 0) {
 		LogWarn(COMPONENT_FSAL, "undo create failed:");
-		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
+		LogWarn(COMPONENT_FSAL, "%s", msg_fsal_err(status.major));
 		return status.major;
 	}
 
@@ -255,7 +257,8 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 {
 	bool is_create = arg->nfs_argop4_u.opopen.openhow.opentype == 1;
 	int ret = 0;
-	createmode4 mode = arg->nfs_argop4_u.opopen.openhow.openflag4_u.how;
+	createmode4 mode = arg->nfs_argop4_u.opopen.openhow
+			   .openflag4_u.how.mode;
 	char *name = extract_open_name(&arg->nfs_argop4_u.opopen.claim);
 	struct fsal_obj_handle *target;
 	
@@ -282,8 +285,8 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	/* if mode is GUARDED4, then it's guaranteed that a successful open
 	 * operation indicates a newly created file. In this case we will
 	 * remove that file*/
-	if (is_created && mode == GUARDED4) {
-		status = current->obj_ops->unlink(current, created, name);
+	if (is_create && mode == GUARDED4) {
+		status = current->obj_ops->unlink(current, target, name);
 		ret = status.major;
 	}
 end:
@@ -313,7 +316,7 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 	status = cur->obj_ops->unlink(cur, created, name);
 	if (status.major != ERR_FSAL_NO_ERROR) {
 		LogWarn(COMPONENT_FSAL, "undo link failed:");
-		LogWarn(COMPONENT_FSAL, msg_fsal_err(status.major));
+		LogWarn(COMPONENT_FSAL, "%s", msg_fsal_err(status.major));
 	}
 
 	gsh_free(name);
@@ -350,7 +353,7 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 
 	/* perform moving */
 	status = cur->obj_ops->rename(cur, backup_dir, backup_name,
-				      current, real_name);
+				      cur, real_name);
 
 	gsh_free(real_name);
 	root->obj_ops->put_ref(root);
@@ -369,7 +372,7 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 	status = f->obj_ops->getattrs(f, &attrs);
 	if (status.major != 0) {
 		LogWarn(COMPONENT_FSAL, "get_file_size: getattr failed. "
-			"err = %d, fileid = %d", status.major, f->fileid);
+			"err = %d, fileid = %lu", status.major, f->fileid);
 		return 0;
 	}
 	return attrs.filesize;
@@ -384,7 +387,7 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 static inline void truncate_file(struct fsal_obj_handle *f)
 {
 	struct attrlist attrs = {
-		.filesize = 0;
+		.filesize = 0
 	};
 	fsal_status_t ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
 	if (ret.major != 0)
@@ -458,12 +461,11 @@ static int dispatch_undoer(struct op_vector *vec)
 			ret = undo_link(el->arg, el->cwh);
 			break;
 
-		case NF4_OP_REMOVE:
-			ret = undo_remove(el->arg, el->cwh, el->cwh,
-					  vec->txnid, opidx);
+		case NFS4_OP_REMOVE:
+			ret = undo_remove(el->arg, el->cwh, vec->txnid, opidx);
 			break;
 
-		case NFS_OP_RENAME:
+		case NFS4_OP_RENAME:
 			break;
 
 		case NFS4_OP_WRITE:
@@ -509,9 +511,9 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 {
 	COMPOUND4args *args = get_compound_args();
 	int i, ret = 0;
-	fsal_obj_handle *root = NULL;
-	fsal_obj_handle *current = NULL;
-	fsal_obj_handle *saved = NULL;
+	struct fsal_obj_handle *root = NULL;
+	struct fsal_obj_handle *current = NULL;
+	struct fsal_obj_handle *saved = NULL;
 	fsal_status_t status;
 	struct attrlist cur_attr;
 	struct op_vector vector;
@@ -576,8 +578,9 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 
 		case NFS4_OP_LOOKUPP:
 			/* update current fh to its parent */
-			ret = current->obj_ops->lookup(current, "..", &temp,
-						       &cur_attr);
+			status = current->obj_ops->lookup(current, "..", &temp,
+							  &cur_attr);
+			ret = status.major;
 			exchange_cfh(&current, temp);
 			break;
 
