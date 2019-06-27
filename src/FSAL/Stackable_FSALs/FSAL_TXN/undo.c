@@ -165,9 +165,6 @@ static inline char *extract_create_name(struct nfs_argop4 *arg)
  * NOTE: CREATE operation is intended for creating NON-regular files.
  * Supported types are: NF4LNK, NF4DIR, NF4SOCK, NF4FIFO, NF4CHR, NF4BLK.
  *
- * We need to discuss how to deal with NF4DIR, since dependency may occur.
- * (For example, CREATE(dir /foo) -> GETFH -> PUTFH -> CREATE(dir bar))
- *
  * We don't have to check if the current object handle points to a directory,
  * because this operation would have failed if "current" is not a directory.
  *
@@ -177,8 +174,8 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 {
 	char *name = extract_create_name(arg);
 	fsal_status_t status;
-	/* otherwise, just delete it using unlink*/
 	struct fsal_obj_handle *created;
+
 	status = cur->obj_ops->lookup(cur, name, &created, NULL);
 	assert(status.major == ERR_FSAL_NO_ERROR);
 	status = cur->obj_ops->unlink(cur, created, name);
@@ -332,6 +329,9 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
  *
  * current->rename(current, olddir_hdl=backup_dir, old_name=opidx.bkp,
  * 		   newdir_hdl=current, new_name=REMOVE4args.target)
+ * 
+ * NOTE: Since this involves backup, make sure to switch op_ctx->fsal_export
+ * to txnfs_fsal_export.sub_export before doing the work.
  */
 static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 		       uint64_t txnid, int opidx)
@@ -340,6 +340,9 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	char *real_name;
 	utf8string *str = &arg->nfs_argop4_u.opremove.target;
 	struct fsal_obj_handle *root, *backup_root, *backup_dir;
+	struct txnfs_fsal_export *exp = 
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
 	fsal_status_t status;
 
 	/* construct names */
@@ -348,17 +351,29 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 
 	/* lookup backup directory */
 	get_txn_root(&root, NULL);
+	/* important: switch context */
+	op_ctx->fsal_export = exp->export.sub_export;
+	/* continue looking up backup dir */
 	backup_root = query_backup_root(root);
 	backup_dir = query_txn_backup(backup_root, txnid);
 
 	/* perform moving */
-	status = cur->obj_ops->rename(cur, backup_dir, backup_name,
-				      cur, real_name);
+	/* first we should retrieve the SUB handle of "current" to
+	 * ensure the consistency of operation context */
+	struct txnfs_fsal_obj_handle *txn_cur = 
+		container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
+	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
+	status = sub_cur->obj_ops->rename(sub_cur, backup_dir, backup_name,
+					  sub_cur, real_name);
 
 	gsh_free(real_name);
-	root->obj_ops->put_ref(root);
 	backup_root->obj_ops->put_ref(backup_root);
 	backup_dir->obj_ops->put_ref(backup_dir);
+
+	/* switch the context back */
+	op_ctx->fsal_export = &exp->export;
+
+	root->obj_ops->put_ref(root);
 	return status.major;
 }
 
@@ -391,8 +406,8 @@ static inline void truncate_file(struct fsal_obj_handle *f)
 	};
 	fsal_status_t ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
 	if (ret.major != 0)
-		LogWarn(COMPONENT_FSAL, "truncate_file failed: error %d,"
-			" fileid=%lu", ret.major, f->fileid);
+		LogWarn(COMPONENT_FSAL, "truncate_file failed: error %d, "
+			"fileid=%lu", ret.major, f->fileid);
 }
 
 /**
@@ -409,6 +424,9 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	struct fsal_obj_handle *root;
 	struct fsal_obj_handle *backup_root, *backup_dir, *backup_file = NULL;
 	fsal_status_t status;
+	struct txnfs_fsal_export *exp =
+		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			     export);
 	int ret = 0;
 	loff_t in = 0, out = 0;
 
@@ -417,6 +435,8 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	
 	/* lookup backup file */
 	get_txn_root(&root, NULL);
+	/* switch context */
+	op_ctx->fsal_export = exp->export.sub_export;
 	backup_root = query_backup_root(root);
 	backup_dir = query_txn_backup(backup_root, txnid);
 	status = backup_dir->obj_ops->lookup(backup_dir, backup_name,
@@ -428,21 +448,29 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 		goto end;
 	}
 
+	/* find SUB handle of the "current" */
+	struct txnfs_fsal_obj_handle *txn_cur =
+		container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
+	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
+
 	/* truncate the source file */
-	truncate_file(cur);
+	truncate_file(sub_cur);
 
 	/* overwrite the source file. CFH is the file being written */
-	status = backup_file->obj_ops->clone2(backup_file, &in, cur, &out,
+	status = backup_file->obj_ops->clone2(backup_file, &in, sub_cur, &out,
 					      get_file_size(backup_file), 0);
 	ret = status.major;
 
 end:
-	root->obj_ops->put_ref(root);
 	backup_root->obj_ops->put_ref(backup_root);
 	backup_dir->obj_ops->put_ref(backup_dir);
 	if (backup_file)
 		backup_file->obj_ops->put_ref(backup_file);
 
+	/* switch context back */
+	op_ctx->fsal_export = &exp->export;
+
+	root->obj_ops->put_ref(root);
 	return ret;
 }
 

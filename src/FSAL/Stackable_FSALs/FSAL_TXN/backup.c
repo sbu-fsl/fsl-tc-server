@@ -91,7 +91,7 @@ fsal_status_t
 txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 {
 	UDBG;
-	// create txn backup directory
+	/* create txn backup directory */
 	struct fsal_obj_handle* root_entry = NULL;
 	struct fsal_obj_handle* txn_handle = NULL;
 	struct attrlist attrs;
@@ -122,8 +122,15 @@ txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 	txn_handle = query_backup_root(root_entry);
  
         if (txn_handle == NULL) {
-		// create txn backup root 
-		status = fsal_create(root_entry, TXN_BKP_DIR,
+		/* create txn backup root 
+		 * note, we should use the sub_handle of root entry
+		 * to create such a directory, and the generated handle
+		 * should belong to the sub-export. */
+		struct txnfs_fsal_obj_handle *txn_root_handle;
+		txn_root_handle = 
+			container_of(root_entry, struct txnfs_fsal_obj_handle,
+				     obj_handle);
+		status = fsal_create(txn_root_handle->sub_handle, TXN_BKP_DIR,
 				     DIRECTORY, &attrs, NULL, &txn_handle,
 				     NULL);
 		assert(status.major == 0);
@@ -133,7 +140,9 @@ txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
 	*bkp_handle = query_txn_backup(txn_handle, txnid);
   
 	if (*bkp_handle == NULL) {
-		// create txnid directory
+		/* create txnid directory
+		 * note, that @c txn_handle is already a handle that belongs
+		 * to the lower fsal export. */
 		sprintf(txnid_name, "%lu", txnid);
 	    	status = fsal_create(txn_handle, txnid_name, DIRECTORY,
 				     &attrs, NULL, bkp_handle, NULL);
@@ -186,9 +195,6 @@ txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
 			      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
 		attrs.mode = 0666;
 		attrs.owner = 0;
-		attrs.group = 0;
-		status = fsal_create(root_entry, backup_name, REGULAR_FILE,
-				     &attrs, NULL, &dst_hdl, NULL);
 		assert(status.major == 0);
 		status = fsal_copy(txn_src_hdl->sub_handle,
 				   0 /* src_offset */,
