@@ -1,5 +1,5 @@
-#include "txnfs_methods.h"
 #include "log.h"
+#include "txnfs_methods.h"
 #include <assert.h>
 
 /**
@@ -18,14 +18,14 @@
  * @return The @c fsal_obj_handle pointer of the backup root directory
  * 	   or NULL if the directory doesn't exist.
  */
-struct fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
+struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 {
 	struct fsal_obj_handle *txn_backup_root;
 	struct txnfs_fsal_obj_handle *txn_root_entry;
 	fsal_status_t ret;
 
-	txn_root_entry = container_of(txn_root, struct txnfs_fsal_obj_handle,
-				      obj_handle);
+	txn_root_entry =
+	    container_of(txn_root, struct txnfs_fsal_obj_handle, obj_handle);
 	assert(txn_root_entry);
 
 	/* lookup the txnfs backup directory
@@ -64,7 +64,7 @@ struct fsal_obj_handle* query_backup_root(struct fsal_obj_handle* txn_root)
  * @return The @c fsal_obj_handle pointer of the backup folder for the given
  * 	   transaction
  */
-struct fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
+struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 					 uint64_t txnid)
 {
 	struct fsal_obj_handle *backup_dir = NULL;
@@ -87,76 +87,74 @@ struct fsal_obj_handle* query_txn_backup(struct fsal_obj_handle *backup_root,
 	}
 }
 
-fsal_status_t
-txnfs_create_or_lookup_backup_dir(struct fsal_obj_handle** bkp_handle)
+fsal_status_t txnfs_create_or_lookup_backup_dir(
+    struct fsal_obj_handle **bkp_handle)
 {
 	UDBG;
 	/* create txn backup directory */
-	struct fsal_obj_handle* root_entry = NULL;
-	struct fsal_obj_handle* txn_handle = NULL;
+	struct fsal_obj_handle *root_entry = NULL;
+	struct fsal_obj_handle *txn_handle = NULL;
 	struct attrlist attrs;
 	uint64_t txnid = op_ctx->txnid;
-	char txnid_name[20] = { '\0' };
+	char txnid_name[20] = {'\0'};
 	fsal_status_t status;
 
-        memset(&attrs, 0, sizeof(struct attrlist));
+	memset(&attrs, 0, sizeof(struct attrlist));
 
 	/* get txnfs root directory handle */
 	get_txn_root(&root_entry, &attrs);
-	
-	struct txnfs_fsal_export *exp = 
-		container_of(op_ctx->fsal_export,
-			     struct txnfs_fsal_export, export);
 
-	/* Switch to the lower fsal */ 
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+
+	/* Switch to the lower fsal */
 	op_ctx->fsal_export = exp->export.sub_export;
 
 	/* Config attributes if we need to create something */
-	FSAL_CLEAR_MASK(attrs.valid_mask); 
+	FSAL_CLEAR_MASK(attrs.valid_mask);
 	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-	attrs.mode = 0666; 
+	attrs.mode = 0666;
 	attrs.owner = 0;
 	attrs.group = 0;
-  
-        /* check if txn backup root exists */
+
+	/* check if txn backup root exists */
 	txn_handle = query_backup_root(root_entry);
- 
-        if (txn_handle == NULL) {
-		/* create txn backup root 
+
+	if (txn_handle == NULL) {
+		/* create txn backup root
 		 * note, we should use the sub_handle of root entry
 		 * to create such a directory, and the generated handle
 		 * should belong to the sub-export. */
 		struct txnfs_fsal_obj_handle *txn_root_handle;
-		txn_root_handle = 
-			container_of(root_entry, struct txnfs_fsal_obj_handle,
-				     obj_handle);
-		status = fsal_create(txn_root_handle->sub_handle, TXN_BKP_DIR,
-				     DIRECTORY, &attrs, NULL, &txn_handle,
-				     NULL);
+		txn_root_handle = container_of(
+		    root_entry, struct txnfs_fsal_obj_handle, obj_handle);
+		status =
+		    fsal_create(txn_root_handle->sub_handle, TXN_BKP_DIR,
+				DIRECTORY, &attrs, NULL, &txn_handle, NULL);
 		assert(status.major == 0);
 		assert(txn_handle);
 	}
-  
+
 	*bkp_handle = query_txn_backup(txn_handle, txnid);
-  
+
 	if (*bkp_handle == NULL) {
 		/* create txnid directory
 		 * note, that @c txn_handle is already a handle that belongs
 		 * to the lower fsal export. */
 		sprintf(txnid_name, "%lu", txnid);
-	    	status = fsal_create(txn_handle, txnid_name, DIRECTORY,
-				     &attrs, NULL, bkp_handle, NULL);
+		status = fsal_create(txn_handle, txnid_name, DIRECTORY, &attrs,
+				     NULL, bkp_handle, NULL);
 		assert(status.major == 0);
 		assert(*bkp_handle);
 	}
 
 	op_ctx->fsal_export = &exp->export;
-	
+
 	return status;
 }
 
-fsal_status_t
-txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
+fsal_status_t txnfs_backup_file(unsigned int opidx,
+				struct fsal_obj_handle *src_hdl)
 {
 	UDBG;
 	struct fsal_obj_handle *dst_hdl = NULL;
@@ -165,30 +163,28 @@ txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
 	struct attrlist attrs;
 	struct attrlist attrs_out;
 	char backup_name[20];
-	
+
 	struct txnfs_fsal_obj_handle *txn_src_hdl =
-		container_of(src_hdl, struct txnfs_fsal_obj_handle,
-			     obj_handle);
+	    container_of(src_hdl, struct txnfs_fsal_obj_handle, obj_handle);
 
 	assert(txn_src_hdl);
-  
+
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&root_entry);
 	assert(status.major == 0);
-	
-  	struct txnfs_fsal_export *exp =
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-			     export);
+
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-  	
-	// get file size
-  	attrs_out.request_mask = ATTR_SIZE;
-	status = get_optional_attrs(txn_src_hdl->sub_handle, &attrs_out);
-  	assert(status.major == 0);
 
-  	// copy src to backup dir
-  	if (attrs_out.filesize > 0) {
-    		// create dst_handle
+	// get file size
+	attrs_out.request_mask = ATTR_SIZE;
+	status = get_optional_attrs(txn_src_hdl->sub_handle, &attrs_out);
+	assert(status.major == 0);
+
+	// copy src to backup dir
+	if (attrs_out.filesize > 0) {
+		// create dst_handle
 		sprintf(backup_name, "%d.bkp", opidx);
 		FSAL_CLEAR_MASK(attrs.valid_mask);
 		FSAL_SET_MASK(attrs.valid_mask,
@@ -196,12 +192,9 @@ txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
 		attrs.mode = 0666;
 		attrs.owner = 0;
 		assert(status.major == 0);
-		status = fsal_copy(txn_src_hdl->sub_handle,
-				   0 /* src_offset */,
-				   dst_hdl,
-				   0 /* dst_offset */,
-				   attrs_out.filesize,
-				   &copied);
+		status = fsal_copy(txn_src_hdl->sub_handle, 0 /* src_offset */,
+				   dst_hdl, 0 /* dst_offset */,
+				   attrs_out.filesize, &copied);
 
 		assert(status.major == 0);
 	}
@@ -222,9 +215,9 @@ txnfs_backup_file(unsigned int opidx, struct fsal_obj_handle *src_hdl)
  *
  * @return Status code. Will return 0 if done successfully.
  */
-int txnfs_compound_restore(uint64_t txnid, COMPOUND4res* res)
+int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res)
 {
-	UDBG;	
+	UDBG;
 	struct fsal_obj_handle *root_entry = NULL;
 	struct fsal_obj_handle *backup_root = NULL;
 	struct fsal_obj_handle *backup_dir = NULL;

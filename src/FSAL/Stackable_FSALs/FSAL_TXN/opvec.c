@@ -9,8 +9,7 @@
 void opvec_init(struct op_vector *vec, uint64_t txnid)
 {
 	/* prevent duplicate initialization */
-	if (vec->v && vec->max > 0)
-		return;
+	if (vec->v && vec->max > 0) return;
 
 	vec->txnid = txnid;
 	vec->v = gsh_calloc(VEC_INIT_SIZE, sizeof(struct op_desc));
@@ -38,12 +37,10 @@ int opvec_push(struct op_vector *vec, nfs_opnum4 opcode, nfs_argop4 *arg,
 	       struct fsal_obj_handle *saved)
 {
 	/* supply the operation type of this vector */
-	if (vec->op == 0)
-		vec->op = opcode;
+	if (vec->op == 0) vec->op = opcode;
 
 	/* check if opcode matches */
-	if (opcode != vec->op)
-		return ERR_FSAL_BADTYPE;
+	if (opcode != vec->op) return ERR_FSAL_BADTYPE;
 
 	/* if the array is full,
 	 * request for reallocation of a double sized one */

@@ -1,9 +1,9 @@
-#include <fsal_api.h>
-#include <nfs_proto_tools.h>
-#include "txnfs_methods.h"
 #include "log.h"
 #include "opvec.h"
+#include "txnfs_methods.h"
 #include <assert.h>
+#include <fsal_api.h>
+#include <nfs_proto_tools.h>
 
 /**
  * @page Compound transaction undo executor payloads
@@ -15,10 +15,7 @@
  *
  */
 
-static inline COMPOUND4args* get_compound_args()
-{
-	return op_ctx->op_args;
-}
+static inline COMPOUND4args *get_compound_args() { return op_ctx->op_args; }
 
 /**
  * @brief Exchange current file handle with a new one / Save current fh
@@ -33,20 +30,16 @@ static inline COMPOUND4args* get_compound_args()
 static inline void exchange_cfh(struct fsal_obj_handle **current,
 				struct fsal_obj_handle *new)
 {
-	if (!new)
-		return;
-	if (*current)
-		(*current)->obj_ops->put_ref(*current);
+	if (!new) return;
+	if (*current) (*current)->obj_ops->put_ref(*current);
 	*current = new;
 }
 
 static inline void save_cfh(struct fsal_obj_handle **saved,
 			    struct fsal_obj_handle *current)
 {
-	if (!current)
-		return;
-	if (*saved)
-		(*saved)->obj_ops->put_ref(*saved);
+	if (!current) return;
+	if (*saved) (*saved)->obj_ops->put_ref(*saved);
 	*saved = current;
 	current->obj_ops->get_ref(current);
 }
@@ -54,10 +47,8 @@ static inline void save_cfh(struct fsal_obj_handle **saved,
 static inline void restore_cfh(struct fsal_obj_handle **current,
 			       struct fsal_obj_handle *saved)
 {
-	if (!saved)
-		return;
-	if (*current)
-		(*current)->obj_ops->put_ref(*current);
+	if (!saved) return;
+	if (*current) (*current)->obj_ops->put_ref(*current);
 	saved->obj_ops->get_ref(saved);
 	*current = saved;
 }
@@ -69,20 +60,17 @@ static inline void restore_cfh(struct fsal_obj_handle **current,
  *
  * @return corresponding fsal_obj_handle
  */
-static inline struct fsal_obj_handle*
-fh_to_obj_handle(nfs_fh4 *fh, struct attrlist *attrs)
+static inline struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
+						       struct attrlist *attrs)
 {
-	struct gsh_buffdesc buf = {
-		.addr = (void *)fh->nfs_fh4_val,
-		.len = fh->nfs_fh4_len
-	};
+	struct gsh_buffdesc buf = {.addr = (void *)fh->nfs_fh4_val,
+				   .len = fh->nfs_fh4_len};
 	struct fsal_obj_handle *handle = NULL;
 	struct attrlist _attrs;
-	fsal_status_t ret = txnfs_create_handle(op_ctx->fsal_export,
-						&buf, &handle, &_attrs);
+	fsal_status_t ret =
+	    txnfs_create_handle(op_ctx->fsal_export, &buf, &handle, &_attrs);
 	if (ret.major == 0) {
-		if (attrs)
-			*attrs = _attrs;
+		if (attrs) *attrs = _attrs;
 		return handle;
 	} else {
 		LogWarn(COMPONENT_FSAL, "can't get obj handle from fh: %d",
@@ -137,8 +125,7 @@ static inline int replay_lookup(struct nfs_argop4 *arg,
 	}
 
 	*current = queried;
-	if (attrs)
-		*attrs = queried_attrs;
+	if (attrs) *attrs = queried_attrs;
 	return 0;
 }
 
@@ -153,13 +140,12 @@ static inline char *extract_create_name(struct nfs_argop4 *arg)
 {
 	char *name = NULL;
 	nfs4_utf8string2dynamic(&arg->nfs_argop4_u.opcreate.objname,
-				UTF8_SCAN_ALL,
-				&name);
+				UTF8_SCAN_ALL, &name);
 	assert(name);
 	return name;
 }
 
-/** 
+/**
  * @brief Undo CREATE operation
  *
  * NOTE: CREATE operation is intended for creating NON-regular files.
@@ -207,26 +193,24 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 static char *extract_open_name(open_claim4 *claim)
 {
 	char *str = NULL;
-	switch(claim->claim) {
-	case CLAIM_NULL:
-		nfs4_utf8string2dynamic(&claim->open_claim4_u.file,
-					UTF8_SCAN_ALL, &str);
-		break;
+	switch (claim->claim) {
+		case CLAIM_NULL:
+			nfs4_utf8string2dynamic(&claim->open_claim4_u.file,
+						UTF8_SCAN_ALL, &str);
+			break;
 
-	case CLAIM_DELEGATE_CUR:
-		nfs4_utf8string2dynamic(&claim->open_claim4_u
-						.delegate_cur_info
-						.file,
-					UTF8_SCAN_ALL, &str);
-		break;
+		case CLAIM_DELEGATE_CUR:
+			nfs4_utf8string2dynamic(
+			    &claim->open_claim4_u.delegate_cur_info.file,
+			    UTF8_SCAN_ALL, &str);
+			break;
 
-	case CLAIM_PREVIOUS:
-	case CLAIM_FH:
-	case CLAIM_DELEG_PREV_FH:
-	case CLAIM_DELEG_CUR_FH:
-	default:
-		break;
-
+		case CLAIM_PREVIOUS:
+		case CLAIM_FH:
+		case CLAIM_DELEG_PREV_FH:
+		case CLAIM_DELEG_CUR_FH:
+		default:
+			break;
 	}
 
 	return str;
@@ -254,11 +238,11 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 {
 	bool is_create = arg->nfs_argop4_u.opopen.openhow.opentype == 1;
 	int ret = 0;
-	createmode4 mode = arg->nfs_argop4_u.opopen.openhow
-			   .openflag4_u.how.mode;
+	createmode4 mode =
+	    arg->nfs_argop4_u.opopen.openhow.openflag4_u.how.mode;
 	char *name = extract_open_name(&arg->nfs_argop4_u.opopen.claim);
 	struct fsal_obj_handle *target;
-	
+
 	struct fsal_obj_handle *current;
 	fsal_status_t status;
 
@@ -266,8 +250,10 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	if (name) {
 		status = (*cur)->obj_ops->lookup(*cur, name, &target, NULL);
 		if (status.major != 0) {
-			LogWarn(COMPONENT_FSAL, "undo_open: lookup fail: "
-				"%d, name=%s", status.major, name);
+			LogWarn(COMPONENT_FSAL,
+				"undo_open: lookup fail: "
+				"%d, name=%s",
+				status.major, name);
 			ret = status.major;
 			goto end;
 		}
@@ -329,20 +315,19 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
  *
  * current->rename(current, olddir_hdl=backup_dir, old_name=opidx.bkp,
  * 		   newdir_hdl=current, new_name=REMOVE4args.target)
- * 
+ *
  * NOTE: Since this involves backup, make sure to switch op_ctx->fsal_export
  * to txnfs_fsal_export.sub_export before doing the work.
  */
 static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 		       uint64_t txnid, int opidx)
 {
-	char backup_name[20] = { '\0' };
+	char backup_name[20] = {'\0'};
 	char *real_name;
 	utf8string *str = &arg->nfs_argop4_u.opremove.target;
 	struct fsal_obj_handle *root, *backup_root, *backup_dir;
-	struct txnfs_fsal_export *exp = 
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-			     export);
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	fsal_status_t status;
 
 	/* construct names */
@@ -360,8 +345,8 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	/* perform moving */
 	/* first we should retrieve the SUB handle of "current" to
 	 * ensure the consistency of operation context */
-	struct txnfs_fsal_obj_handle *txn_cur = 
-		container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
+	struct txnfs_fsal_obj_handle *txn_cur =
+	    container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
 	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
 	status = sub_cur->obj_ops->rename(sub_cur, backup_dir, backup_name,
 					  sub_cur, real_name);
@@ -386,28 +371,30 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 	fsal_status_t status;
 	status = f->obj_ops->getattrs(f, &attrs);
 	if (status.major != 0) {
-		LogWarn(COMPONENT_FSAL, "get_file_size: getattr failed. "
-			"err = %d, fileid = %lu", status.major, f->fileid);
+		LogWarn(COMPONENT_FSAL,
+			"get_file_size: getattr failed. "
+			"err = %d, fileid = %lu",
+			status.major, f->fileid);
 		return 0;
 	}
 	return attrs.filesize;
 }
 
 /**
- * @brief Truncate a file by setting its size to 0. 
+ * @brief Truncate a file by setting its size to 0.
  *
  * The lower-level FSAL_VFS will finally take care of this by calling
  * @c ftruncate().
  */
 static inline void truncate_file(struct fsal_obj_handle *f)
 {
-	struct attrlist attrs = {
-		.filesize = 0
-	};
+	struct attrlist attrs = {.filesize = 0};
 	fsal_status_t ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
 	if (ret.major != 0)
-		LogWarn(COMPONENT_FSAL, "truncate_file failed: error %d, "
-			"fileid=%lu", ret.major, f->fileid);
+		LogWarn(COMPONENT_FSAL,
+			"truncate_file failed: error %d, "
+			"fileid=%lu",
+			ret.major, f->fileid);
 }
 
 /**
@@ -420,19 +407,18 @@ static inline void truncate_file(struct fsal_obj_handle *f)
  */
 static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 {
-	char backup_name[20] = { '\0' };
+	char backup_name[20] = {'\0'};
 	struct fsal_obj_handle *root;
 	struct fsal_obj_handle *backup_root, *backup_dir, *backup_file = NULL;
 	fsal_status_t status;
 	struct txnfs_fsal_export *exp =
-		container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-			     export);
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	int ret = 0;
 	loff_t in = 0, out = 0;
 
 	/* construct names */
 	sprintf(backup_name, "%d.bkp", opidx);
-	
+
 	/* lookup backup file */
 	get_txn_root(&root, NULL);
 	/* switch context */
@@ -443,14 +429,16 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 					     &backup_file, NULL);
 	if (status.major != 0) {
 		ret = status.major;
-		LogWarn(COMPONENT_FSAL, "undo_write: can't lookup backup. "
-			"err=%d, txnid=%lu, opidx=%d", ret, txnid, opidx);
+		LogWarn(COMPONENT_FSAL,
+			"undo_write: can't lookup backup. "
+			"err=%d, txnid=%lu, opidx=%d",
+			ret, txnid, opidx);
 		goto end;
 	}
 
 	/* find SUB handle of the "current" */
 	struct txnfs_fsal_obj_handle *txn_cur =
-		container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
+	    container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
 	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
 
 	/* truncate the source file */
@@ -464,8 +452,7 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 end:
 	backup_root->obj_ops->put_ref(backup_root);
 	backup_dir->obj_ops->put_ref(backup_dir);
-	if (backup_file)
-		backup_file->obj_ops->put_ref(backup_file);
+	if (backup_file) backup_file->obj_ops->put_ref(backup_file);
 
 	/* switch context back */
 	op_ctx->fsal_export = &exp->export;
@@ -479,44 +466,46 @@ static int dispatch_undoer(struct op_vector *vec)
 	struct op_desc *el = NULL;
 	int opidx, ret = 0;
 
-	opvec_iter_back(opidx, vec, el) {
-		switch(vec->op) {
-		case NFS4_OP_CREATE:
-			ret = undo_create(el->arg, el->cwh);
-			break;
+	opvec_iter_back(opidx, vec, el)
+	{
+		switch (vec->op) {
+			case NFS4_OP_CREATE:
+				ret = undo_create(el->arg, el->cwh);
+				break;
 
-		case NFS4_OP_LINK:
-			ret = undo_link(el->arg, el->cwh);
-			break;
+			case NFS4_OP_LINK:
+				ret = undo_link(el->arg, el->cwh);
+				break;
 
-		case NFS4_OP_REMOVE:
-			ret = undo_remove(el->arg, el->cwh, vec->txnid, opidx);
-			break;
+			case NFS4_OP_REMOVE:
+				ret = undo_remove(el->arg, el->cwh, vec->txnid,
+						  opidx);
+				break;
 
-		case NFS4_OP_RENAME:
-			break;
+			case NFS4_OP_RENAME:
+				break;
 
-		case NFS4_OP_WRITE:
-		case NFS4_OP_COPY:
-		case NFS4_OP_CLONE:
-			ret = undo_write(el->cwh, vec->txnid, opidx);
-			break;
+			case NFS4_OP_WRITE:
+			case NFS4_OP_COPY:
+			case NFS4_OP_CLONE:
+				ret = undo_write(el->cwh, vec->txnid, opidx);
+				break;
 
-		default:
-			ret = ERR_FSAL_NOTSUPP;
-			break;
+			default:
+				ret = ERR_FSAL_NOTSUPP;
+				break;
 		}
 
 		if (ret != 0) {
-			LogWarn(COMPONENT_FSAL, "Encountered error: %d, idx: "
-				"%d, opcode: %d - cannot undo.", ret, opidx,
-				el->opcode);
+			LogWarn(COMPONENT_FSAL,
+				"Encountered error: %d, idx: "
+				"%d, opcode: %d - cannot undo.",
+				ret, opidx, el->opcode);
 			break;
 		}
 	}
 	return ret;
 }
-
 
 /**
  * @brief Execute the rollback task
@@ -559,94 +548,99 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 		struct nfs_argop4 *curop_arg = &args->argarray.argarray_val[i];
 
 		/* if we encounter failed op, we can stop */
-		if (!is_op_ok(curop_res))
-			break;
-		
+		if (!is_op_ok(curop_res)) break;
+
 		/* real payload here */
 		int op = curop_res->resop;
 		struct fsal_obj_handle *temp;
 		nfs_fh4 *fh = NULL;
 
 		switch (op) {
-		case NFS4_OP_PUTFH:
-			/* update current file handle */
-			fh = &curop_arg->nfs_argop4_u.opputfh.object;
+			case NFS4_OP_PUTFH:
+				/* update current file handle */
+				fh = &curop_arg->nfs_argop4_u.opputfh.object;
 
-			temp = fh_to_obj_handle(fh, &cur_attr);
-			exchange_cfh(&current, temp);
-			if (!current) {
-				LogWarn(COMPONENT_FSAL,
-					"Can't find obj_handle from fh.");
-				ret = ERR_FSAL_NOENT;
-			}
-			break;
-
-		case NFS4_OP_PUTROOTFH:
-			/* update current fh to root */
-			exchange_cfh(&current, root);
-			break;
-
-		case NFS4_OP_SAVEFH:
-			save_cfh(&saved, current);
-			break;
-
-		case NFS4_OP_RESTOREFH:
-			if (!saved) {
-				ret = ERR_FSAL_FAULT;
+				temp = fh_to_obj_handle(fh, &cur_attr);
+				exchange_cfh(&current, temp);
+				if (!current) {
+					LogWarn(
+					    COMPONENT_FSAL,
+					    "Can't find obj_handle from fh.");
+					ret = ERR_FSAL_NOENT;
+				}
 				break;
-			}
-			restore_cfh(&current, saved);
-			break;
 
-		case NFS4_OP_LOOKUP:
-			/* update current fh to the queried one */
-			ret = replay_lookup(curop_arg, &temp, &cur_attr);
-			exchange_cfh(&current, temp);
-			break;
+			case NFS4_OP_PUTROOTFH:
+				/* update current fh to root */
+				exchange_cfh(&current, root);
+				break;
 
-		case NFS4_OP_LOOKUPP:
-			/* update current fh to its parent */
-			status = current->obj_ops->lookup(current, "..", &temp,
-							  &cur_attr);
-			ret = status.major;
-			exchange_cfh(&current, temp);
-			break;
+			case NFS4_OP_SAVEFH:
+				save_cfh(&saved, current);
+				break;
 
-		/* we should treat OPEN in a different way, because
-		 * OPEN will change the current file handle and may also
-		 * generate new file which should be undone here. 
-		 *
-		 * Since OPEN only creates REGULAR files, it's safe to
-		 * undo them in forward order.*/
-		case NFS4_OP_OPEN:
-			ret = undo_open(curop_arg, &current);
-			break;
+			case NFS4_OP_RESTOREFH:
+				if (!saved) {
+					ret = ERR_FSAL_FAULT;
+					break;
+				}
+				restore_cfh(&current, saved);
+				break;
 
-		/* The following operations are substantial ones that we would
-		 * like to rollback. Let's put them to the vector for later
-		 * process. */
+			case NFS4_OP_LOOKUP:
+				/* update current fh to the queried one */
+				ret =
+				    replay_lookup(curop_arg, &temp, &cur_attr);
+				exchange_cfh(&current, temp);
+				break;
 
-		case NFS4_OP_CREATE:
-		case NFS4_OP_LINK:
-		case NFS4_OP_REMOVE:
-		case NFS4_OP_RENAME:
-		case NFS4_OP_WRITE:
-		case NFS4_OP_COPY:
-		case NFS4_OP_CLONE:
-			ret = opvec_push(&vector, op, curop_arg, curop_res,
-					current, saved);
-			break;
+			case NFS4_OP_LOOKUPP:
+				/* update current fh to its parent */
+				status = current->obj_ops->lookup(
+				    current, "..", &temp, &cur_attr);
+				ret = status.major;
+				exchange_cfh(&current, temp);
+				break;
 
-		default:
-			LogWarn(COMPONENT_FSAL, "Operation %d will not be"
-				" counted for rollback", op);
-			break;
+			/* we should treat OPEN in a different way, because
+			 * OPEN will change the current file handle and may also
+			 * generate new file which should be undone here.
+			 *
+			 * Since OPEN only creates REGULAR files, it's safe to
+			 * undo them in forward order.*/
+			case NFS4_OP_OPEN:
+				ret = undo_open(curop_arg, &current);
+				break;
+
+				/* The following operations are substantial ones
+				 * that we would like to rollback. Let's put
+				 * them to the vector for later process. */
+
+			case NFS4_OP_CREATE:
+			case NFS4_OP_LINK:
+			case NFS4_OP_REMOVE:
+			case NFS4_OP_RENAME:
+			case NFS4_OP_WRITE:
+			case NFS4_OP_COPY:
+			case NFS4_OP_CLONE:
+				ret = opvec_push(&vector, op, curop_arg,
+						 curop_res, current, saved);
+				break;
+
+			default:
+				LogWarn(COMPONENT_FSAL,
+					"Operation %d will not be"
+					" counted for rollback",
+					op);
+				break;
 		}
 
 		if (ret != 0) {
-			LogWarn(COMPONENT_FSAL, "Error %d occurred when"
+			LogWarn(COMPONENT_FSAL,
+				"Error %d occurred when"
 				"analyzing the compound. Txn rollback will"
-				"not be supported. opidx=%d", ret, i);
+				"not be supported. opidx=%d",
+				ret, i);
 			break;
 		}
 	}
@@ -654,9 +648,10 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 	if (!ret) {
 		ret = dispatch_undoer(&vector);
 		if (ret)
-			LogWarn(COMPONENT_FSAL, "Error %d occurred when"
-				" executing rollback.\n", ret);
-
+			LogWarn(COMPONENT_FSAL,
+				"Error %d occurred when"
+				" executing rollback.\n",
+				ret);
 	}
 
 	opvec_destroy(&vector);

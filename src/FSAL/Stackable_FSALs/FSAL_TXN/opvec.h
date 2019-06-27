@@ -7,7 +7,7 @@
 #ifndef _OPVEC_H_
 #define _OPVEC_H_
 
-#define VEC_INIT_SIZE	16
+#define VEC_INIT_SIZE 16
 
 struct op_desc {
 	nfs_opnum4 opcode;
