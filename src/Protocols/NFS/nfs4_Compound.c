@@ -785,7 +785,10 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
-	op_ctx->fsal_export->exp_ops.start_compound(op_ctx->fsal_export, &arg->arg_compound4);
+	/* Call @c start_compound only if @c fsal_export is initialized */
+	if (op_ctx->fsal_export)
+		op_ctx->fsal_export->exp_ops.start_compound(op_ctx->fsal_export, &arg->arg_compound4);
+
 	for (i = 0; i < argarray_len; i++) {
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data.oppos = i;
@@ -1019,7 +1022,9 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 * unsuccessfull COMPOUD
 	 */
 	res->res_compound4.status = status;
-	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, &res->res_compound4);
+	
+	if (op_ctx->fsal_export)
+		op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, &res->res_compound4);
 
 	/* Manage session's DRC: keep NFS4.1 replay for later use, but don't
 	 * save a replayed result again.
