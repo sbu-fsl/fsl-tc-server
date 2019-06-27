@@ -277,10 +277,7 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
  */
 static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 {
-	bool is_create = arg->nfs_argop4_u.opopen.openhow.opentype == 1;
 	int ret = 0;
-	createmode4 mode =
-	    arg->nfs_argop4_u.opopen.openhow.openflag4_u.how.mode;
 	char *name = extract_open_name(&arg->nfs_argop4_u.opopen.claim);
 	struct fsal_obj_handle *target;
 
