@@ -815,9 +815,10 @@ fsal_status_t mdcache_start_compound(struct fsal_export *exp_hdl, void* data)
 		 "Start Compound in MDCACHE layer ");
 	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
 
-	subcall_raw(exp,
-		fsal_status = sub_export->exp_ops.start_compound(sub_export, data)
-	       );
+	if (sub_export && sub_export->exp_ops.start_compound)
+		subcall_raw(exp,
+			fsal_status = sub_export->exp_ops.start_compound(sub_export, data)
+	       	);
 
 	return fsal_status;
 }
@@ -828,9 +829,10 @@ fsal_status_t mdcache_end_compound(struct fsal_export* exp_hdl, void* data)
 	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
 
 	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
-	subcall_raw(exp,
-		fsal_status = sub_export->exp_ops.end_compound(sub_export, data)
-	       );
+	if (sub_export && sub_export->exp_ops.end_compound)
+		subcall_raw(exp,
+			fsal_status = sub_export->exp_ops.end_compound(sub_export, data)
+	       	);
 
 	LogDebug(COMPONENT_FSAL,
 		 "End Compound in MDCACHE layer ");
@@ -848,9 +850,10 @@ fsal_status_t mdcache_backup_nfs4_op(struct fsal_export* exp_hdl, unsigned int o
 	LogDebug(COMPONENT_FSAL,
 		 "nfs op backup in MDCACHE layer ");
 	
-	subcall_raw(exp,
-		fsal_status = sub_export->exp_ops.backup_nfs4_op(sub_export, opidx, data, op)
-	       );
+	if (sub_export && sub_export->exp_ops.backup_nfs4_op)
+		subcall_raw(exp,
+			fsal_status = sub_export->exp_ops.backup_nfs4_op(sub_export, opidx, data, op)
+	       	);
 
 	
 	return fsal_status;

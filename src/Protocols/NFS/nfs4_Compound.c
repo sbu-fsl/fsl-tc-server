@@ -786,7 +786,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	}
 
 	/* Call @c start_compound only if @c fsal_export is initialized */
-	if (op_ctx->fsal_export)
+	if (op_ctx->fsal_export && op_ctx->fsal_export->exp_ops.start_compound)
 		op_ctx->fsal_export->exp_ops.start_compound(
 			op_ctx->fsal_export, &arg->arg_compound4);
 
@@ -947,7 +947,10 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			   data.opname);
 #endif
 		// create backups for txnfs
-		op_ctx->fsal_export->exp_ops.backup_nfs4_op(op_ctx->fsal_export, i, &data, &argarray[i]);
+		if (op_ctx->fsal_export &&
+		    op_ctx->fsal_export->exp_ops.backup_nfs4_op)
+			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
+				op_ctx->fsal_export, i, &data, &argarray[i]);
 		
 		status = (optabv4[opcode].funct) (&argarray[i],
 						  &data,
@@ -1024,7 +1027,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 */
 	res->res_compound4.status = status;
 	
-	if (op_ctx->fsal_export)
+	if (op_ctx->fsal_export && op_ctx->fsal_export->exp_ops.end_compound)
 		op_ctx->fsal_export->exp_ops.end_compound(
 			op_ctx->fsal_export, &res->res_compound4);
 
