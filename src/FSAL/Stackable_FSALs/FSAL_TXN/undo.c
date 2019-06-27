@@ -60,8 +60,8 @@ static inline void restore_cfh(struct fsal_obj_handle **current,
  *
  * @return corresponding fsal_obj_handle
  */
-static inline struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
-						       struct attrlist *attrs)
+static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
+						struct attrlist *attrs)
 {
 	struct gsh_buffdesc buf = {.addr = (void *)fh->nfs_fh4_val,
 				   .len = fh->nfs_fh4_len};
@@ -217,6 +217,47 @@ static char *extract_open_name(open_claim4 *claim)
 }
 
 /**
+ * @brief Check if a file has been allocated a UUID.
+ *
+ * This function queries the LevelDB entries to find if a given file has
+ * been allocated a UUID. This is intended for @c undo_open to determine if
+ * an opened file had existed before this compound or it is newly created.
+ * 
+ * Every time a OPEN or LOOKUP operation on TXNFS is performed, FSAL_TXN
+ * calls @txnfs_alloc_and_check_handle which tries to allocate a new or
+ * retrieve an existing UUID associated with that file. If the file did not
+ * exist before this compound, we put the UUID insertion request to a cache
+ * and commit only when the whole compound is run successfully. If the compound
+ * failed in the middle and some files has been created, they will NOT have
+ * associated UUIDs.
+ */
+static bool file_has_uuid(struct fsal_obj_handle *file)
+{
+	struct gsh_buffdesc fh_desc;
+	struct txnfs_fsal_export *exp;
+	struct txnfs_fsal_obj_handle *txn_file;
+	struct fsal_obj_handle *sub_file;
+	uuid_t uuid;
+	int ret;
+
+	/* switch context */
+	exp = container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
+			   export);
+	assert(exp);
+	op_ctx->fsal_export = exp->export.sub_export;
+	/* get the sub handle for file */
+	txn_file = container_of(file, struct txnfs_fsal_obj_handle, obj_handle);
+	sub_file = txn_file->sub_handle;
+	/* retrieve the "host handle" */
+	sub_file->obj_ops->handle_to_key(sub_file, &fh_desc);
+	/* switch the context back */
+	op_ctx->fsal_export = &exp->export;
+
+	ret = txnfs_db_get_uuid(&fh_desc, uuid);
+	return ret == 0;
+}
+
+/**
  * @brief Undo OPEN operation
  *
  * OPEN operation may create a regular file that does not exist before, which
@@ -265,10 +306,10 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	/* to undo, let's close the file */
 	current->obj_ops->close(current);
 
-	/* if mode is GUARDED4, then it's guaranteed that a successful open
-	 * operation indicates a newly created file. In this case we will
-	 * remove that file*/
-	if (is_create && mode == GUARDED4) {
+	/* if the file does not have an associated UUID, then we can say
+	 * that the file is newly created. In this case we will remove that
+	 * file */
+	if (!file_has_uuid(target)) {
 		status = current->obj_ops->unlink(current, target, name);
 		ret = status.major;
 	}
