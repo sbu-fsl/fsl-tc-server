@@ -362,6 +362,8 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
 		 args->argarray.argarray_len);
@@ -375,30 +377,36 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	// initialize txn cache
 	txnfs_cache_init();
 
+	op_ctx->op_args = args;
+
 	struct txnfs_fsal_export *exp =
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
-	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result = exp->export.sub_export->exp_ops.start_compound(
-	    exp->export.sub_export, data);
-	op_ctx->fsal_export = &exp->export;
-	op_ctx->op_args = args;
+	if (exp->export.sub_export->exp_ops.start_compound) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		res = exp->export.sub_export->exp_ops.start_compound(
+		    exp->export.sub_export, data);
+		op_ctx->fsal_export = &exp->export;
+	}
 
-	return result;
+	return res;
 }
 
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4res *res = data;
+	fsal_status_t ret = {ERR_FSAL_NO_ERROR, 0};
 
 	struct txnfs_fsal_export *exp =
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
-	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result = exp->export.sub_export->exp_ops.end_compound(
-	    exp->export.sub_export, data);
-	op_ctx->fsal_export = &exp->export;
-
+	if (exp->export.sub_export->exp_ops.end_compound) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		ret = exp->export.sub_export->exp_ops.end_compound(
+	    		exp->export.sub_export, data);
+		op_ctx->fsal_export = &exp->export;
+	}
+	
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
 		 res->status, res->resarray.resarray_len);
@@ -415,7 +423,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
 
-	return result;
+	return ret;
 }
 
 fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
@@ -429,6 +437,13 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	    data->current_obj, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+
+	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		status = exp->export.sub_export->exp_ops.backup_nfs4_op(
+			exp->export.sub_export, opidx, data, op);
+		op_ctx->fsal_export = &exp->export;
+	}
 
 	switch (op->argop) {
 		case NFS4_OP_OPEN:

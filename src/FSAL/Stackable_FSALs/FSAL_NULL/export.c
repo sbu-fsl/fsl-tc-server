@@ -391,13 +391,16 @@ fsal_status_t nullfs_start_compound(struct fsal_export *exp_hdl, void *data){
 	struct nullfs_fsal_export *exp =
 		container_of(exp_hdl, struct nullfs_fsal_export, export);
 
-	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.start_compound(
-			exp->export.sub_export, data);
-	op_ctx->fsal_export = &exp->export;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
 
-	return result;
+	if (exp->export.sub_export->exp_ops.start_compound) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		res = exp->export.sub_export->exp_ops.start_compound(
+			exp->export.sub_export, data);
+		op_ctx->fsal_export = &exp->export;
+	}
+
+	return res;
 }
 
 fsal_status_t nullfs_end_compound(struct fsal_export *exp_hdl, void *data)
@@ -407,13 +410,33 @@ fsal_status_t nullfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	struct nullfs_fsal_export *exp =
 		container_of(exp_hdl, struct nullfs_fsal_export, export);
 
-	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.end_compound(
-			exp->export.sub_export, data);
-	op_ctx->fsal_export = &exp->export;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
 
-	return result;
+	if (exp->export.sub_export->exp_ops.end_compound) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		res = exp->export.sub_export->exp_ops.end_compound(
+				exp->export.sub_export, data);
+		op_ctx->fsal_export = &exp->export;
+	}
+
+	return res;
+}
+
+fsal_status_t nullfs_backup_nfs4_op(struct fsal_export *exp_hdl, unsigned int
+		opidx, void *data, struct nfs_argop4 *op)
+{
+	struct nullfs_fsal_export *exp =
+		container_of(exp_hdl, struct nullfs_fsal_export, export);
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+
+	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		res = exp->export.sub_export->exp_ops.backup_nfs4_op(
+			exp->export.sub_export, opidx, data, op);
+		op_ctx->fsal_export = &exp->export;
+	}
+	
+	return res;
 }
 
 /* nullfs_export_ops_init
