@@ -378,7 +378,9 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	op_ctx->fsal_export = exp->export.sub_export;
 	/* continue looking up backup dir */
 	backup_root = query_backup_root(root);
+	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
+	assert(backup_dir);
 
 	/* perform moving */
 	/* first we should retrieve the SUB handle of "current" to
@@ -462,7 +464,9 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	/* switch context */
 	op_ctx->fsal_export = exp->export.sub_export;
 	backup_root = query_backup_root(root);
+	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
+	assert(backup_dir);
 	status = backup_dir->obj_ops->lookup(backup_dir, backup_name,
 					     &backup_file, NULL);
 	if (status.major != 0) {

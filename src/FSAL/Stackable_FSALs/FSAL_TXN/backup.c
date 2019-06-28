@@ -218,28 +218,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res)
 {
 	UDBG;
-	struct fsal_obj_handle *root_entry = NULL;
-	struct fsal_obj_handle *backup_root = NULL;
-	struct fsal_obj_handle *backup_dir = NULL;
-	struct attrlist root_attrs;
 	int ret = 0;
-
-	get_txn_root(&root_entry, &root_attrs);
-
-	/* assert backup dir exists */
-	backup_root = query_backup_root(root_entry);
-	/* If backup root doesn't exist, there must be something very wrong
-	 * so we should abort the system.
-	 */
-	assert(backup_dir);
-
-	/* assert txn backup dir exists */
-	backup_dir = query_txn_backup(backup_root, txnid);
-	if (backup_dir == NULL) {
-		LogWarn(COMPONENT_FSAL, "txn %lu's backup folder doesn't exist",
-			txnid);
-		return ERR_FSAL_NOENT;
-	}
 
 	/* it makes no sense to call this if compound operation is completed */
 	assert(res->status != NFS4_OK);

@@ -109,6 +109,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_module,
 	db = init_db_store(txnfs_module->db_path, true);
 	assert(db != NULL);
 	txnfs_module->db = db;
+	txnfs_module->lm = lm;
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

@@ -96,6 +96,11 @@ int txnfs_cache_commit(void)
 	struct txnfs_cache_entry *entry;
 	struct glist_head *glist;
 
+	struct fsal_module *fs = op_ctx->fsal_export->fsal;
+	struct txnfs_fsal_module *txnfs =
+		container_of(fs, struct txnfs_fsal_module, module);
+	db_store_t *db = txnfs->db;
+
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
 	glist_for_each(glist, &op_ctx->txn_cache)
 	{
@@ -169,6 +174,11 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	int ret = 0;
 	char *err = NULL;
 
+	struct fsal_module *fs = op_ctx->fsal_export->fsal;
+	struct txnfs_fsal_module *txnfs =
+		container_of(fs, struct txnfs_fsal_module, module);
+	db_store_t *db = txnfs->db;
+
 	UDBG;
 	uuid_generate(uuid);
 	uuid_unparse_lower(uuid, uuid_str);
@@ -201,6 +211,11 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
 	UDBG;
+
+	struct fsal_module *fs = op_ctx->fsal_export->fsal;
+	struct txnfs_fsal_module *txnfs =
+		container_of(fs, struct txnfs_fsal_module, module);
+	db_store_t *db = txnfs->db;
 
 	// search txnfs compound cache
 	if (!glist_null(&op_ctx->txn_cache) &&
@@ -235,6 +250,11 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 int txnfs_db_delete_uuid(uuid_t uuid)
 {
 	UDBG;
+
+	struct fsal_module *fs = op_ctx->fsal_export->fsal;
+	struct txnfs_fsal_module *txnfs =
+		container_of(fs, struct txnfs_fsal_module, module);
+	db_store_t *db = txnfs->db;
 
 	if (!glist_null(&op_ctx->txn_cache)) {
 		return txnfs_cache_delete_uuid(uuid);

@@ -635,6 +635,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	char *tagname = notag;
 	const char *bad_op_state_reason = "";
 	log_components_t alt_component = COMPONENT_NFS_V4;
+	bool txn_ready = false;
 
 	if (compound4_minor > 2) {
 		LogCrit(COMPONENT_NFS_V4, "Bad Minor Version %d",
@@ -785,8 +786,13 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
-	/* Call @c start_compound only if @c fsal_export is initialized */
-	if (op_ctx->fsal_export && op_ctx->fsal_export->exp_ops.start_compound)
+	/* Check if transactional compound operationi is ready */
+	if (op_ctx->fsal_export && op_ctx->fsal_export->exp_ops.start_compound
+		&& op_ctx->fsal_export->exp_ops.end_compound &&
+		op_ctx->fsal_export->exp_ops.backup_nfs4_op)
+		txn_ready = true;
+
+	if (txn_ready)
 		op_ctx->fsal_export->exp_ops.start_compound(
 			op_ctx->fsal_export, &arg->arg_compound4);
 
@@ -947,8 +953,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			   data.opname);
 #endif
 		// create backups for txnfs
-		if (op_ctx->fsal_export &&
-		    op_ctx->fsal_export->exp_ops.backup_nfs4_op)
+		if (txn_ready)
 			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
 				op_ctx->fsal_export, i, &data, &argarray[i]);
 		
@@ -1027,7 +1032,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 */
 	res->res_compound4.status = status;
 	
-	if (op_ctx->fsal_export && op_ctx->fsal_export->exp_ops.end_compound)
+	if (txn_ready)
 		op_ctx->fsal_export->exp_ops.end_compound(
 			op_ctx->fsal_export, &res->res_compound4);
 

@@ -806,6 +806,13 @@ static void mdcache_prepare_unexport(struct fsal_export *exp_hdl)
 	subcall_raw(exp, sub_export->exp_ops.prepare_unexport(sub_export));
 }
 
+static inline bool is_txn_ready(struct fsal_export *sub_exp)
+{
+	return sub_exp && sub_exp->exp_ops.start_compound &&
+		sub_exp->exp_ops.end_compound &&
+		sub_exp->exp_ops.backup_nfs4_op;
+}
+
 fsal_status_t mdcache_start_compound(struct fsal_export *exp_hdl, void* data)
 {
 	struct mdcache_fsal_export *exp = mdc_export(exp_hdl);
@@ -815,7 +822,7 @@ fsal_status_t mdcache_start_compound(struct fsal_export *exp_hdl, void* data)
 		 "Start Compound in MDCACHE layer ");
 	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
 
-	if (sub_export && sub_export->exp_ops.start_compound)
+	if (is_txn_ready(sub_export))
 		subcall_raw(exp,
 			fsal_status = sub_export->exp_ops.start_compound(sub_export, data)
 	       	);
@@ -829,7 +836,7 @@ fsal_status_t mdcache_end_compound(struct fsal_export* exp_hdl, void* data)
 	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
 
 	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
-	if (sub_export && sub_export->exp_ops.end_compound)
+	if (is_txn_ready(sub_export))
 		subcall_raw(exp,
 			fsal_status = sub_export->exp_ops.end_compound(sub_export, data)
 	       	);

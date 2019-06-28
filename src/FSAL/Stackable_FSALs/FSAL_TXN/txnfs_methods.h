@@ -28,6 +28,7 @@ struct txnfs_fsal_module {
 	/** Config - database path */
 	char *db_path;
 	db_store_t *db;
+  lock_manager_t *lm;
 
 	/** Config - backup path */
 	char *backup_path;
@@ -35,7 +36,7 @@ struct txnfs_fsal_module {
 
 extern struct txnfs_fsal_module TXNFS;
 
-const db_store_t *db;
+// const db_store_t *db;
 lock_manager_t *lm;
 
 long fileid;
