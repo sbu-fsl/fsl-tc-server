@@ -66,7 +66,7 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 	struct gsh_buffdesc buf = {.addr = (void *)fh->nfs_fh4_val,
 				   .len = fh->nfs_fh4_len};
 	struct fsal_obj_handle *handle = NULL;
-	struct attrlist _attrs;
+	struct attrlist _attrs = {0};
 	fsal_status_t ret =
 	    txnfs_create_handle(op_ctx->fsal_export, &buf, &handle, &_attrs);
 	if (ret.major == 0) {
@@ -107,7 +107,7 @@ static inline int replay_lookup(struct nfs_argop4 *arg,
 {
 	char *name;
 	utf8string *str = &arg->nfs_argop4_u.oplookup.objname;
-	struct attrlist queried_attrs;
+	struct attrlist queried_attrs = {0};
 	struct fsal_obj_handle *queried;
 	fsal_status_t status;
 
@@ -407,7 +407,7 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
  */
 static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 {
-	struct attrlist attrs;
+	struct attrlist attrs = {0};
 	fsal_status_t status;
 	status = f->obj_ops->getattrs(f, &attrs);
 	if (status.major != 0) {
@@ -574,7 +574,7 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 	struct fsal_obj_handle *current = NULL;
 	struct fsal_obj_handle *saved = NULL;
 	fsal_status_t status;
-	struct attrlist cur_attr;
+	struct attrlist cur_attr = {0};
 	struct op_vector vector;
 
 	/* initialize op vector */

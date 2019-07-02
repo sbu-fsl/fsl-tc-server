@@ -92,12 +92,10 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	/* create txn backup directory */
 	struct fsal_obj_handle *root_entry = NULL;
 	struct fsal_obj_handle *txn_handle = NULL;
-	struct attrlist attrs;
+	struct attrlist attrs = {0};
 	uint64_t txnid = op_ctx->txnid;
 	char txnid_name[20] = {'\0'};
 	fsal_status_t status;
-
-	memset(&attrs, 0, sizeof(struct attrlist));
 
 	/* get txnfs root directory handle */
 	get_txn_root(&root_entry, &attrs);
@@ -158,8 +156,8 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	struct fsal_obj_handle *dst_hdl = NULL;
 	struct fsal_obj_handle *root_entry = NULL;
 	uint64_t copied = 0;
-	struct attrlist attrs;
-	struct attrlist attrs_out;
+	struct attrlist attrs = {0};
+	struct attrlist attrs_out = {0};
 	char backup_name[20];
 
 	struct txnfs_fsal_obj_handle *txn_src_hdl =
