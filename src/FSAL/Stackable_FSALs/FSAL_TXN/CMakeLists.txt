@@ -29,7 +29,6 @@ target_link_libraries(fsaltxnfs
   gos
   leveldb
   lwrapper
-  id_manager
   txn_context
   txn_logger
   lock_manager
