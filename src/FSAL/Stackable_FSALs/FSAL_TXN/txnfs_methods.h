@@ -29,7 +29,7 @@ struct txnfs_fsal_module {
 	/** Config - database path */
 	char *db_path;
 	db_store_t *db;
-  lock_manager_t *lm;
+	lock_manager_t *lm;
 
 	/** Config - backup path */
 	char *backup_path;
