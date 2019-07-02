@@ -98,7 +98,7 @@ int txnfs_cache_commit(void)
 
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
-		container_of(fs, struct txnfs_fsal_module, module);
+	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
 
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
@@ -176,7 +176,7 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
-		container_of(fs, struct txnfs_fsal_module, module);
+	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
 
 	UDBG;
@@ -214,7 +214,7 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
-		container_of(fs, struct txnfs_fsal_module, module);
+	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
 
 	// search txnfs compound cache
@@ -253,7 +253,7 @@ int txnfs_db_delete_uuid(uuid_t uuid)
 
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
-		container_of(fs, struct txnfs_fsal_module, module);
+	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
 
 	if (!glist_null(&op_ctx->txn_cache)) {
@@ -301,6 +301,8 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
 	return txnfs_db_get_uuid(hdl_desc, uuid) == 0;
 }
 
+/* TODO: we should consider storing @c fsal_obj_handle of the TXNFS root dir
+ * in our private FSAL data structure to avoid always having to look up. */
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs)
 {
 	struct fsal_obj_handle *root_entry = NULL;

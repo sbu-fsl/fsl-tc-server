@@ -95,6 +95,9 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
  * Note, that this function does not require @c txnid parameter because it
  * retrieves this from the context variable @c op_ctx.
  *
+ * TODO: store backup root directory in @c txnfs_fsal_export so that we
+ * won't have to look it up every time this is called.
+ *
  * @param[out] bkp_handle	The @c fsal_obj_handle of the backup folder
  *
  * @return The FSAL status code.
@@ -203,6 +206,9 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	assert(status.major == 0);
 
 	/* copy src to backup dir */
+	/* TODO: currently we are copying the whole file, but we plan to
+	 * implement copy_range where we copy only the parts changed by the
+	 * compound operation. */
 	if (attrs_out.filesize > 0) {
 		/* create dst_handle */
 		snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);

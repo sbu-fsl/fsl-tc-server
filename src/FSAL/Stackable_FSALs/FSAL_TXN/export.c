@@ -403,10 +403,10 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	if (exp->export.sub_export->exp_ops.end_compound) {
 		op_ctx->fsal_export = exp->export.sub_export;
 		ret = exp->export.sub_export->exp_ops.end_compound(
-	    		exp->export.sub_export, data);
+		    exp->export.sub_export, data);
 		op_ctx->fsal_export = &exp->export;
 	}
-	
+
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
 		 res->status, res->resarray.resarray_len);
@@ -441,7 +441,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
 		op_ctx->fsal_export = exp->export.sub_export;
 		status = exp->export.sub_export->exp_ops.backup_nfs4_op(
-			exp->export.sub_export, opidx, data, op);
+		    exp->export.sub_export, opidx, data, op);
 		op_ctx->fsal_export = &exp->export;
 	}
 

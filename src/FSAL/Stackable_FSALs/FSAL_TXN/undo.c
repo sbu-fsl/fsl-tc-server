@@ -222,7 +222,7 @@ static char *extract_open_name(open_claim4 *claim)
  * This function queries the LevelDB entries to find if a given file has
  * been allocated a UUID. This is intended for @c undo_open to determine if
  * an opened file had existed before this compound or it is newly created.
- * 
+ *
  * Every time a OPEN or LOOKUP operation on TXNFS is performed, FSAL_TXN
  * calls @txnfs_alloc_and_check_handle which tries to allocate a new or
  * retrieve an existing UUID associated with that file. If the file did not
@@ -241,8 +241,8 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 	int ret;
 
 	/* switch context */
-	exp = container_of(op_ctx->fsal_export, struct txnfs_fsal_export,
-			   export);
+	exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	assert(exp);
 	op_ctx->fsal_export = exp->export.sub_export;
 	/* get the sub handle for file */
