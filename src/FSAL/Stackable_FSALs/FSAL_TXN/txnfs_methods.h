@@ -7,6 +7,7 @@
 #include <uuid/uuid.h>
 
 #define TXN_BKP_DIR ".txn"
+#define BKP_FN_LEN 20
 
 enum txnfs_cache_entry_type {
 	txnfs_cache_entry_create = 0,

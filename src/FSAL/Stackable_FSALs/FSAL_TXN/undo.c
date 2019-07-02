@@ -369,7 +369,7 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	fsal_status_t status;
 
 	/* construct names */
-	sprintf(backup_name, "%d.bkp", opidx);
+	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
 	nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &real_name);
 
 	/* lookup backup directory */
@@ -457,7 +457,7 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	loff_t in = 0, out = 0;
 
 	/* construct names */
-	sprintf(backup_name, "%d.bkp", opidx);
+	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
 
 	/* lookup backup file */
 	get_txn_root(&root, NULL);

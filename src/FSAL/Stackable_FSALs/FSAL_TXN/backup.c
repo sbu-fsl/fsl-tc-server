@@ -68,10 +68,10 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 {
 	struct fsal_obj_handle *backup_dir = NULL;
 	fsal_status_t ret;
-	char dir_name[20];
+	char dir_name[BKP_FN_LEN];
 
 	/* construct backup folder name */
-	sprintf(dir_name, "%lu", txnid);
+	snprintf(dir_name, BKP_FN_LEN, "%lu", txnid);
 
 	ret = fsal_lookup(backup_root, dir_name, &backup_dir, NULL);
 
@@ -151,7 +151,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 		/* create txnid directory
 		 * note, that @c txn_handle is already a handle that belongs
 		 * to the lower fsal export. */
-		sprintf(txnid_name, "%lu", txnid);
+		snprintf(txnid_name, BKP_FN_LEN, "%lu", txnid);
 		status = fsal_create(txn_handle, txnid_name, DIRECTORY, &attrs,
 				     NULL, bkp_handle, NULL);
 		assert(status.major == 0);
@@ -205,7 +205,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	/* copy src to backup dir */
 	if (attrs_out.filesize > 0) {
 		/* create dst_handle */
-		sprintf(backup_name, "%d.bkp", opidx);
+		snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
 		FSAL_CLEAR_MASK(attrs.valid_mask);
 		FSAL_SET_MASK(attrs.valid_mask,
 			      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
