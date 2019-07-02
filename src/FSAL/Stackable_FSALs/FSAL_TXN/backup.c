@@ -85,6 +85,20 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 	}
 }
 
+/**
+ * @brief Find the individual backup directory for the ongoing transaction
+ *
+ * This function will look up the individual backup folder for the transaction
+ * that is being performed. If the folder does not exist, it will try to
+ * create one.
+ *
+ * Note, that this function does not require @c txnid parameter because it
+ * retrieves this from the context variable @c op_ctx.
+ *
+ * @param[out] bkp_handle	The @c fsal_obj_handle of the backup folder
+ *
+ * @return The FSAL status code.
+ */
 fsal_status_t txnfs_create_or_lookup_backup_dir(
     struct fsal_obj_handle **bkp_handle)
 {
@@ -149,6 +163,16 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	return status;
 }
 
+/**
+ * @brief Backup a file
+ *
+ * Make a backup of the file described by given @c fsal_obj_handle.
+ *
+ * @params[in] opidx	Operation index. This is used to compose the file name.
+ * @params[in] src_hdl	The @c fsal_obj_handle of the source file
+ *
+ * @return FSAL status code
+ */
 fsal_status_t txnfs_backup_file(unsigned int opidx,
 				struct fsal_obj_handle *src_hdl)
 {
@@ -173,14 +197,14 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 
 	op_ctx->fsal_export = exp->export.sub_export;
 
-	// get file size
+	/* get file size */
 	attrs_out.request_mask = ATTR_SIZE;
 	status = get_optional_attrs(txn_src_hdl->sub_handle, &attrs_out);
 	assert(status.major == 0);
 
-	// copy src to backup dir
+	/* copy src to backup dir */
 	if (attrs_out.filesize > 0) {
-		// create dst_handle
+		/* create dst_handle */
 		sprintf(backup_name, "%d.bkp", opidx);
 		FSAL_CLEAR_MASK(attrs.valid_mask);
 		FSAL_SET_MASK(attrs.valid_mask,
