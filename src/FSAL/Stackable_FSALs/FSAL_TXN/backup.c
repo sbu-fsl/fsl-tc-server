@@ -7,8 +7,8 @@
  *
  * This function checks if the global TXNFS backup root exists, and
  * outputs its object handle. It will return NULL if it does not exist.
- * If an error other than @c ERR_FSAL_NOENT occurs, this will call
- * @c abort() to terminate the server.
+ * If an error other than @c ERR_FSAL_NOENT occurs, the server will be
+ * terminated.
  *
  * NOTE: This function assumes LOWER fsal, so the caller should
  * replace @c op_ctx->fsal_export with the corresponding @c sub_export.
@@ -40,10 +40,9 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 	else if (ret.major == ERR_FSAL_NOENT)
 		return NULL;
 	else {
+		/* This is bad, so we should panic */
 		LogFatal(COMPONENT_FSAL, "query_backup_root failed: %d",
 			 ret.major);
-		/* This is bad, so we should panic */
-		abort();
 	}
 }
 
@@ -83,7 +82,6 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 	else {
 		LogFatal(COMPONENT_FSAL, "query_txn_backup failed: %d",
 			 ret.major);
-		abort();
 	}
 }
 
