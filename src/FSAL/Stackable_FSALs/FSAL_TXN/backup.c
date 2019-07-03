@@ -65,6 +65,8 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 		LogFatal(COMPONENT_FSAL, "query_backup_root failed: %d",
 			 ret.major);
 	}
+	/* the control flow will not reach here, but the compiler wants it */
+	return NULL;
 }
 
 /**
@@ -104,6 +106,7 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 		LogFatal(COMPONENT_FSAL, "query_txn_backup failed: %d",
 			 ret.major);
 	}
+	return NULL;
 }
 
 /**
