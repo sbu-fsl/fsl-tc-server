@@ -299,23 +299,6 @@ static fsal_status_t wire_to_host(struct fsal_export *exp_hdl,
 	return vfs_check_handle(exp_hdl, fh_desc, &fs, fh, &dummy);
 }
 
-fsal_status_t vfs_start_compound(struct fsal_export* exp_hdl, void* data)
-{
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_VFS layer.");
-	
-	return fsal_status;
-}
-
-fsal_status_t vfs_end_compound(struct fsal_export* exp_hdl, void* data)
-{
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_VFS layer.");
-	
-	return fsal_status;
-}
 
 /* vfs_export_ops_init
  * overwrite vector entries with the methods that we support
@@ -332,8 +315,6 @@ void vfs_export_ops_init(struct export_ops *ops)
 	ops->set_quota = set_quota;
 	ops->alloc_state = vfs_alloc_state;
 	ops->free_state = vfs_free_state;
-	ops->start_compound = vfs_start_compound;
-	ops->end_compound = vfs_end_compound;
 }
 
 void free_vfs_filesystem(struct vfs_filesystem *vfs_fs)

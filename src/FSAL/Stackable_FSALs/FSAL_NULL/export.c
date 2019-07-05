@@ -384,60 +384,6 @@ static void nullfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
-fsal_status_t nullfs_start_compound(struct fsal_export *exp_hdl, void *data){
-
-	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_NULL layer.");
-
-	struct nullfs_fsal_export *exp =
-		container_of(exp_hdl, struct nullfs_fsal_export, export);
-
-	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
-
-	if (exp->export.sub_export->exp_ops.start_compound) {
-		op_ctx->fsal_export = exp->export.sub_export;
-		res = exp->export.sub_export->exp_ops.start_compound(
-			exp->export.sub_export, data);
-		op_ctx->fsal_export = &exp->export;
-	}
-
-	return res;
-}
-
-fsal_status_t nullfs_end_compound(struct fsal_export *exp_hdl, void *data)
-{
-	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_NULL layer.");
-
-	struct nullfs_fsal_export *exp =
-		container_of(exp_hdl, struct nullfs_fsal_export, export);
-
-	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
-
-	if (exp->export.sub_export->exp_ops.end_compound) {
-		op_ctx->fsal_export = exp->export.sub_export;
-		res = exp->export.sub_export->exp_ops.end_compound(
-				exp->export.sub_export, data);
-		op_ctx->fsal_export = &exp->export;
-	}
-
-	return res;
-}
-
-fsal_status_t nullfs_backup_nfs4_op(struct fsal_export *exp_hdl, unsigned int
-		opidx, void *data, struct nfs_argop4 *op)
-{
-	struct nullfs_fsal_export *exp =
-		container_of(exp_hdl, struct nullfs_fsal_export, export);
-	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
-
-	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
-		op_ctx->fsal_export = exp->export.sub_export;
-		res = exp->export.sub_export->exp_ops.backup_nfs4_op(
-			exp->export.sub_export, opidx, data, op);
-		op_ctx->fsal_export = &exp->export;
-	}
-	
-	return res;
-}
 
 /* nullfs_export_ops_init
  * overwrite vector entries with the methods that we support
@@ -467,8 +413,6 @@ void nullfs_export_ops_init(struct export_ops *ops)
 	ops->alloc_state = nullfs_alloc_state;
 	ops->free_state = nullfs_free_state;
 	ops->is_superuser = nullfs_is_superuser;
-	ops->start_compound = nullfs_start_compound;
-	ops->end_compound = nullfs_end_compound;
 }
 
 struct nullfsal_args {

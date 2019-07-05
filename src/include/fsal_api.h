@@ -1320,12 +1320,6 @@ struct fsal_obj_ops {
 	/**
 	 * Compound events
 	 */
-	fsal_status_t (*start_compound)(struct fsal_obj_handle *root_backup_hdl,
-					void *data);
-
-	fsal_status_t (*end_compound)(struct fsal_obj_handle *root_backup_hdl,
-				      void *data);
-
 	fsal_status_t (*clone)(struct fsal_obj_handle *src_hdl, char **dst_name,
 			       struct fsal_obj_handle *dir_hd, char *file_uuid);
 

@@ -660,6 +660,92 @@ bool is_superuser(struct fsal_export *exp_hdl, const struct user_cred *creds)
 	return (creds->caller_uid == 0);
 }
 
+/**
+ * @brief The hook function called when the compound starts
+ *
+ * @param[in] exp_hdl		    Export handle
+ * @param[in] data		    Private data
+ *
+ * @returns FSAL status code
+ *
+ */
+fsal_status_t start_compound(struct fsal_export *exp_hdl, void* data)
+{
+	struct fsal_export *sub_export = exp_hdl->sub_export;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+
+	LogDebug(COMPONENT_FSAL,
+		 "start_compound in %s layer", exp_hdl->fsal->name);
+
+	if (sub_export) {
+		LogDebug(COMPONENT_FSAL,
+			 "next layer is %s", sub_export->fsal->name);
+		op_ctx->fsal_export = sub_export;
+		res = sub_export->exp_ops.start_compound(sub_export, data);
+		op_ctx->fsal_export = exp_hdl;
+	}
+
+	return res;
+}
+
+/**
+ * @brief The hook function called when the compound ends
+ *
+ * @param[in] exp_hdl		   Export handle
+ * @param[in] data		   Private data
+ * 
+ * @returns FSAL status code
+ */
+fsal_status_t end_compound(struct fsal_export *exp_hdl, void *data)
+{
+	struct fsal_export *sub_export = exp_hdl->sub_export;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+
+	LogDebug(COMPONENT_FSAL,
+		 "end_compound in %s layer", exp_hdl->fsal->name);
+
+	if (sub_export) {
+		LogDebug(COMPONENT_FSAL,
+			 "next layer is %s", sub_export->fsal->name);
+		op_ctx->fsal_export = sub_export;
+		res = sub_export->exp_ops.end_compound(sub_export, data);
+		op_ctx->fsal_export = exp_hdl;
+	}
+
+	return res;
+}
+
+/**
+ * @brief Backup NFS4 operation
+ *
+ * @param[in] exp_hdl		    Export handle
+ * @param[in] opidx		    Operation index
+ * @param[in] data		    Private data
+ * @param[in] op		    NFS4 compound operation argument
+ *
+ * @returns FSAL status code
+ */
+fsal_status_t backup_nfs4_op(struct fsal_export *exp_hdl, unsigned int opidx,
+	void *data, struct nfs_argop4 *op)
+{
+	struct fsal_export *sub_export = exp_hdl->sub_export;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+
+	LogDebug(COMPONENT_FSAL,
+		 "backup_nfs4_op in %s layer", exp_hdl->fsal->name);
+
+	if (sub_export) {
+		LogDebug(COMPONENT_FSAL,
+			 "next layer is %s", sub_export->fsal->name);
+		op_ctx->fsal_export = sub_export;
+		res = sub_export->exp_ops.backup_nfs4_op(
+			sub_export, opidx, data, op);
+		op_ctx->fsal_export = exp_hdl;
+	}
+	
+	return res;
+}
+
 /* Default fsal export method vector.
  * copied to allocated vector at register time
  */
@@ -697,6 +783,9 @@ struct export_ops def_export_ops = {
 	.alloc_state = alloc_state,
 	.free_state = free_state,
 	.is_superuser = is_superuser,
+	.start_compound = start_compound,
+	.end_compound = end_compound,
+	.backup_nfs4_op = backup_nfs4_op,
 };
 
 /* fsal_obj_handle common methods
