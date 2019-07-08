@@ -64,7 +64,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class Write2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() {
     fsal_status_t status;
     bool caller_perm_check = false;
@@ -105,8 +105,7 @@ protected:
 static void write_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
                      void *write_data, void *caller_data) {
   /* Fixup ERR_FSAL_SHARE_DENIED status */
-  if (ret.major == ERR_FSAL_SHARE_DENIED)
-    ret = fsalstat(ERR_FSAL_LOCKED, 0);
+  if (ret.major == ERR_FSAL_SHARE_DENIED) ret = fsalstat(ERR_FSAL_LOCKED, 0);
 
   EXPECT_EQ(ret.major, 0);
 }

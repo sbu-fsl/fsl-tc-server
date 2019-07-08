@@ -70,7 +70,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class GaneshaCompoundBaseTest : public gtest::GaeshaNFS4BaseTest {
-protected:
+ protected:
   void init_args(int nops) {
     ops = (struct nfs_argop4 *)gsh_calloc(nops, sizeof(struct nfs_argop4));
     arg.arg_compound4.argarray.argarray_len = nops;

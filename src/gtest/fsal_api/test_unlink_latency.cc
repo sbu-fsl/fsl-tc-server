@@ -63,14 +63,14 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class UnlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() { gtest::GaneshaFSALBaseTest::SetUp(); }
 
   virtual void TearDown() { gtest::GaneshaFSALBaseTest::TearDown(); }
 };
 
 class UnlinkFullLatencyTest : public UnlinkEmptyLatencyTest {
-protected:
+ protected:
   virtual void SetUp() {
     UnlinkEmptyLatencyTest::SetUp();
 

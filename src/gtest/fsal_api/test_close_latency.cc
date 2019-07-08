@@ -50,7 +50,7 @@ void admin_halt(void);
 
 #define TEST_ROOT "close_latency"
 #define TEST_FILE "close_latency_file"
-#define LOOP_COUNT 100000 // Needs to be less than available FD count
+#define LOOP_COUNT 100000  // Needs to be less than available FD count
 
 namespace {
 
@@ -62,7 +62,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class CloseEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() {
     gtest::GaneshaFSALBaseTest::SetUp();
     fsal_prepare_attrs(&attrs_in, 0);
@@ -76,7 +76,7 @@ protected:
 };
 
 class CloseFullLatencyTest : public CloseEmptyLatencyTest {
-protected:
+ protected:
   virtual void SetUp() {
     CloseEmptyLatencyTest::SetUp();
 

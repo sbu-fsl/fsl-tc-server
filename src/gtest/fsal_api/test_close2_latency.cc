@@ -62,7 +62,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class Close2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() {
     gtest::GaneshaFSALBaseTest::SetUp();
     fsal_prepare_attrs(&attrs_in, 0);
@@ -76,7 +76,7 @@ protected:
 };
 
 class Close2LoopLatencyTest : public Close2EmptyLatencyTest {
-protected:
+ protected:
   virtual void SetUp() {
     Close2EmptyLatencyTest::SetUp();
 

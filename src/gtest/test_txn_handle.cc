@@ -66,7 +66,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class HandleToWireEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() {
     fsal_status_t status;
     struct attrlist attrs_out;
@@ -108,10 +108,10 @@ TEST_F(HandleToWireEmptyLatencyTest, SIMPLE) {
 
   status = test_file->obj_ops->handle_to_wire(test_file, FSAL_DIGEST_NFSV4,
                                               &fh_desc);
-  //uuid_t uuid = fh_desc.addr;
+  // uuid_t uuid = fh_desc.addr;
   EXPECT_EQ(status.major, 0);
   char uuid_str[UUID_STR_LEN];
-  uuid_unparse_lower((unsigned char*)fh_desc.addr, uuid_str);
+  uuid_unparse_lower((unsigned char *)fh_desc.addr, uuid_str);
   LogDebug(COMPONENT_FSAL, "generate uuid=%s\n", uuid_str);
 
   free(fh_desc.addr);
@@ -160,18 +160,18 @@ TEST_F(HandleToWireEmptyLatencyTest, LOOP) {
 }
 
 TEST_F(HandleToWireEmptyLatencyTest, PermissionCheck) {
-	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	EXPECT_NE(fd, -1);
+  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  EXPECT_NE(fd, -1);
 
-	SVCXPRT *xprt =
-	    svc_vc_ncreatef(fd, 1024 * 1024, 1024 * 1024,
-			    SVC_CREATE_FLAG_CLOSE | SVC_CREATE_FLAG_LISTEN);
+  SVCXPRT *xprt =
+      svc_vc_ncreatef(fd, 1024 * 1024, 1024 * 1024,
+                      SVC_CREATE_FLAG_CLOSE | SVC_CREATE_FLAG_LISTEN);
 
-	struct svc_req req;
-        req.rq_xprt = xprt;
+  struct svc_req req;
+  req.rq_xprt = xprt;
 
-	req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
-	EXPECT_EQ(NFS4_OK, nfs4_export_check_access(&req));
+  req.rq_msg.cb_cred.oa_flavor = AUTH_NONE;
+  EXPECT_EQ(NFS4_OK, nfs4_export_check_access(&req));
 }
 
 TEST_F(HandleToWireEmptyLatencyTest, LOOP_BYPASS) {

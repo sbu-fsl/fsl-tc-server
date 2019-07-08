@@ -38,7 +38,7 @@ extern "C" {
 namespace gtest {
 
 class GaeshaNFS4BaseTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() {
     gtest::GaneshaFSALBaseTest::SetUp();
 
@@ -96,8 +96,7 @@ protected:
 
   void set_saved_export(void) {
     /* Set saved export from op_ctx */
-    if (data.saved_export != NULL)
-      put_gsh_export(data.saved_export);
+    if (data.saved_export != NULL) put_gsh_export(data.saved_export);
     /* Save the export information and take reference. */
     get_gsh_export_ref(op_ctx->ctx_export);
     data.saved_export = op_ctx->ctx_export;
@@ -306,6 +305,6 @@ protected:
   nfs_arg_t arg;
   struct nfs_resop4 resp;
 };
-} // namespace gtest
+}  // namespace gtest
 
 #endif /* GTEST_GTEST_NFS4_HH */

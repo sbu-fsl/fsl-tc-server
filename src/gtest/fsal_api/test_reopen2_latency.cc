@@ -64,7 +64,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class Reopen2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-protected:
+ protected:
   virtual void SetUp() {
     fsal_status_t status;
     bool caller_perm_check = false;

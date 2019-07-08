@@ -58,7 +58,7 @@ class PutfhEmptyLatencyTest : public gtest::GaeshaNFS4BaseTest {};
 
 class PutfhFullLatencyTest : public gtest::GaeshaNFS4BaseTest {
 
-protected:
+ protected:
   virtual void SetUp() {
     GaeshaNFS4BaseTest::SetUp();
 
@@ -142,8 +142,7 @@ TEST_F(PutfhFullLatencyTest, BIG) {
   struct timespec s_time, e_time;
 
   enableEvents(event_list);
-  if (profile_out)
-    ProfilerStart(profile_out);
+  if (profile_out) ProfilerStart(profile_out);
 
   now(&s_time);
 
@@ -159,8 +158,7 @@ TEST_F(PutfhFullLatencyTest, BIG) {
 
   now(&e_time);
 
-  if (profile_out)
-    ProfilerStop();
+  if (profile_out) ProfilerStop();
   disableEvents(event_list);
 
   fprintf(stderr, "Average time per putfh: %" PRIu64 " ns\n",
