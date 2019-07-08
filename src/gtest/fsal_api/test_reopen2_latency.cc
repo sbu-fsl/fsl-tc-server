@@ -208,23 +208,28 @@ int main(int argc, char *argv[]) {
 
   try {
 
-    opts.add_options()("config", po::value<string>(),
-                       "path to Ganesha conf file")
+    opts.add_options()
+      ("config", po::value<string>(),
+       "path to Ganesha conf file")
 
-        ("logfile", po::value<string>(), "log to the provided file path")
+      ("logfile", po::value<string>(),
+       "log to the provided file path")
 
-            ("export", po::value<uint16_t>(),
-             "id of export on which to operate (must exist)")
+      ("export", po::value<uint16_t>(),
+       "id of export on which to operate (must exist)")
 
-                ("debug", po::value<string>(), "ganesha debug level")
+      ("debug", po::value<string>(),
+       "ganesha debug level")
 
-                    ("session", po::value<string>(), "LTTng session name")
+      ("session", po::value<string>(),
+       "LTTng session name")
 
-                        ("event-list", po::value<string>(),
-                         "LTTng event list, comma separated")
+      ("event-list", po::value<string>(),
+       "LTTng event list, comma separated")
 
-                            ("profile", po::value<string>(),
-                             "Enable profiling and set output file.");
+      ("profile", po::value<string>(),
+       "Enable profiling and set output file.")
+      ;
 
     po::variables_map::iterator vm_iter;
     po::command_line_parser parser{argc, argv};
