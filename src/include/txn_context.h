@@ -13,15 +13,15 @@ extern "C" {
 
 // Per-operation context.
 typedef struct {
-  uuid_t id;
-  bool is_new;
+	uuid_t id;
+	bool is_new;
 } op_context_t;
 
 typedef struct {
-  uint64_t txn_id;
-  int ops_len;
-  const nfs_argop4 *ops;
-  op_context_t *op_contexts;
+	uint64_t txn_id;
+	int ops_len;
+	const nfs_argop4 *ops;
+	op_context_t *op_contexts;
 } txn_context_t;
 
 txn_context_t *new_txn_context(int ops_len, const nfs_argop4 *ops);
