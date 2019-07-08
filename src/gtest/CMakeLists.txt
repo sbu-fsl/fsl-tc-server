@@ -24,14 +24,17 @@ set(GANESHA_LIBRARIES
   )
 
 set(ganesha_test_conf
-  "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/vfs-test.conf")
+  "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/txn-test.conf")
+
+# delete the files in exports and database
+add_test(dbCleanup "rm" "-rf" "/vfs0/*" "/tmp/txndb")
+set_tests_properties(dbCleanup   PROPERTIES FIXTURES_SETUP  Db)
 
 set(ganesha_test_conf_xfs
   "${CMAKE_CURRENT_SOURCE_DIR}/../config_samples/xfs-test.conf")
 
 function(add_gtest testname)
   add_executable(${testname} "${testname}.cc")
-  set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
   add_sanitizers(${testname})
   target_link_libraries(${testname}
     ${GANESHA_LIBRARIES}
@@ -40,11 +43,15 @@ function(add_gtest testname)
     ${LTTNG_CTL_LIBRARIES}
     ${GPERFTOOLS_LIBRARIES}
     )
+  set_target_properties(${testname} PROPERTIES COMPILE_FLAGS "${UNITTEST_CXX_FLAGS}")
   # The tests take too long to run; uncomment after speed them up.
-  # add_test(${testname} ${testname}
-  # "--logfile=/tmp/${testname}.log"
-  # "--debug=Debug"
-  # "--config=${ganesha_test_conf}")
+   add_test(${testname} ${testname}
+   "--logfile=/tmp/${testname}.log"
+   "--debug=Debug"
+   "--gtest_filter=*SIMPLE*"
+   "--config=${ganesha_test_conf}")
+
+	set_tests_properties(${testname} PROPERTIES FIXTURES_REQUIRED Db)
 endfunction()
 
 add_subdirectory(fsal_api)
@@ -88,3 +95,5 @@ target_link_libraries(test_rbt
 set_target_properties(test_rbt PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
+# FSAL_TXN specific tests
+add_gtest(test_txn_handle)

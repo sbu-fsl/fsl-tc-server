@@ -28,10 +28,12 @@ extern "C" {
 /* Manually forward this, an 9P is not C++ safe */
 void admin_halt(void);
 /* Ganesha headers */
-#include "nfs_lib.h"
-#include "fsal.h"
 #include "export_mgr.h"
+#include "fsal.h"
 #include "nfs_exports.h"
+#include "nfs_lib.h"
+
+#include <arpa/inet.h>
 
 /* LTTng headers */
 #include <lttng/lttng.h>
@@ -45,296 +47,292 @@ void admin_halt(void);
 
 #define NAMELEN 24
 
-#define gtws_subcall(call) do { \
-	struct fsal_export *_saveexp = op_ctx->fsal_export; \
-	op_ctx->fsal_export = _saveexp->sub_export; \
-	call; \
-	op_ctx->fsal_export = _saveexp; \
-} while (0)
+#define gtws_subcall(call)                              \
+  do {                                                  \
+    struct fsal_export *_saveexp = op_ctx->fsal_export; \
+    op_ctx->fsal_export = _saveexp->sub_export;         \
+    call;                                               \
+    op_ctx->fsal_export = _saveexp;                     \
+  } while (0)
 
 namespace gtest {
 
-  class Environment* env;
+class Environment *env;
 
-  class Environment : public ::testing::Environment {
-  public:
-    Environment() : Environment(NULL, NULL, -1, NULL) {}
-    Environment(char* ganesha_conf, char* lpath, int dlevel, char *_ses_name,
-                const char *_test_root_name = nullptr,
-                uint16_t _export_id = 77) :
-	    ganesha(nfs_libmain, ganesha_conf, lpath, dlevel),
-	    session_name(_ses_name), test_root_name(_test_root_name),
-	    export_id(_export_id), handle(NULL) {
-      using namespace std::literals;
-      std::this_thread::sleep_for(5s);
+class Environment : public ::testing::Environment {
+ public:
+  Environment() : Environment(NULL, NULL, -1, NULL) {}
+  Environment(char *ganesha_conf, char *lpath, int dlevel, char *_ses_name,
+              const char *_test_root_name = nullptr, uint16_t _export_id = 77)
+      : ganesha(nfs_libmain, ganesha_conf, lpath, dlevel),
+        session_name(_ses_name),
+        test_root_name(_test_root_name),
+        export_id(_export_id),
+        handle(NULL) {
+    using namespace std::literals;
+    std::this_thread::sleep_for(5s);
+  }
+
+  virtual ~Environment() {
+    admin_halt();
+    ganesha.join();
+  }
+
+  virtual void SetUp() {
+    struct lttng_domain dom;
+
+    if (!session_name) {
+      /* Don't setup LTTng */
+      return;
     }
 
-    virtual ~Environment() {
-      admin_halt();
-      ganesha.join();
+    /* Set up LTTng */
+    memset(&dom, 0, sizeof(dom));
+    dom.type = LTTNG_DOMAIN_UST;
+    dom.buf_type = LTTNG_BUFFER_PER_UID;
+
+    handle = lttng_create_handle(session_name, &dom);
+  }
+
+  virtual void TearDown() {
+    if (handle) {
+      lttng_destroy_handle(handle);
+      handle = NULL;
+    }
+  }
+
+  struct lttng_handle *getLTTng() {
+    return handle;
+  }
+
+  const char *get_test_root_name() { return test_root_name; }
+
+  uint16_t get_export_id() { return export_id; }
+
+  std::thread ganesha;
+  char *session_name;
+  const char *test_root_name;
+  uint16_t export_id;
+  struct lttng_handle *handle;
+};
+
+class GaneshaBaseTest : public ::testing::Test {
+ protected:
+  virtual void enableEvents(char *event_list) {
+    struct lttng_event ev;
+    int ret;
+
+    if (!env->getLTTng()) {
+      /* No LTTng this run */
+      return;
     }
 
-    virtual void SetUp() {
-      struct lttng_domain dom;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = LTTNG_EVENT_TRACEPOINT;
+    ev.loglevel_type = LTTNG_EVENT_LOGLEVEL_ALL;
+    ev.loglevel = -1;
 
-      if (!session_name) {
-	/* Don't setup LTTng */
-	return;
-      }
+    if (!event_list) {
+      /* Do them all */
+      strcpy(ev.name, "*");
+      ret = lttng_enable_event_with_exclusions(env->getLTTng(), &ev, NULL, NULL,
+                                               0, NULL);
+      ASSERT_GE(ret, 0);
+    } else {
+      char *event_name;
+      event_name = strtok(event_list, ",");
+      while (event_name != NULL) {
+        /* Copy name and type of the event */
+        strncpy(ev.name, event_name, LTTNG_SYMBOL_NAME_LEN);
+        ev.name[sizeof(ev.name) - 1] = '\0';
 
-      /* Set up LTTng */
-      memset(&dom, 0, sizeof(dom));
-      dom.type = LTTNG_DOMAIN_UST;
-      dom.buf_type = LTTNG_BUFFER_PER_UID;
+        ret = lttng_enable_event_with_exclusions(env->getLTTng(), &ev, NULL,
+                                                 NULL, 0, NULL);
+        ASSERT_GE(ret, 0);
 
-      handle = lttng_create_handle(session_name, &dom);
-    }
-
-    virtual void TearDown() {
-      if (handle) {
-	lttng_destroy_handle(handle);
-	handle = NULL;
-      }
-    }
-
-    struct lttng_handle* getLTTng() {
-      return handle;
-    }
-
-    const char *get_test_root_name() {
-      return test_root_name;
-    }
-
-    uint16_t get_export_id() {
-      return export_id;
-    }
-
-    std::thread ganesha;
-    char *session_name;
-    const char *test_root_name;
-    uint16_t export_id;
-    struct lttng_handle* handle;
-  };
-
-  class GaneshaBaseTest : public ::testing::Test {
-  protected:
-    virtual void enableEvents(char *event_list) {
-      struct lttng_event ev;
-      int ret;
-
-      if (!env->getLTTng()) {
-	/* No LTTng this run */
-	return;
-      }
-
-      memset(&ev, 0, sizeof(ev));
-      ev.type = LTTNG_EVENT_TRACEPOINT;
-      ev.loglevel_type = LTTNG_EVENT_LOGLEVEL_ALL;
-      ev.loglevel = -1;
-
-      if (!event_list) {
-	/* Do them all */
-	strcpy(ev.name, "*");
-	ret = lttng_enable_event_with_exclusions(env->getLTTng(), &ev, NULL,
-						 NULL, 0, NULL);
-	ASSERT_GE(ret, 0);
-      } else {
-	char *event_name;
-	event_name = strtok(event_list, ",");
-	while (event_name != NULL) {
-	  /* Copy name and type of the event */
-	  strncpy(ev.name, event_name, LTTNG_SYMBOL_NAME_LEN);
-	  ev.name[sizeof(ev.name) - 1] = '\0';
-
-	  ret = lttng_enable_event_with_exclusions(env->getLTTng(), &ev, NULL,
-						   NULL, 0, NULL);
-	  ASSERT_GE(ret, 0);
-
-	  /* Next event */
-	  event_name = strtok(NULL, ",");
-	}
+        /* Next event */
+        event_name = strtok(NULL, ",");
       }
     }
+  }
 
-    virtual void disableEvents(char *event_list) {
-      struct lttng_event ev;
-      int ret;
+  virtual void disableEvents(char *event_list) {
+    struct lttng_event ev;
+    int ret;
 
-      if (!env->getLTTng()) {
-	/* No LTTng this run */
-	return;
-      }
-
-      memset(&ev, 0, sizeof(ev));
-      ev.type = LTTNG_EVENT_ALL;
-      ev.loglevel = -1;
-      if (!event_list) {
-	/* Do them all */
-	ret = lttng_disable_event_ext(env->getLTTng(), &ev, NULL, NULL);
-	ASSERT_GE(ret, 0);
-      } else {
-	char *event_name;
-	event_name = strtok(event_list, ",");
-	while (event_name != NULL) {
-	  /* Copy name and type of the event */
-	  strncpy(ev.name, event_name, LTTNG_SYMBOL_NAME_LEN);
-	  ev.name[sizeof(ev.name) - 1] = '\0';
-
-	  ret = lttng_disable_event_ext(env->getLTTng(), &ev, NULL, NULL);
-	  ASSERT_GE(ret, 0);
-
-	  /* Next event */
-	  event_name = strtok(NULL, ",");
-	}
-      }
+    if (!env->getLTTng()) {
+      /* No LTTng this run */
+      return;
     }
 
-    virtual void SetUp() { }
+    memset(&ev, 0, sizeof(ev));
+    ev.type = LTTNG_EVENT_ALL;
+    ev.loglevel = -1;
+    if (!event_list) {
+      /* Do them all */
+      ret = lttng_disable_event_ext(env->getLTTng(), &ev, NULL, NULL);
+      ASSERT_GE(ret, 0);
+    } else {
+      char *event_name;
+      event_name = strtok(event_list, ",");
+      while (event_name != NULL) {
+        /* Copy name and type of the event */
+        strncpy(ev.name, event_name, LTTNG_SYMBOL_NAME_LEN);
+        ev.name[sizeof(ev.name) - 1] = '\0';
 
-    virtual void TearDown() { }
-  };
+        ret = lttng_disable_event_ext(env->getLTTng(), &ev, NULL, NULL);
+        ASSERT_GE(ret, 0);
 
-  class GaneshaFSALBaseTest : public gtest::GaneshaBaseTest {
-
-  protected:
-    static fsal_errors_t readdir_callback(void *opaque,
-                                          struct fsal_obj_handle *obj,
-                                          const struct attrlist *attr,
-                                          uint64_t mounted_on_fileid,
-                                          uint64_t cookie,
-                                          enum cb_state cb_state)
-      {
-      return ERR_FSAL_NO_ERROR;
+        /* Next event */
+        event_name = strtok(NULL, ",");
       }
+    }
+  }
 
-    virtual void SetUp() {
-      fsal_status_t status;
-      struct attrlist attrs_out;
+  virtual void SetUp() {}
 
-      gtest::GaneshaBaseTest::SetUp();
+  virtual void TearDown() {}
+};
 
-      a_export = get_gsh_export(env->get_export_id());
-      ASSERT_NE(a_export, nullptr);
+class GaneshaFSALBaseTest : public gtest::GaneshaBaseTest {
 
-      status = nfs_export_get_root_entry(a_export, &root_entry);
-      ASSERT_EQ(status.major, 0);
-      ASSERT_NE(root_entry, nullptr);
+ protected:
+  static fsal_errors_t readdir_callback(
+      void *opaque, struct fsal_obj_handle *obj, const struct attrlist *attr,
+      uint64_t mounted_on_fileid, uint64_t cookie, enum cb_state cb_state) {
+    return ERR_FSAL_NO_ERROR;
+  }
 
-      /* Ganesha call paths need real or forged context info */
-      memset(&user_credentials, 0, sizeof(struct user_cred));
-      memset(&req_ctx, 0, sizeof(struct req_op_context));
-      memset(&attrs, 0, sizeof(attrs));
-      memset(&exp_perms, 0, sizeof(struct export_perms));
+  virtual void SetUp() {
+    fsal_status_t status;
+    struct attrlist attrs_out;
 
-      req_ctx.ctx_export = a_export;
-      req_ctx.fsal_export = a_export->fsal_export;
-      req_ctx.creds = &user_credentials;
-      req_ctx.export_perms = &exp_perms;
+    gtest::GaneshaBaseTest::SetUp();
 
-      /* stashed in tls */
-      op_ctx = &req_ctx;
+    a_export = get_gsh_export(env->get_export_id());
+    ASSERT_NE(a_export, nullptr);
 
-      // create root directory for test
-      FSAL_SET_MASK(attrs.valid_mask,
-                    ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-      attrs.mode = 0777; /* XXX */
-      attrs.owner = 667;
-      attrs.group = 766;
+    status = nfs_export_get_root_entry(a_export, &root_entry);
+    ASSERT_EQ(status.major, 0);
+    ASSERT_NE(root_entry, nullptr);
+
+    /* Ganesha call paths need real or forged context info */
+    memset(&user_credentials, 0, sizeof(struct user_cred));
+    memset(&req_ctx, 0, sizeof(struct req_op_context));
+    memset(&attrs, 0, sizeof(attrs));
+    memset(&exp_perms, 0, sizeof(struct export_perms));
+    exp_perms.options |= EXPORT_OPTION_AUTH_NONE;
+
+    req_ctx.ctx_export = a_export;
+    req_ctx.fsal_export = a_export->fsal_export;
+    req_ctx.creds = &user_credentials;
+    req_ctx.export_perms = &exp_perms;
+
+    caller_addr.sin_family = AF_INET;
+    caller_addr.sin_port = 100;
+    inet_pton(AF_INET, "127.0.0.1", &caller_addr.sin_addr);
+    req_ctx.caller_addr = (sockaddr_t *)&caller_addr;
+
+    /* stashed in tls */
+    op_ctx = &req_ctx;
+
+    // create root directory for test
+    FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+    attrs.mode = 0777; /* XXX */
+    attrs.owner = 667;
+    attrs.group = 766;
+    fsal_prepare_attrs(&attrs_out, 0);
+
+    status = fsal_create(root_entry, env->get_test_root_name(), DIRECTORY,
+                         &attrs, NULL, &test_root, &attrs_out);
+    // ASSERT_EQ(status.major, 0);
+    ASSERT_NE(test_root, nullptr);
+
+    fsal_release_attrs(&attrs_out);
+  }
+
+  virtual void TearDown() {
+    fsal_status_t status;
+
+    status = test_root->obj_ops->unlink(root_entry, test_root,
+                                        env->get_test_root_name());
+    EXPECT_EQ(0, status.major);
+    test_root->obj_ops->put_ref(test_root);
+    test_root = NULL;
+
+    root_entry->obj_ops->put_ref(root_entry);
+    root_entry = NULL;
+
+    put_gsh_export(a_export);
+    a_export = NULL;
+    req_ctx.ctx_export = NULL;
+    req_ctx.fsal_export = NULL;
+
+    gtest::GaneshaBaseTest::TearDown();
+  }
+
+  void create_and_prime_many(int count, struct fsal_obj_handle **objs = NULL,
+                             struct fsal_obj_handle *directory = NULL) {
+    fsal_status_t status;
+    char fname[NAMELEN];
+    struct attrlist attrs_out;
+    unsigned int num_entries;
+    bool eod_met;
+    attrmask_t attrmask = 0;
+    uint32_t tracker;
+    struct fsal_obj_handle *obj;
+
+    if (directory == NULL) directory = test_root;
+
+    /* create a bunch of dirents */
+    for (int i = 0; i < count; ++i) {
       fsal_prepare_attrs(&attrs_out, 0);
+      sprintf(fname, "f-%08x", i);
 
-      status = fsal_create(root_entry, env->get_test_root_name(), DIRECTORY,
-                           &attrs, NULL, &test_root, &attrs_out);
+      status = fsal_create(directory, fname, REGULAR_FILE, &attrs, NULL, &obj,
+                           &attrs_out);
       ASSERT_EQ(status.major, 0);
-      ASSERT_NE(test_root, nullptr);
+      ASSERT_NE(obj, nullptr);
 
       fsal_release_attrs(&attrs_out);
+
+      if (objs != NULL)
+        objs[i] = obj;
+      else
+        obj->obj_ops->put_ref(obj);
     }
 
-    virtual void TearDown() {
-      fsal_status_t status;
+    /* Prime the cache */
+    status = fsal_readdir(directory, 0, &num_entries, &eod_met, attrmask,
+                          readdir_callback, &tracker);
+  }
 
-      status = test_root->obj_ops->unlink(root_entry, test_root,
-                                         env->get_test_root_name());
-      EXPECT_EQ(0, status.major);
-      test_root->obj_ops->put_ref(test_root);
-      test_root = NULL;
+  void remove_many(int count, struct fsal_obj_handle **objs = NULL,
+                   struct fsal_obj_handle *directory = NULL) {
+    fsal_status_t status;
+    char fname[NAMELEN];
 
-      root_entry->obj_ops->put_ref(root_entry);
-      root_entry = NULL;
+    if (directory == NULL) directory = test_root;
 
-      put_gsh_export(a_export);
-      a_export = NULL;
-      req_ctx.ctx_export = NULL;
-      req_ctx.fsal_export = NULL;
+    for (int i = 0; i < count; ++i) {
+      sprintf(fname, "f-%08x", i);
 
-      gtest::GaneshaBaseTest::TearDown();
+      if (objs != NULL) objs[i]->obj_ops->put_ref(objs[i]);
+      status = fsal_remove(directory, fname);
+      EXPECT_EQ(status.major, 0);
     }
+  }
 
-    void create_and_prime_many(int count,
-                               struct fsal_obj_handle **objs = NULL,
-			       struct fsal_obj_handle *directory = NULL) {
-      fsal_status_t status;
-      char fname[NAMELEN];
-      struct attrlist attrs_out;
-      unsigned int num_entries;
-      bool eod_met;
-      attrmask_t attrmask = 0;
-      uint32_t tracker;
-      struct fsal_obj_handle *obj;
+  struct sockaddr_in caller_addr;
+  struct req_op_context req_ctx;
+  struct user_cred user_credentials;
+  struct attrlist attrs;
+  struct export_perms exp_perms;
 
-      if (directory == NULL)
-	directory = test_root;
-
-      /* create a bunch of dirents */
-      for (int i = 0; i < count; ++i) {
-        fsal_prepare_attrs(&attrs_out, 0);
-        sprintf(fname, "f-%08x", i);
-
-        status = fsal_create(directory, fname, REGULAR_FILE, &attrs, NULL,
-                             &obj, &attrs_out);
-        ASSERT_EQ(status.major, 0);
-        ASSERT_NE(obj, nullptr);
-
-        fsal_release_attrs(&attrs_out);
-
-        if (objs != NULL)
-          objs[i] = obj;
-        else
-          obj->obj_ops->put_ref(obj);
-      }
-
-      /* Prime the cache */
-      status = fsal_readdir(directory, 0, &num_entries, &eod_met, attrmask,
-                            readdir_callback, &tracker);
-    }
-
-    void remove_many(int count, struct fsal_obj_handle **objs = NULL,
-		     struct fsal_obj_handle *directory = NULL) {
-      fsal_status_t status;
-      char fname[NAMELEN];
-
-      if (directory == NULL)
-	directory = test_root;
-
-      for (int i = 0; i < count; ++i) {
-        sprintf(fname, "f-%08x", i);
-
-	if (objs != NULL)
-          objs[i]->obj_ops->put_ref(objs[i]);
-        status = fsal_remove(directory, fname);
-        EXPECT_EQ(status.major, 0);
-      }
-    }
-
-    struct req_op_context req_ctx;
-    struct user_cred user_credentials;
-    struct attrlist attrs;
-    struct export_perms exp_perms;
-
-    struct gsh_export* a_export = nullptr;
-    struct fsal_obj_handle *root_entry = nullptr;
-    struct fsal_obj_handle *test_root = nullptr;
-  };
-} // namespase gtest
+  struct gsh_export *a_export = nullptr;
+  struct fsal_obj_handle *root_entry = nullptr;
+  struct fsal_obj_handle *test_root = nullptr;
+};
+}  // namespace gtest
 
 #endif /* GTEST_GTEST_HH */

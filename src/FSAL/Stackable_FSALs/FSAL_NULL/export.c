@@ -384,6 +384,7 @@ static void nullfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
+
 /* nullfs_export_ops_init
  * overwrite vector entries with the methods that we support
  */

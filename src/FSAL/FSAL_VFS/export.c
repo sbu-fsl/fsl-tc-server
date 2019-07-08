@@ -299,6 +299,7 @@ static fsal_status_t wire_to_host(struct fsal_export *exp_hdl,
 	return vfs_check_handle(exp_hdl, fh_desc, &fs, fh, &dummy);
 }
 
+
 /* vfs_export_ops_init
  * overwrite vector entries with the methods that we support
  */

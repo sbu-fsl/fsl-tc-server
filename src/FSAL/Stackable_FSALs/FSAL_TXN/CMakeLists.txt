@@ -13,24 +13,29 @@ SET(fsaltxn_LIB_SRCS
    xattrs.c
    txnfs_methods.h
    main.c
+   helper.c
    export.c
+   backup.c
+   undo.c
+   opvec.c
 )
 
-add_library(fsaltxn SHARED ${fsaltxn_LIB_SRCS})
-   
+add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
+
 link_directories(${PROJECT_SOURCE_DIR}/leveldb/out-static/)
 include_directories(${PROJECT_SOURCE_DIR}/leveldb/include/)
 
-target_link_libraries(fsaltxn
+target_link_libraries(fsaltxnfs
   gos
   leveldb
   lwrapper
-  id_manager
+  txn_context
+  txn_logger
   lock_manager
 )
 
-set_target_properties(fsaltxn PROPERTIES VERSION 4.2.0 SOVERSION 4)
-install(TARGETS fsaltxn COMPONENT fsal DESTINATION ${FSAL_DESTINATION} )
+set_target_properties(fsaltxnfs PROPERTIES VERSION 4.2.0 SOVERSION 4)
+install(TARGETS fsaltxnfs COMPONENT fsal DESTINATION ${FSAL_DESTINATION} )
 
 
 ########### install files ###############

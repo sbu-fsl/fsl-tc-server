@@ -152,7 +152,7 @@ uuid_t uuid_next(uuid_t current) {
   return absl::bit_cast<uuid_t>(u128);
 }
 
-uuid_t uuid_allocate(db_store_t *db, int n) {
+uuid_t uuid_allocate(const db_store_t *db, int n) {
   std::lock_guard<std::mutex> l(uuid_mutex);
   const absl::uint128 new_next = next_file_id + n;
   while (new_next >= max_reserved_id) {

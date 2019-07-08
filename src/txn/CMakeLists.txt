@@ -69,9 +69,9 @@ endfunction()
 
 add_cpplib(lwrapper leveldb ${GLIB_LIBRARIES})
 
-add_cpplib(id_manager absl_numeric lwrapper leveldb)
+# add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
-add_cpplib(txn_context id_manager uuid)
+add_cpplib(txn_context uuid)
 
 add_cpplib(lock_manager lwrapper)
 
@@ -90,4 +90,4 @@ add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
 add_cpplib(txn_logger
-  secnfs_proto id_manager protobuf absl_strings uuid txn_context lwrapper)
+  secnfs_proto protobuf absl_strings uuid lwrapper)

@@ -52,6 +52,7 @@
 #include "nfs_exports.h"
 #include "export_mgr.h"
 #include "gsh_config.h"
+#include "nfsv41.h"
 
 /*
  * helpers to/from other NULL objects

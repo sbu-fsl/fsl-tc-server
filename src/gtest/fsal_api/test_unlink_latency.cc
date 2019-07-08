@@ -22,26 +22,26 @@
  * -------------
  */
 
-#include <sys/types.h>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <chrono>
-#include <thread>
-#include <random>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <random>
+#include <sys/types.h>
+#include <thread>
+#include <vector>
 
 extern "C" {
 /* Manually forward this, as 9P is not C++ safe */
 void admin_halt(void);
 /* Ganesha headers */
+#include "common_utils.h"
 #include "export_mgr.h"
+#include "fsal.h"
 #include "nfs_exports.h"
 #include "sal_data.h"
-#include "fsal.h"
-#include "common_utils.h"
 /* For MDCACHE bypass.  Use with care */
 #include "../FSAL/Stackable_FSALs/FSAL_MDCACHE/mdcache_debug.h"
 }
@@ -55,53 +55,45 @@ void admin_halt(void);
 
 namespace {
 
-  char* ganesha_conf = nullptr;
-  char* lpath = nullptr;
-  int dlevel = -1;
-  uint16_t export_id = 77;
-  char* event_list = nullptr;
-  char* profile_out = nullptr;
+char *ganesha_conf = nullptr;
+char *lpath = nullptr;
+int dlevel = -1;
+uint16_t export_id = 77;
+char *event_list = nullptr;
+char *profile_out = nullptr;
 
-  class UnlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-  protected:
+class UnlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
+ protected:
+  virtual void SetUp() { gtest::GaneshaFSALBaseTest::SetUp(); }
 
-    virtual void SetUp() {
-      gtest::GaneshaFSALBaseTest::SetUp();
-    }
+  virtual void TearDown() { gtest::GaneshaFSALBaseTest::TearDown(); }
+};
 
-    virtual void TearDown() {
-      gtest::GaneshaFSALBaseTest::TearDown();
-    }
-  };
+class UnlinkFullLatencyTest : public UnlinkEmptyLatencyTest {
+ protected:
+  virtual void SetUp() {
+    UnlinkEmptyLatencyTest::SetUp();
 
-  class UnlinkFullLatencyTest : public UnlinkEmptyLatencyTest {
-  protected:
+    create_and_prime_many(DIR_COUNT, NULL);
+  }
 
-    virtual void SetUp() {
-      UnlinkEmptyLatencyTest::SetUp();
+  virtual void TearDown() {
+    remove_many(DIR_COUNT, NULL);
 
-      create_and_prime_many(DIR_COUNT, NULL);
-    }
-
-    virtual void TearDown() {
-      remove_many(DIR_COUNT, NULL);
-
-      UnlinkEmptyLatencyTest::TearDown();
-      }
-
-  };
+    UnlinkEmptyLatencyTest::TearDown();
+  }
+};
 
 } /* namespace */
 
-TEST_F(UnlinkEmptyLatencyTest, SIMPLE)
-{
+TEST_F(UnlinkEmptyLatencyTest, SIMPLE) {
   fsal_status_t status;
   struct fsal_obj_handle *obj = nullptr;
   struct fsal_obj_handle *lookup = nullptr;
 
   /* Create file to unlink for the test */
-  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL,
-                  &obj, NULL);
+  status =
+      fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &obj, NULL);
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(obj, nullptr);
 
@@ -115,8 +107,7 @@ TEST_F(UnlinkEmptyLatencyTest, SIMPLE)
   obj->obj_ops->put_ref(obj);
 }
 
-TEST_F(UnlinkEmptyLatencyTest, SIMPLE_BYPASS)
-{
+TEST_F(UnlinkEmptyLatencyTest, SIMPLE_BYPASS) {
   fsal_status_t status;
   bool caller_perm_check = false;
   struct fsal_obj_handle *sub_hdl = nullptr;
@@ -126,12 +117,9 @@ TEST_F(UnlinkEmptyLatencyTest, SIMPLE_BYPASS)
   sub_hdl = mdcdb_get_sub_handle(test_root);
   ASSERT_NE(sub_hdl, nullptr);
 
-  gtws_subcall(
-	       status = sub_hdl->obj_ops->open2(sub_hdl, NULL, FSAL_O_RDWR,
-					       FSAL_UNCHECKED, TEST_FILE, NULL,
-					       NULL, &sub_hdl_obj, NULL,
-					       &caller_perm_check)
-	      );
+  gtws_subcall(status = sub_hdl->obj_ops->open2(
+                   sub_hdl, NULL, FSAL_O_RDWR, FSAL_UNCHECKED, TEST_FILE,
+                   &attrs, NULL, &sub_hdl_obj, NULL, &caller_perm_check));
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(sub_hdl_obj, nullptr);
 
@@ -148,16 +136,15 @@ TEST_F(UnlinkEmptyLatencyTest, SIMPLE_BYPASS)
   sub_hdl_obj->obj_ops->put_ref(sub_hdl_obj);
 }
 
-TEST_F(UnlinkEmptyLatencyTest, FSALREMOVE)
-{
+TEST_F(UnlinkEmptyLatencyTest, FSALREMOVE) {
   fsal_status_t status;
   char fname[NAMELEN];
   struct fsal_obj_handle *obj;
   struct timespec s_time, e_time;
 
   /* Create files to unlink for the test */
-  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL,
-                  &obj, NULL);
+  status =
+      fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &obj, NULL);
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(obj, nullptr);
 
@@ -189,16 +176,15 @@ TEST_F(UnlinkEmptyLatencyTest, FSALREMOVE)
   obj->obj_ops->put_ref(obj);
 }
 
-TEST_F(UnlinkFullLatencyTest, BIG)
-{
+TEST_F(UnlinkFullLatencyTest, BIG) {
   fsal_status_t status;
   char fname[NAMELEN];
   struct fsal_obj_handle *obj;
   struct timespec s_time, e_time;
 
   /* Create files to unlink for the test */
-  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL,
-                  &obj, NULL);
+  status =
+      fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &obj, NULL);
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(obj, nullptr);
 
@@ -223,7 +209,6 @@ TEST_F(UnlinkFullLatencyTest, BIG)
   fprintf(stderr, "Average time per unlink: %" PRIu64 " ns\n",
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 
-
   /* Remove file created for running the test */
   status = fsal_remove(test_root, TEST_FILE);
   ASSERT_EQ(status.major, 0);
@@ -231,8 +216,7 @@ TEST_F(UnlinkFullLatencyTest, BIG)
   obj->obj_ops->put_ref(obj);
 }
 
-TEST_F(UnlinkFullLatencyTest, BIG_BYPASS)
-{
+TEST_F(UnlinkFullLatencyTest, BIG_BYPASS) {
   fsal_status_t status;
   char fname[NAMELEN];
   struct fsal_obj_handle *obj;
@@ -241,8 +225,8 @@ TEST_F(UnlinkFullLatencyTest, BIG_BYPASS)
   struct timespec s_time, e_time;
 
   /* Create files to unlink for the test */
-  status = fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL,
-                  &obj, NULL);
+  status =
+      fsal_create(test_root, TEST_FILE, REGULAR_FILE, &attrs, NULL, &obj, NULL);
   ASSERT_EQ(status.major, 0);
   ASSERT_NE(obj, nullptr);
 
@@ -280,10 +264,9 @@ TEST_F(UnlinkFullLatencyTest, BIG_BYPASS)
   obj->obj_ops->put_ref(obj);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int code = 0;
-  char* session_name = NULL;
+  char *session_name = NULL;
 
   using namespace std;
   using namespace std::literals;
@@ -308,13 +291,13 @@ int main(int argc, char *argv[])
        "ganesha debug level")
 
       ("session", po::value<string>(),
-	"LTTng session name")
+       "LTTng session name")
 
       ("event-list", po::value<string>(),
-	"LTTng event list, comma separated")
+       "LTTng event list, comma separated")
 
       ("profile", po::value<string>(),
-	"Enable profiling and set output file.")
+       "Enable profiling and set output file.")
       ;
 
     po::variables_map::iterator vm_iter;
@@ -326,16 +309,16 @@ int main(int argc, char *argv[])
     // use config vars--leaves them on the stack
     vm_iter = vm.find("config");
     if (vm_iter != vm.end()) {
-      ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
+      ganesha_conf = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("logfile");
     if (vm_iter != vm.end()) {
-      lpath = (char*) vm_iter->second.as<std::string>().c_str();
+      lpath = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("debug");
     if (vm_iter != vm.end()) {
-      dlevel = ReturnLevelAscii(
-	(char*) vm_iter->second.as<std::string>().c_str());
+      dlevel =
+          ReturnLevelAscii((char *)vm_iter->second.as<std::string>().c_str());
     }
     vm_iter = vm.find("export");
     if (vm_iter != vm.end()) {
@@ -343,30 +326,30 @@ int main(int argc, char *argv[])
     }
     vm_iter = vm.find("session");
     if (vm_iter != vm.end()) {
-      session_name = (char*) vm_iter->second.as<std::string>().c_str();
+      session_name = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("event-list");
     if (vm_iter != vm.end()) {
-      event_list = (char*) vm_iter->second.as<std::string>().c_str();
+      event_list = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("profile");
     if (vm_iter != vm.end()) {
-      profile_out = (char*) vm_iter->second.as<std::string>().c_str();
+      profile_out = (char *)vm_iter->second.as<std::string>().c_str();
     }
 
     ::testing::InitGoogleTest(&argc, argv);
     gtest::env = new gtest::Environment(ganesha_conf, lpath, dlevel,
-					session_name, TEST_ROOT, export_id);
+                                        session_name, TEST_ROOT, export_id);
     ::testing::AddGlobalTestEnvironment(gtest::env);
 
-    code  = RUN_ALL_TESTS();
+    code = RUN_ALL_TESTS();
   }
 
-  catch(po::error& e) {
+  catch (po::error &e) {
     cout << "Error parsing opts " << e.what() << endl;
   }
 
-  catch(...) {
+  catch (...) {
     cout << "Unhandled exception in main()" << endl;
   }
 

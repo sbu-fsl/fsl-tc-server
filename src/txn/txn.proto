@@ -1,4 +1,5 @@
 syntax = "proto2";
+package txnfs.proto;
 
 enum TransactionType {
 	NONE = 0;
@@ -25,10 +26,8 @@ message FileID {
 }
 
 message ObjectId {
-	required uint64 id_low = 1;
-	required uint64 id_high = 2;
-	optional FileType type = 3;
-	optional bytes uuid = 4;  // uuid_t
+	optional bytes uuid = 1;  // uuid_t
+	optional FileType type = 2;
 }
 
 // A CreatedObject represents a file or directory to be created in a compound.
@@ -98,8 +97,8 @@ message VRenameTxn {
 
 message VUnlinkTxn {
 	message Unlink {
-		required string original_path = 1;
-		required string backup_name = 2;
+		required ObjectId parent_id = 1;
+		required string name = 2;
 	}
 	required string backup_dir_path = 1;
 	repeated Unlink unlinked_objs = 2;
@@ -108,7 +107,8 @@ message VUnlinkTxn {
 message VSymlinkTxn {
 	message Symlink {
 		required string src_path = 1;
-		required string dst_path = 2;
+		required ObjectId parent_id = 2;
+		required string name = 3;
 	}
 	repeated Symlink linked_objs = 1;
 }

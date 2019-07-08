@@ -28,12 +28,12 @@
     }                       \
   } while (0);
 
-#define SAFE_FREE(ptr)   \
-  do {                   \
-    if ((ptr) != NULL) { \
-      free((void *)(ptr));       \
-      (ptr) = NULL;      \
-    }                    \
+#define SAFE_FREE(ptr)    \
+  do {                    \
+    if ((ptr) != NULL) {  \
+      free((void*)(ptr)); \
+      (ptr) = NULL;       \
+    }                     \
   } while (0);
 
 #define TR_PREFIX "txn-"
@@ -49,12 +49,12 @@ static char* memdup(const char* buf, size_t len) {
 static int insert_markers(const db_store_t* db_st) {
   char* err = NULL;
 
-  leveldb_put(db_st->db, db_st->w_options, TR_PREFIX, strlen(TR_PREFIX),
-              ANCHOR, strlen(ANCHOR) + 1, &err);
+  leveldb_put(db_st->db, db_st->w_options, TR_PREFIX, strlen(TR_PREFIX), ANCHOR,
+              strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
-  leveldb_put(db_st->db, db_st->w_options, ID_PREFIX, strlen(ID_PREFIX),
-              ANCHOR, strlen(ANCHOR) + 1, &err);
+  leveldb_put(db_st->db, db_st->w_options, ID_PREFIX, strlen(ID_PREFIX), ANCHOR,
+              strlen(ANCHOR) + 1, &err);
   CHECK_ERR(err);
 
   leveldb_put(db_st->db, db_st->w_options, HDL_PREFIX, strlen(HDL_PREFIX),
@@ -207,6 +207,15 @@ static void cleanup_allocated_kvps(db_kvpair_t* kvp, int nums) {
     SAFE_FREE(curr);
   }
 }
+
+void print_buf(const char* buf, size_t buf_len) {
+  fprintf(stderr, "buf at %p: ", buf);
+  for (size_t i = 0; i < buf_len; ++i) {
+    fprintf(stderr, "%.2x", (int)buf[i]);
+  }
+  fprintf(stderr, "\n");
+}
+
 /*
  * caller is owner of key, value pair memory. caller need to release the
  * memory
@@ -225,8 +234,8 @@ int put_keys(db_kvpair_t* kvp, const int nums, const db_store_t* db_st) {
   db_kvpair_t* curr = kvp;
 
   while (i < nums) {
-    leveldb_writebatch_put(write_batch, curr->key, curr->key_len,
-                           curr->val, curr->val_len);
+    leveldb_writebatch_put(write_batch, curr->key, curr->key_len, curr->val,
+                           curr->val_len);
     i++;
     curr++;
   }

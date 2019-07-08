@@ -22,26 +22,26 @@
  * -------------
  */
 
-#include <sys/types.h>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <chrono>
-#include <thread>
-#include <random>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <random>
+#include <sys/types.h>
+#include <thread>
+#include <vector>
 
 extern "C" {
 /* Manually forward this, as 9P is not C++ safe */
 void admin_halt(void);
 /* Ganesha headers */
+#include "common_utils.h"
 #include "export_mgr.h"
+#include "fsal.h"
 #include "nfs_exports.h"
 #include "sal_data.h"
-#include "fsal.h"
-#include "common_utils.h"
 /* For MDCACHE bypass.  Use with care */
 #include "../FSAL/Stackable_FSALs/FSAL_MDCACHE/mdcache_debug.h"
 }
@@ -54,52 +54,51 @@ void admin_halt(void);
 
 namespace {
 
-  char* ganesha_conf = nullptr;
-  char* lpath = nullptr;
-  int dlevel = -1;
-  uint16_t export_id = 77;
-  char* event_list = nullptr;
-  char* profile_out = nullptr;
+char *ganesha_conf = nullptr;
+char *lpath = nullptr;
+int dlevel = -1;
+uint16_t export_id = 77;
+char *event_list = nullptr;
+char *profile_out = nullptr;
 
-  class CloseEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-  protected:
+class CloseEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
+ protected:
+  virtual void SetUp() {
+    gtest::GaneshaFSALBaseTest::SetUp();
+    fsal_prepare_attrs(&attrs_in, 0);
+  }
 
-    virtual void SetUp() {
-      gtest::GaneshaFSALBaseTest::SetUp();
-    }
+  virtual void TearDown() {
+    fsal_release_attrs(&attrs_in);
+    gtest::GaneshaFSALBaseTest::TearDown();
+  }
+  struct attrlist attrs_in;
+};
 
-    virtual void TearDown() {
-      gtest::GaneshaFSALBaseTest::TearDown();
-    }
-  };
+class CloseFullLatencyTest : public CloseEmptyLatencyTest {
+ protected:
+  virtual void SetUp() {
+    CloseEmptyLatencyTest::SetUp();
 
-  class CloseFullLatencyTest : public CloseEmptyLatencyTest {
-  protected:
+    create_and_prime_many(LOOP_COUNT, NULL);
+  }
 
-    virtual void SetUp() {
-      CloseEmptyLatencyTest::SetUp();
+  virtual void TearDown() {
+    remove_many(LOOP_COUNT, NULL);
 
-      create_and_prime_many(LOOP_COUNT, NULL);
-    }
-
-    virtual void TearDown() {
-      remove_many(LOOP_COUNT, NULL);
-
-      CloseEmptyLatencyTest::TearDown();
-    }
-
-  };
+    CloseEmptyLatencyTest::TearDown();
+  }
+};
 
 } /* namespace */
 
-TEST_F(CloseEmptyLatencyTest, SIMPLE)
-{
+TEST_F(CloseEmptyLatencyTest, SIMPLE) {
   fsal_status_t status;
   struct fsal_obj_handle *obj;
 
   // create and open a file for test
-  status = fsal_open2(test_root, NULL, FSAL_O_RDWR, FSAL_UNCHECKED,
-               TEST_FILE, NULL, NULL, &obj, NULL);
+  status = fsal_open2(test_root, NULL, FSAL_O_RDWR, FSAL_UNCHECKED, TEST_FILE,
+                      &attrs_in, NULL, &obj, NULL);
   ASSERT_EQ(status.major, 0);
 
   status = fsal_close(obj);
@@ -111,8 +110,7 @@ TEST_F(CloseEmptyLatencyTest, SIMPLE)
   obj->obj_ops->put_ref(obj);
 }
 
-TEST_F(CloseEmptyLatencyTest, LOOP)
-{
+TEST_F(CloseEmptyLatencyTest, LOOP) {
   fsal_status_t status;
   struct fsal_obj_handle *obj[LOOP_COUNT];
   char fname[NAMELEN];
@@ -123,7 +121,7 @@ TEST_F(CloseEmptyLatencyTest, LOOP)
     sprintf(fname, "f-%08x", i);
 
     status = fsal_open2(test_root, NULL, FSAL_O_RDWR, FSAL_UNCHECKED, fname,
-			NULL, NULL, &obj[i], NULL);
+                        &attrs_in, NULL, &obj[i], NULL);
     ASSERT_EQ(status.major, 0);
   }
 
@@ -150,10 +148,9 @@ TEST_F(CloseEmptyLatencyTest, LOOP)
   }
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int code = 0;
-  char* session_name = NULL;
+  char *session_name = NULL;
 
   using namespace std;
   using namespace std::literals;
@@ -178,13 +175,13 @@ int main(int argc, char *argv[])
        "ganesha debug level")
 
       ("session", po::value<string>(),
-	"LTTng session name")
+       "LTTng session name")
 
       ("event-list", po::value<string>(),
-	"LTTng event list, comma separated")
+       "LTTng event list, comma separated")
 
       ("profile", po::value<string>(),
-	"Enable profiling and set output file.")
+       "Enable profiling and set output file.")
       ;
 
     po::variables_map::iterator vm_iter;
@@ -196,16 +193,16 @@ int main(int argc, char *argv[])
     // use config vars--leaves them on the stack
     vm_iter = vm.find("config");
     if (vm_iter != vm.end()) {
-      ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
+      ganesha_conf = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("logfile");
     if (vm_iter != vm.end()) {
-      lpath = (char*) vm_iter->second.as<std::string>().c_str();
+      lpath = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("debug");
     if (vm_iter != vm.end()) {
-      dlevel = ReturnLevelAscii(
-	(char*) vm_iter->second.as<std::string>().c_str());
+      dlevel =
+          ReturnLevelAscii((char *)vm_iter->second.as<std::string>().c_str());
     }
     vm_iter = vm.find("export");
     if (vm_iter != vm.end()) {
@@ -213,30 +210,30 @@ int main(int argc, char *argv[])
     }
     vm_iter = vm.find("session");
     if (vm_iter != vm.end()) {
-      session_name = (char*) vm_iter->second.as<std::string>().c_str();
+      session_name = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("event-list");
     if (vm_iter != vm.end()) {
-      event_list = (char*) vm_iter->second.as<std::string>().c_str();
+      event_list = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("profile");
     if (vm_iter != vm.end()) {
-      profile_out = (char*) vm_iter->second.as<std::string>().c_str();
+      profile_out = (char *)vm_iter->second.as<std::string>().c_str();
     }
 
     ::testing::InitGoogleTest(&argc, argv);
     gtest::env = new gtest::Environment(ganesha_conf, lpath, dlevel,
-					session_name, TEST_ROOT, export_id);
+                                        session_name, TEST_ROOT, export_id);
     ::testing::AddGlobalTestEnvironment(gtest::env);
 
-    code  = RUN_ALL_TESTS();
+    code = RUN_ALL_TESTS();
   }
 
-  catch(po::error& e) {
+  catch (po::error &e) {
     cout << "Error parsing opts " << e.what() << endl;
   }
 
-  catch(...) {
+  catch (...) {
     cout << "Unhandled exception in main()" << endl;
   }
 

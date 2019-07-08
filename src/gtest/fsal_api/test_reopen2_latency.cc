@@ -22,27 +22,27 @@
  * -------------
  */
 
-#include <sys/types.h>
-#include <string.h>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <chrono>
-#include <thread>
-#include <random>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <random>
+#include <string.h>
+#include <sys/types.h>
+#include <thread>
+#include <vector>
 
 extern "C" {
 /* Manually forward this, as 9P is not C++ safe */
 void admin_halt(void);
 /* Ganesha headers */
+#include "common_utils.h"
 #include "export_mgr.h"
+#include "fsal.h"
 #include "nfs_exports.h"
 #include "sal_data.h"
-#include "fsal.h"
-#include "common_utils.h"
 /* For MDCACHE bypass.  Use with care */
 #include "../FSAL/Stackable_FSALs/FSAL_MDCACHE/mdcache_debug.h"
 }
@@ -56,67 +56,62 @@ void admin_halt(void);
 
 namespace {
 
-  char* ganesha_conf = nullptr;
-  char* lpath = nullptr;
-  int dlevel = -1;
-  uint16_t export_id = 77;
-  char* event_list = nullptr;
-  char* profile_out = nullptr;
+char *ganesha_conf = nullptr;
+char *lpath = nullptr;
+int dlevel = -1;
+uint16_t export_id = 77;
+char *event_list = nullptr;
+char *profile_out = nullptr;
 
-  class Reopen2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
-  protected:
+class Reopen2EmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
+ protected:
+  virtual void SetUp() {
+    fsal_status_t status;
+    bool caller_perm_check = false;
 
-    virtual void SetUp() {
-      fsal_status_t status;
-      bool caller_perm_check = false;
+    gtest::GaneshaFSALBaseTest::SetUp();
 
-      gtest::GaneshaFSALBaseTest::SetUp();
+    test_file_state = op_ctx->fsal_export->exp_ops.alloc_state(
+        op_ctx->fsal_export, STATE_TYPE_SHARE, NULL);
+    ASSERT_NE(test_file_state, nullptr);
 
-      test_file_state = op_ctx->fsal_export->exp_ops.alloc_state(
-                                               op_ctx->fsal_export,
-                                               STATE_TYPE_SHARE,
-                                               NULL);
-      ASSERT_NE(test_file_state, nullptr);
+    status = test_root->obj_ops->open2(test_root, test_file_state, FSAL_O_RDWR,
+                                       FSAL_UNCHECKED, TEST_FILE, &attrs, NULL,
+                                       &test_file, NULL, &caller_perm_check);
+    ASSERT_EQ(status.major, 0);
+  }
 
-      status = test_root->obj_ops->open2(test_root, test_file_state,
-                      FSAL_O_RDWR, FSAL_UNCHECKED, TEST_FILE, NULL, NULL,
-                      &test_file, NULL, &caller_perm_check);
-      ASSERT_EQ(status.major, 0);
-    }
+  virtual void TearDown() {
+    fsal_status_t status;
 
-    virtual void TearDown() {
-      fsal_status_t status;
+    status = test_file->obj_ops->close2(test_file, test_file_state);
+    EXPECT_EQ(0, status.major);
 
-      status = test_file->obj_ops->close2(test_file, test_file_state);
-      EXPECT_EQ(0, status.major);
+    op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export,
+                                            test_file_state);
 
-      op_ctx->fsal_export->exp_ops.free_state(op_ctx->fsal_export,
-					      test_file_state);
+    status = fsal_remove(test_root, TEST_FILE);
+    EXPECT_EQ(status.major, 0);
+    test_file->obj_ops->put_ref(test_file);
+    test_file = NULL;
 
-      status = fsal_remove(test_root, TEST_FILE);
-      EXPECT_EQ(status.major, 0);
-      test_file->obj_ops->put_ref(test_file);
-      test_file = NULL;
+    gtest::GaneshaFSALBaseTest::TearDown();
+  }
 
-      gtest::GaneshaFSALBaseTest::TearDown();
-    }
-
-    struct fsal_obj_handle *test_file = nullptr;
-    struct state_t* test_file_state;
-  };
+  struct fsal_obj_handle *test_file = nullptr;
+  struct state_t *test_file_state;
+};
 
 } /* namespace */
 
-TEST_F(Reopen2EmptyLatencyTest, SIMPLE)
-{
+TEST_F(Reopen2EmptyLatencyTest, SIMPLE) {
   fsal_status_t status;
 
   status = test_file->obj_ops->reopen2(test_file, test_file_state, FSAL_O_READ);
   ASSERT_EQ(status.major, 0);
 }
 
-TEST_F(Reopen2EmptyLatencyTest, SIMPLE_BYPASS)
-{
+TEST_F(Reopen2EmptyLatencyTest, SIMPLE_BYPASS) {
   fsal_status_t status;
   struct fsal_obj_handle *sub_hdl;
 
@@ -127,19 +122,17 @@ TEST_F(Reopen2EmptyLatencyTest, SIMPLE_BYPASS)
   ASSERT_EQ(status.major, 0);
 }
 
-TEST_F(Reopen2EmptyLatencyTest, FSAL_REOPEN2)
-{
+TEST_F(Reopen2EmptyLatencyTest, FSAL_REOPEN2) {
   fsal_status_t status;
   struct timespec s_time, e_time;
 
   now(&s_time);
 
   for (int i = 0; i < LOOP_COUNT; ++i) {
-    if(i%2 == 0) {
+    if (i % 2 == 0) {
       status = fsal_reopen2(test_file, test_file_state, FSAL_O_READ, false);
       ASSERT_EQ(status.major, 0);
-    }
-    else {
+    } else {
       status = fsal_reopen2(test_file, test_file_state, FSAL_O_WRITE, false);
       ASSERT_EQ(status.major, 0);
     }
@@ -151,20 +144,20 @@ TEST_F(Reopen2EmptyLatencyTest, FSAL_REOPEN2)
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 }
 
-TEST_F(Reopen2EmptyLatencyTest, LOOP)
-{
+TEST_F(Reopen2EmptyLatencyTest, LOOP) {
   fsal_status_t status;
   struct timespec s_time, e_time;
 
   now(&s_time);
 
   for (int i = 0; i < LOOP_COUNT; ++i) {
-    if(i%2 == 0) {
-      status = test_file->obj_ops->reopen2(test_file, test_file_state, FSAL_O_READ);
+    if (i % 2 == 0) {
+      status =
+          test_file->obj_ops->reopen2(test_file, test_file_state, FSAL_O_READ);
       ASSERT_EQ(status.major, 0);
-    }
-    else {
-      status = test_file->obj_ops->reopen2(test_file, test_file_state, FSAL_O_WRITE);
+    } else {
+      status =
+          test_file->obj_ops->reopen2(test_file, test_file_state, FSAL_O_WRITE);
       ASSERT_EQ(status.major, 0);
     }
   }
@@ -175,8 +168,7 @@ TEST_F(Reopen2EmptyLatencyTest, LOOP)
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 }
 
-TEST_F(Reopen2EmptyLatencyTest, LOOP_BYPASS)
-{
+TEST_F(Reopen2EmptyLatencyTest, LOOP_BYPASS) {
   fsal_status_t status;
   struct fsal_obj_handle *sub_hdl;
   struct timespec s_time, e_time;
@@ -187,12 +179,12 @@ TEST_F(Reopen2EmptyLatencyTest, LOOP_BYPASS)
   now(&s_time);
 
   for (int i = 0; i < LOOP_COUNT; ++i) {
-    if(i%2 == 0) {
+    if (i % 2 == 0) {
       status = sub_hdl->obj_ops->reopen2(sub_hdl, test_file_state, FSAL_O_READ);
       ASSERT_EQ(status.major, 0);
-    }
-    else {
-      status = sub_hdl->obj_ops->reopen2(sub_hdl, test_file_state, FSAL_O_WRITE);
+    } else {
+      status =
+          sub_hdl->obj_ops->reopen2(sub_hdl, test_file_state, FSAL_O_WRITE);
       ASSERT_EQ(status.major, 0);
     }
   }
@@ -203,10 +195,9 @@ TEST_F(Reopen2EmptyLatencyTest, LOOP_BYPASS)
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int code = 0;
-  char* session_name = NULL;
+  char *session_name = NULL;
 
   using namespace std;
   using namespace std::literals;
@@ -231,13 +222,13 @@ int main(int argc, char *argv[])
        "ganesha debug level")
 
       ("session", po::value<string>(),
-	"LTTng session name")
+       "LTTng session name")
 
       ("event-list", po::value<string>(),
-	"LTTng event list, comma separated")
+       "LTTng event list, comma separated")
 
       ("profile", po::value<string>(),
-	"Enable profiling and set output file.")
+       "Enable profiling and set output file.")
       ;
 
     po::variables_map::iterator vm_iter;
@@ -249,16 +240,16 @@ int main(int argc, char *argv[])
     // use config vars--leaves them on the stack
     vm_iter = vm.find("config");
     if (vm_iter != vm.end()) {
-      ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
+      ganesha_conf = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("logfile");
     if (vm_iter != vm.end()) {
-      lpath = (char*) vm_iter->second.as<std::string>().c_str();
+      lpath = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("debug");
     if (vm_iter != vm.end()) {
-      dlevel = ReturnLevelAscii(
-	(char*) vm_iter->second.as<std::string>().c_str());
+      dlevel =
+          ReturnLevelAscii((char *)vm_iter->second.as<std::string>().c_str());
     }
     vm_iter = vm.find("export");
     if (vm_iter != vm.end()) {
@@ -266,30 +257,30 @@ int main(int argc, char *argv[])
     }
     vm_iter = vm.find("session");
     if (vm_iter != vm.end()) {
-      session_name = (char*) vm_iter->second.as<std::string>().c_str();
+      session_name = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("event-list");
     if (vm_iter != vm.end()) {
-      event_list = (char*) vm_iter->second.as<std::string>().c_str();
+      event_list = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("profile");
     if (vm_iter != vm.end()) {
-      profile_out = (char*) vm_iter->second.as<std::string>().c_str();
+      profile_out = (char *)vm_iter->second.as<std::string>().c_str();
     }
 
     ::testing::InitGoogleTest(&argc, argv);
     gtest::env = new gtest::Environment(ganesha_conf, lpath, dlevel,
-					session_name, TEST_ROOT, export_id);
+                                        session_name, TEST_ROOT, export_id);
     ::testing::AddGlobalTestEnvironment(gtest::env);
 
-    code  = RUN_ALL_TESTS();
+    code = RUN_ALL_TESTS();
   }
 
-  catch(po::error& e) {
+  catch (po::error &e) {
     cout << "Error parsing opts " << e.what() << endl;
   }
 
-  catch(...) {
+  catch (...) {
     cout << "Unhandled exception in main()" << endl;
   }
 

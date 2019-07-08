@@ -1,30 +1,51 @@
+/*
+ * vim:noexpandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) Stony Brook University 2019
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
+
 /* export.c
- * NULL FSAL export object
+ * TXNFS export object
  */
 
 #include "config.h"
 
+#include "FSAL/fsal_commonlib.h"
+#include "FSAL/fsal_config.h"
+#include "config_parsing.h"
+#include "export_mgr.h"
 #include "fsal.h"
-#include <libgen.h>		/* used for 'dirname' */
+#include "fsal_convert.h"
+#include "gsh_list.h"
+#include "nfs_exports.h"
+#include "nfs_proto_data.h"
+#include "txn_logger.h"
+#include "txnfs_methods.h"
+#include <dlfcn.h>
+#include <libgen.h> /* used for 'dirname' */
+#include <os/mntent.h>
+#include <os/quota.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
-#include <os/mntent.h>
-#include <os/quota.h>
-#include <dlfcn.h>
-#include "gsh_list.h"
-#include "config_parsing.h"
-#include "fsal_convert.h"
-#include "FSAL/fsal_commonlib.h"
-#include "FSAL/fsal_config.h"
-#include "txnfs_methods.h"
-#include "nfs_exports.h"
-#include "export_mgr.h"
 
 /* helpers to/from other NULL objects
  */
-
-struct fsal_staticfsinfo_t *txnfs_staticinfo(struct fsal_module *hdl);
 
 /* export object methods
  */
@@ -41,10 +62,13 @@ static void release(struct fsal_export *exp_hdl)
 	myself->export.sub_export->exp_ops.release(myself->export.sub_export);
 	fsal_put(sub_fsal);
 
+	LogFullDebug(COMPONENT_FSAL, "FSAL %s refcount %" PRIu32,
+		     sub_fsal->name, atomic_fetch_int32_t(&sub_fsal->refcount));
+
 	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
 	free_export_ops(exp_hdl);
 
-	gsh_free(myself);	/* elvis has left the building */
+	gsh_free(myself); /* elvis has left the building */
 }
 
 static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
@@ -52,16 +76,15 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 				      fsal_dynamicfsinfo_t *infop)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	struct txnfs_fsal_obj_handle *handle =
-		container_of(obj_hdl, struct txnfs_fsal_obj_handle,
-			     obj_handle);
+	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = exp->export.sub_export;
 	fsal_status_t status = op_ctx->fsal_export->exp_ops.get_fs_dynamic_info(
-		op_ctx->fsal_export, handle->sub_handle, infop);
+	    op_ctx->fsal_export, handle->sub_handle, infop);
 	op_ctx->fsal_export = &exp->export;
 
 	return status;
@@ -71,12 +94,11 @@ static bool fs_supports(struct fsal_export *exp_hdl,
 			fsal_fsinfo_options_t option)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	bool result =
-		exp->export.sub_export->exp_ops.fs_supports(
-				exp->export.sub_export, option);
+	bool result = exp->export.sub_export->exp_ops.fs_supports(
+	    exp->export.sub_export, option);
 
 	op_ctx->fsal_export = &exp->export;
 
@@ -86,12 +108,12 @@ static bool fs_supports(struct fsal_export *exp_hdl,
 static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint64_t result =
-		exp->export.sub_export->exp_ops.fs_maxfilesize(
-				exp->export.sub_export);
+	uint64_t result = exp->export.sub_export->exp_ops.fs_maxfilesize(
+	    exp->export.sub_export);
+
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
@@ -100,11 +122,11 @@ static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
 static uint32_t fs_maxread(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint32_t result = exp->export.sub_export->exp_ops.fs_maxread(
-				exp->export.sub_export);
+	uint32_t result =
+	    exp->export.sub_export->exp_ops.fs_maxread(exp->export.sub_export);
 
 	op_ctx->fsal_export = &exp->export;
 
@@ -114,11 +136,11 @@ static uint32_t fs_maxread(struct fsal_export *exp_hdl)
 static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint32_t result = exp->export.sub_export->exp_ops.fs_maxwrite(
-				exp->export.sub_export);
+	uint32_t result =
+	    exp->export.sub_export->exp_ops.fs_maxwrite(exp->export.sub_export);
 
 	op_ctx->fsal_export = &exp->export;
 
@@ -128,11 +150,11 @@ static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
 static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint32_t result = exp->export.sub_export->exp_ops.fs_maxlink(
-				exp->export.sub_export);
+	uint32_t result =
+	    exp->export.sub_export->exp_ops.fs_maxlink(exp->export.sub_export);
 
 	op_ctx->fsal_export = &exp->export;
 
@@ -142,12 +164,11 @@ static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
 static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint32_t result =
-		exp->export.sub_export->exp_ops.fs_maxnamelen(
-				exp->export.sub_export);
+	uint32_t result = exp->export.sub_export->exp_ops.fs_maxnamelen(
+	    exp->export.sub_export);
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
@@ -156,12 +177,11 @@ static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
 static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint32_t result =
-		exp->export.sub_export->exp_ops.fs_maxpathlen(
-				exp->export.sub_export);
+	uint32_t result = exp->export.sub_export->exp_ops.fs_maxpathlen(
+	    exp->export.sub_export);
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
@@ -170,11 +190,11 @@ static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
 static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
 	fsal_aclsupp_t result = exp->export.sub_export->exp_ops.fs_acl_support(
-		exp->export.sub_export);
+	    exp->export.sub_export);
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
@@ -183,12 +203,12 @@ static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
 static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	attrmask_t result =
-		exp->export.sub_export->exp_ops.fs_supported_attrs(
-		exp->export.sub_export);
+	attrmask_t result = exp->export.sub_export->exp_ops.fs_supported_attrs(
+	    exp->export.sub_export);
+
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
@@ -197,11 +217,11 @@ static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
 static uint32_t fs_umask(struct fsal_export *exp_hdl)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	uint32_t result = exp->export.sub_export->exp_ops.fs_umask(
-				exp->export.sub_export);
+	uint32_t result =
+	    exp->export.sub_export->exp_ops.fs_umask(exp->export.sub_export);
 
 	op_ctx->fsal_export = &exp->export;
 
@@ -219,17 +239,14 @@ static uint32_t fs_umask(struct fsal_export *exp_hdl)
 
 static fsal_status_t get_quota(struct fsal_export *exp_hdl,
 			       const char *filepath, int quota_type,
-			       int quota_id,
-			       fsal_quota_t *pquota)
+			       int quota_id, fsal_quota_t *pquota)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.get_quota(
-			exp->export.sub_export, filepath,
-			quota_type, quota_id, pquota);
+	fsal_status_t result = exp->export.sub_export->exp_ops.get_quota(
+	    exp->export.sub_export, filepath, quota_type, quota_id, pquota);
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
@@ -241,33 +258,31 @@ static fsal_status_t get_quota(struct fsal_export *exp_hdl,
 
 static fsal_status_t set_quota(struct fsal_export *exp_hdl,
 			       const char *filepath, int quota_type,
-			       int quota_id,
-			       fsal_quota_t *pquota, fsal_quota_t *presquota)
+			       int quota_id, fsal_quota_t *pquota,
+			       fsal_quota_t *presquota)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.set_quota(
-			exp->export.sub_export, filepath, quota_type, quota_id,
-			pquota, presquota);
+	fsal_status_t result = exp->export.sub_export->exp_ops.set_quota(
+	    exp->export.sub_export, filepath, quota_type, quota_id, pquota,
+	    presquota);
 	op_ctx->fsal_export = &exp->export;
 
 	return result;
 }
 
 static struct state_t *txnfs_alloc_state(struct fsal_export *exp_hdl,
-					  enum state_type state_type,
-					  struct state_t *related_state)
+					 enum state_type state_type,
+					 struct state_t *related_state)
 {
 	struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	state_t *state =
-		exp->export.sub_export->exp_ops.alloc_state(
-			exp->export.sub_export, state_type, related_state);
+	state_t *state = exp->export.sub_export->exp_ops.alloc_state(
+	    exp->export.sub_export, state_type, related_state);
 	op_ctx->fsal_export = &exp->export;
 
 	/* Replace stored export with ours so stacking works */
@@ -276,11 +291,10 @@ static struct state_t *txnfs_alloc_state(struct fsal_export *exp_hdl,
 	return state;
 }
 
-static void txnfs_free_state(struct fsal_export *exp_hdl,
-			      struct state_t *state)
+static void txnfs_free_state(struct fsal_export *exp_hdl, struct state_t *state)
 {
-	struct txnfs_fsal_export *exp = container_of(exp_hdl,
-					struct txnfs_fsal_export, export);
+	struct txnfs_fsal_export *exp =
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
 	exp->export.sub_export->exp_ops.free_state(exp->export.sub_export,
@@ -288,64 +302,189 @@ static void txnfs_free_state(struct fsal_export *exp_hdl,
 	op_ctx->fsal_export = &exp->export;
 }
 
-
-/* extract a file handle from a buffer.
- * do verification checks and flag any and all suspicious bits.
- * Return an updated fh_desc into whatever was passed.  The most
- * common behavior, done here is to just reset the length.  There
- * is the option to also adjust the start pointer.
- */
-
-static fsal_status_t wire_to_host(struct fsal_export *exp_hdl,
-				    fsal_digesttype_t in_type,
-				    struct gsh_buffdesc *fh_desc,
-				    int flags)
+static bool txnfs_is_superuser(struct fsal_export *exp_hdl,
+			       const struct user_cred *creds)
 {
-	/*struct txnfs_fsal_export *exp =
-		container_of(exp_hdl, struct txnfs_fsal_export, export);*/
-	db_kvpair_t kvpair;
+	struct txnfs_fsal_export *exp =
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
+	bool rv;
 
-	if (fh_desc->len < TXN_UUID_LEN) {
-		LogMajor(COMPONENT_FSAL, "File handle too short");
-		return fsalstat(ERR_FSAL_BADHANDLE, 0);
-	}
+	op_ctx->fsal_export = exp->export.sub_export;
+	rv = exp->export.sub_export->exp_ops.is_superuser(
+	    exp->export.sub_export, creds);
+	op_ctx->fsal_export = &exp->export;
 
-	fh_desc->len = TXN_UUID_LEN;
-	if (memcmp(fh_desc->addr, get_root_id(db), TXN_UUID_LEN) == 0) {
-		return fsalstat(ERR_FSAL_NO_ERROR, 0);
-	}
-
-	LogDebug(COMPONENT_FSAL, "Received file ID %s. ID Length = %zu",
-		(char *) fh_desc->addr, fh_desc->len);
-	kvpair.key = (char *) fh_desc->addr;
-	kvpair.key_len = TXN_UUID_LEN;
-	kvpair.val = NULL;
-	int res = get_keys(&kvpair, 1, db);
-	LogDebug(COMPONENT_FSAL, "get_keys = %d", res);
-	if (kvpair.val == NULL) {
-		LogMajor(COMPONENT_FSAL, "No entry in DB for file ID %s", kvpair.key);
-		return fsalstat(ERR_FSAL_BADHANDLE, 0);
-	}
-
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+	return rv;
 }
 
 static fsal_status_t txnfs_host_to_key(struct fsal_export *exp_hdl,
 				       struct gsh_buffdesc *fh_desc)
 {
+	UDBG;
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
+	return status;
+}
+
+/* extract a file handle from a buffer.
+ * do verification checks and flag any and all suspicious bits.
+ * Return an updated fh_desc into whatever was passed.  The most
+ * common behavior, done here is to just reset the length.
+ */
+
+static fsal_status_t wire_to_host(struct fsal_export *exp_hdl,
+				  fsal_digesttype_t in_type,
+				  struct gsh_buffdesc *fh_desc, int flags)
+{
+	UDBG;
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
+	return status;
+}
+
+static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
+{
+	UDBG;
 	struct txnfs_fsal_export *exp =
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	op_ctx->fsal_export = exp->export.sub_export;
-	fsal_status_t result =
-		exp->export.sub_export->exp_ops.host_to_key(
-			exp->export.sub_export, fh_desc);
+	exp->export.sub_export->exp_ops.prepare_unexport(
+	    exp->export.sub_export);
 	op_ctx->fsal_export = &exp->export;
-
-	return result;
 }
 
+fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
+{
+	COMPOUND4args *args = data;
+	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
 
+	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
+	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
+		 args->argarray.argarray_len);
+
+	// generate txnid and create transaction log
+	/*txn_context_t *context = new_txn_context(args->argarray.argarray_len,
+	args->argarray.argarray_val);
+
+	op_ctx->txnid = create_txn_log(db, args, context);*/
+
+	// initialize txn cache
+	txnfs_cache_init();
+
+	op_ctx->op_args = args;
+
+	struct txnfs_fsal_export *exp =
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
+
+	if (exp->export.sub_export->exp_ops.start_compound) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		res = exp->export.sub_export->exp_ops.start_compound(
+		    exp->export.sub_export, data);
+		op_ctx->fsal_export = &exp->export;
+	}
+
+	return res;
+}
+
+fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
+{
+	COMPOUND4res *res = data;
+	fsal_status_t ret = {ERR_FSAL_NO_ERROR, 0};
+
+	struct txnfs_fsal_export *exp =
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
+
+	if (exp->export.sub_export->exp_ops.end_compound) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		ret = exp->export.sub_export->exp_ops.end_compound(
+		    exp->export.sub_export, data);
+		op_ctx->fsal_export = &exp->export;
+	}
+
+	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
+	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
+		 res->status, res->resarray.resarray_len);
+
+	if (res->status == NFS4_OK) {
+		// commit entries to leveldb and remove txnlog entry
+		txnfs_cache_commit();
+	} else {
+		// TODO: restore backups
+		assert(txnfs_compound_restore(op_ctx->txnid, res) == 0);
+		// remove txn log entry
+	}
+
+	// clear the list of entry in op_ctx->txn_cache
+	txnfs_cache_cleanup();
+
+	return ret;
+}
+
+fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
+				   unsigned int opidx, void *compound_data,
+				   struct nfs_argop4 *op)
+{
+	compound_data_t *data = compound_data;
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
+	struct fsal_obj_handle *handle = NULL;
+	struct txnfs_fsal_obj_handle *cur_hdl = container_of(
+	    data->current_obj, struct txnfs_fsal_obj_handle, obj_handle);
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+
+	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
+		op_ctx->fsal_export = exp->export.sub_export;
+		status = exp->export.sub_export->exp_ops.backup_nfs4_op(
+		    exp->export.sub_export, opidx, data, op);
+		op_ctx->fsal_export = &exp->export;
+	}
+
+	switch (op->argop) {
+		case NFS4_OP_OPEN:
+			// lookup first
+			if (op->nfs_argop4_u.opopen.openhow.opentype &
+			    OPEN4_CREATE) {
+				op_ctx->fsal_export = exp->export.sub_export;
+				status = cur_hdl->sub_handle->obj_ops->lookup(
+				    cur_hdl->sub_handle,
+				    op->nfs_argop4_u.opopen.claim.open_claim4_u
+					.file.utf8string_val,
+				    &handle, NULL);
+
+				op_ctx->fsal_export = &exp->export;
+
+				if (status.major == ERR_FSAL_NO_ERROR) {
+					txnfs_backup_file(opidx, handle);
+				} else if (status.major != ERR_FSAL_NOENT) {
+					assert(!"lookup failure!");
+				}
+			}
+			break;
+
+		case NFS4_OP_WRITE:
+			// TODO: check handle in db
+			txnfs_backup_file(opidx, cur_hdl->sub_handle);
+			break;
+		case NFS4_OP_REMOVE:
+			// lookup first
+			op_ctx->fsal_export = exp->export.sub_export;
+			status = cur_hdl->sub_handle->obj_ops->lookup(
+			    cur_hdl->sub_handle,
+			    op->nfs_argop4_u.opremove.target.utf8string_val,
+			    &handle, NULL);
+
+			op_ctx->fsal_export = &exp->export;
+
+			if (status.major == ERR_FSAL_NO_ERROR) {
+				txnfs_backup_file(opidx, handle);
+			} else if (status.major != ERR_FSAL_NOENT) {
+				assert(!"lookup failure!");
+			}
+		default:
+			return status;
+	}
+
+	return status;
+}
 /* txnfs_export_ops_init
  * overwrite vector entries with the methods that we support
  */
@@ -353,6 +492,7 @@ static fsal_status_t txnfs_host_to_key(struct fsal_export *exp_hdl,
 void txnfs_export_ops_init(struct export_ops *ops)
 {
 	ops->release = release;
+	ops->prepare_unexport = txnfs_prepare_unexport;
 	ops->lookup_path = txnfs_lookup_path;
 	ops->wire_to_host = wire_to_host;
 	ops->host_to_key = txnfs_host_to_key;
@@ -372,6 +512,12 @@ void txnfs_export_ops_init(struct export_ops *ops)
 	ops->set_quota = set_quota;
 	ops->alloc_state = txnfs_alloc_state;
 	ops->free_state = txnfs_free_state;
+	ops->is_superuser = txnfs_is_superuser;
+
+	/* compound start and end */
+	ops->start_compound = txnfs_start_compound;
+	ops->end_compound = txnfs_end_compound;
+	ops->backup_nfs4_op = txnfs_backup_nfs4_op;
 }
 
 struct txnfsal_args {
@@ -379,27 +525,21 @@ struct txnfsal_args {
 };
 
 static struct config_item sub_fsal_params[] = {
-	CONF_ITEM_STR("name", 1, 10, NULL,
-		      subfsal_args, name),
-	CONFIG_EOL
-};
+    CONF_ITEM_STR("name", 1, 10, NULL, subfsal_args, name), CONFIG_EOL};
 
 static struct config_item export_params[] = {
-	CONF_ITEM_NOOP("name"),
-	CONF_RELAX_BLOCK("FSAL", sub_fsal_params,
-			 noop_conf_init, subfsal_commit,
-			 txnfsal_args, subfsal),
-	CONFIG_EOL
-};
+    CONF_ITEM_NOOP("name"),
+    CONF_RELAX_BLOCK("FSAL", sub_fsal_params, noop_conf_init, subfsal_commit,
+		     txnfsal_args, subfsal),
+    CONFIG_EOL};
 
 static struct config_block export_param = {
-	.dbus_interface_name = "org.ganesha.nfsd.config.fsal.txnfs-export%d",
-	.blk_desc.name = "FSAL",
-	.blk_desc.type = CONFIG_BLOCK,
-	.blk_desc.u.blk.init = noop_conf_init,
-	.blk_desc.u.blk.params = export_params,
-	.blk_desc.u.blk.commit = noop_conf_commit
-};
+    .dbus_interface_name = "org.ganesha.nfsd.config.fsal.txnfs-export%d",
+    .blk_desc.name = "FSAL",
+    .blk_desc.type = CONFIG_BLOCK,
+    .blk_desc.u.blk.init = noop_conf_init,
+    .blk_desc.u.blk.params = export_params,
+    .blk_desc.u.blk.commit = noop_conf_commit};
 
 /* create_export
  * Create an export point and return a handle to it to be kept
@@ -409,40 +549,40 @@ static struct config_block export_param = {
  */
 
 fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
-				   void *parse_node,
-				   struct config_error_type *err_type,
-				   const struct fsal_up_vector *up_ops)
+				  void *parse_node,
+				  struct config_error_type *err_type,
+				  const struct fsal_up_vector *up_ops)
 {
 	fsal_status_t expres;
 	struct fsal_module *fsal_stack;
 	struct txnfs_fsal_export *myself;
 	struct txnfsal_args txnfsal;
 	int retval;
+	UDBG;
 
 	/* process our FSAL block to get the name of the fsal
 	 * underneath us.
 	 */
-	retval = load_config_from_node(parse_node,
-				       &export_param,
-				       &txnfsal,
-				       true,
-				       err_type);
-	if (retval != 0)
-		return fsalstat(ERR_FSAL_INVAL, 0);
+	retval = load_config_from_node(parse_node, &export_param, &txnfsal,
+				       true, err_type);
+	if (retval != 0) return fsalstat(ERR_FSAL_INVAL, 0);
 	fsal_stack = lookup_fsal(txnfsal.subfsal.name);
 	if (fsal_stack == NULL) {
 		LogMajor(COMPONENT_FSAL,
-			 "txnfs_create_export: failed to lookup for FSAL %s",
+			 "txnfs create export failed to lookup for FSAL %s",
 			 txnfsal.subfsal.name);
 		return fsalstat(ERR_FSAL_INVAL, EINVAL);
 	}
 
 	myself = gsh_calloc(1, sizeof(struct txnfs_fsal_export));
-	expres = fsal_stack->m_ops.create_export(fsal_stack,
-						 txnfsal.subfsal.fsal_node,
-						 err_type,
-						 up_ops);
+	expres = fsal_stack->m_ops.create_export(
+	    fsal_stack, txnfsal.subfsal.fsal_node, err_type, up_ops);
 	fsal_put(fsal_stack);
+
+	LogFullDebug(COMPONENT_FSAL, "FSAL %s refcount %" PRIu32,
+		     fsal_stack->name,
+		     atomic_fetch_int32_t(&fsal_stack->refcount));
+
 	if (FSAL_IS_ERROR(expres)) {
 		LogMajor(COMPONENT_FSAL,
 			 "Failed to call create_export on underlying FSAL %s",
@@ -453,30 +593,6 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 
 	fsal_export_stack(op_ctx->fsal_export, &myself->export);
 
-	/* Init next_ops structure */
-	/*** FIX ME!!!
-	 * This structure had 3 mallocs that were never freed,
-	 * and would leak for every export created.
-	 * Now static to avoid the leak, the saved contents were
-	 * never restored back to the original.
-	 */
-
-	memcpy(&next_ops.exp_ops,
-	       &myself->export.sub_export->exp_ops,
-	       sizeof(struct export_ops));
-#ifdef EXPORT_OPS_INIT
-	/*** FIX ME!!!
-	 * Need to iterate through the lists to save and restore.
-	 */
-	memcpy(&next_ops.obj_ops,
-	       myself->export.sub_export->obj_ops,
-	       sizeof(struct fsal_obj_ops));
-	memcpy(&next_ops.dsh_ops,
-	       myself->export.sub_export->dsh_ops,
-	       sizeof(struct fsal_dsh_ops));
-#endif				/* EXPORT_OPS_INIT */
-	next_ops.up_ops = up_ops;
-
 	fsal_export_init(&myself->export);
 	txnfs_export_ops_init(&myself->export.exp_ops);
 #ifdef EXPORT_OPS_INIT
@@ -484,7 +600,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	 * Need to iterate through the lists to save and restore.
 	 */
 	txnfs_handle_ops_init(myself->export.obj_ops);
-#endif				/* EXPORT_OPS_INIT */
+#endif /* EXPORT_OPS_INIT */
 	myself->export.up_ops = up_ops;
 	myself->export.fsal = fsal_hdl;
 
@@ -492,5 +608,6 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	 * keep myself locked until done with creating myself.
 	 */
 	op_ctx->fsal_export = &myself->export;
+
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

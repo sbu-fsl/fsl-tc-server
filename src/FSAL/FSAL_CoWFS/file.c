@@ -2154,25 +2154,6 @@ fsal_status_t cowfs_close2(struct fsal_obj_handle *obj_hdl,
 	return cowfs_close_my_fd(my_fd);
 }
 
-fsal_status_t cowfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				   void *data){
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_CoWFS layer.");
-
-	return fsal_status;
-}
-
-fsal_status_t cowfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-				 void *data)
-{
-	fsal_status_t fsal_status = {0, 0};
-
-	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_CoWFS layer.");
-
-	return fsal_status;
-}
-
 static int clone_file(const char *src, const char *dst)
 {
         int src_fd;

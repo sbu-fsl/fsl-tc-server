@@ -1057,12 +1057,6 @@ void mdcache_export_ops_init(struct export_ops *ops);
 fsal_status_t mdcache_export_up_ops_init(struct fsal_up_vector *my_up_ops,
 				 const struct fsal_up_vector *super_up_ops);
 
-fsal_status_t mdcache_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				     void *data);
-
-fsal_status_t mdcache_end_compound(struct fsal_obj_handle *root_backup_hdl,
-				   void *data);
-
 fsal_status_t mdcache_clone(struct fsal_obj_handle *src_hdl,
 			    char **dst_name,
 			    struct fsal_obj_handle *dir_hdl,

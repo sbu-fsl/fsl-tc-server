@@ -22,16 +22,16 @@
  * -------------
  */
 
-#include <sys/types.h>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <chrono>
-#include <thread>
-#include <random>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <random>
+#include <sys/types.h>
+#include <thread>
+#include <vector>
 
 #include "gtest_nfs4.hh"
 
@@ -46,40 +46,37 @@ void admin_halt(void);
 }
 
 #define TEST_ROOT "nfs4_lookup_latency"
-#define FILE_COUNT 100000
-#define LOOP_COUNT 1000000
+#define FILE_COUNT 100
+#define LOOP_COUNT 100
 
 namespace {
 
-  char* event_list = nullptr;
-  char* profile_out = nullptr;
+char *event_list = nullptr;
+char *profile_out = nullptr;
 
-  class LookupEmptyLatencyTest : public gtest::GaeshaNFS4BaseTest {
-  };
+class LookupEmptyLatencyTest : public gtest::GaeshaNFS4BaseTest {};
 
-  class LookupFullLatencyTest : public gtest::GaeshaNFS4BaseTest {
+class LookupFullLatencyTest : public gtest::GaeshaNFS4BaseTest {
 
-  protected:
+ protected:
+  virtual void SetUp() {
+    GaeshaNFS4BaseTest::SetUp();
 
-    virtual void SetUp() {
-      GaeshaNFS4BaseTest::SetUp();
+    create_and_prime_many(FILE_COUNT, objs);
+  }
 
-      create_and_prime_many(FILE_COUNT, objs);
-    }
+  virtual void TearDown() {
+    remove_many(FILE_COUNT, objs);
 
-    virtual void TearDown() {
-      remove_many(FILE_COUNT, objs);
+    GaeshaNFS4BaseTest::TearDown();
+  }
 
-      GaeshaNFS4BaseTest::TearDown();
-    }
-
-    struct fsal_obj_handle *objs[FILE_COUNT];
-  };
+  struct fsal_obj_handle *objs[FILE_COUNT];
+};
 
 } /* namespace */
 
-TEST_F(LookupEmptyLatencyTest, SIMPLE)
-{
+TEST_F(LookupEmptyLatencyTest, SIMPLE) {
   int rc;
 
   setCurrentFH(root_entry);
@@ -95,8 +92,7 @@ TEST_F(LookupEmptyLatencyTest, SIMPLE)
   disableEvents(event_list);
 }
 
-TEST_F(LookupEmptyLatencyTest, LOOP)
-{
+TEST_F(LookupEmptyLatencyTest, LOOP) {
   int rc;
   struct timespec s_time, e_time;
 
@@ -119,11 +115,9 @@ TEST_F(LookupEmptyLatencyTest, LOOP)
 
   fprintf(stderr, "Average time per lookup: %" PRIu64 " ns\n",
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
-
 }
 
-TEST_F(LookupFullLatencyTest, BIG_SINGLE)
-{
+TEST_F(LookupFullLatencyTest, BIG_SINGLE) {
   int rc;
   char fname[NAMELEN];
   struct timespec s_time, e_time;
@@ -149,15 +143,13 @@ TEST_F(LookupFullLatencyTest, BIG_SINGLE)
           timespec_diff(&s_time, &e_time));
 }
 
-TEST_F(LookupFullLatencyTest, BIG)
-{
+TEST_F(LookupFullLatencyTest, BIG) {
   int rc;
   char fname[NAMELEN];
   struct timespec s_time, e_time;
 
   enableEvents(event_list);
-  if (profile_out)
-    ProfilerStart(profile_out);
+  if (profile_out) ProfilerStart(profile_out);
 
   now(&s_time);
 
@@ -176,20 +168,18 @@ TEST_F(LookupFullLatencyTest, BIG)
 
   now(&e_time);
 
-  if (profile_out)
-    ProfilerStop();
+  if (profile_out) ProfilerStop();
   disableEvents(event_list);
 
   fprintf(stderr, "Average time per lookup: %" PRIu64 " ns\n",
           timespec_diff(&s_time, &e_time) / LOOP_COUNT);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int code = 0;
-  char* session_name = NULL;
-  char* ganesha_conf = nullptr;
-  char* lpath = nullptr;
+  char *session_name = NULL;
+  char *ganesha_conf = nullptr;
+  char *lpath = nullptr;
   int dlevel = -1;
   uint16_t export_id = 77;
 
@@ -234,16 +224,16 @@ int main(int argc, char *argv[])
     // use config vars--leaves them on the stack
     vm_iter = vm.find("config");
     if (vm_iter != vm.end()) {
-      ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
+      ganesha_conf = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("logfile");
     if (vm_iter != vm.end()) {
-      lpath = (char*) vm_iter->second.as<std::string>().c_str();
+      lpath = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("debug");
     if (vm_iter != vm.end()) {
-      dlevel = ReturnLevelAscii(
-         (char*) vm_iter->second.as<std::string>().c_str());
+      dlevel =
+          ReturnLevelAscii((char *)vm_iter->second.as<std::string>().c_str());
     }
     vm_iter = vm.find("export");
     if (vm_iter != vm.end()) {
@@ -251,15 +241,15 @@ int main(int argc, char *argv[])
     }
     vm_iter = vm.find("session");
     if (vm_iter != vm.end()) {
-      session_name = (char*) vm_iter->second.as<std::string>().c_str();
+      session_name = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("event-list");
     if (vm_iter != vm.end()) {
-      event_list = (char*) vm_iter->second.as<std::string>().c_str();
+      event_list = (char *)vm_iter->second.as<std::string>().c_str();
     }
     vm_iter = vm.find("profile");
     if (vm_iter != vm.end()) {
-      profile_out = (char*) vm_iter->second.as<std::string>().c_str();
+      profile_out = (char *)vm_iter->second.as<std::string>().c_str();
     }
 
     ::testing::InitGoogleTest(&argc, argv);
@@ -267,14 +257,14 @@ int main(int argc, char *argv[])
                                         session_name, TEST_ROOT, export_id);
     ::testing::AddGlobalTestEnvironment(gtest::env);
 
-    code  = RUN_ALL_TESTS();
+    code = RUN_ALL_TESTS();
   }
 
-  catch(po::error& e) {
+  catch (po::error &e) {
     cout << "Error parsing opts " << e.what() << endl;
   }
 
-  catch(...) {
+  catch (...) {
     cout << "Unhandled exception in main()" << endl;
   }
 

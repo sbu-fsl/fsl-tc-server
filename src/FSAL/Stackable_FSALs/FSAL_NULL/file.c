@@ -389,3 +389,25 @@ fsal_status_t nullfs_fallocate(struct fsal_obj_handle *obj_hdl,
 	op_ctx->fsal_export = &export->export;
 	return status;
 }
+
+fsal_status_t nullfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
+			 struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+			 uint64_t count, uint64_t *copied)
+{
+	struct nullfs_fsal_obj_handle *null_src_hdl =
+	    container_of(src_hdl, struct nullfs_fsal_obj_handle, obj_handle);
+
+	struct nullfs_fsal_obj_handle *null_dst_hdl =
+	    container_of(dst_hdl, struct nullfs_fsal_obj_handle, obj_handle);
+	struct nullfs_fsal_export *export =
+	    container_of(op_ctx->fsal_export, struct nullfs_fsal_export,
+			 export);
+	fsal_status_t status;
+
+	op_ctx->fsal_export = export->export.sub_export;
+	status = null_src_hdl->sub_handle->obj_ops->copy(
+	    null_src_hdl->sub_handle, src_offset, null_dst_hdl->sub_handle,
+	    dst_offset, count, copied);
+	op_ctx->fsal_export = &export->export;
+	return status;
+}

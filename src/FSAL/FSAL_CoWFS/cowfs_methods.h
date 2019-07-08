@@ -366,12 +366,6 @@ fsal_status_t cowfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 fsal_status_t check_hsm_by_fd(int fd);
 
 /* transaction related function */
-fsal_status_t cowfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				   void *data);
-
-fsal_status_t cowfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-				 void *data);
-
 fsal_status_t cowfs_clone(struct fsal_obj_handle *src_hdl,
 			  char **dst_name,
 			  struct fsal_obj_handle *dir_hdl,

@@ -374,12 +374,6 @@ fsal_status_t vfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 		       struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
 		       uint64_t count, uint64_t *copied);
 
-fsal_status_t vfs_start_compound(struct fsal_obj_handle *root_backup_hdl,
-				 void *data);
-
-fsal_status_t vfs_end_compound(struct fsal_obj_handle *root_backup_hdl,
-			       void *data);
-
 fsal_status_t vfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 			 struct fsal_obj_handle *dst_hdl, loff_t *off_out,
 			 size_t len, unsigned int flags);

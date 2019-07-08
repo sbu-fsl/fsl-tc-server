@@ -135,16 +135,16 @@ int main(int argc, char *argv[])
 
     opts.add_options()
       ("config", po::value<string>(),
-	"path to Ganesha conf file")
+	   "path to Ganesha conf file")
 
       ("logfile", po::value<string>(),
-	"log to the provided file path")
+	   "log to the provided file path")
 
       ("export", po::value<uint16_t>(),
-	"id of export on which to operate (must exist)")
+	   "id of export on which to operate (must exist)")
 
       ("debug", po::value<string>(),
-	"ganesha debug level")
+	   "ganesha debug level")
       ;
 
     po::variables_map::iterator vm_iter;
