@@ -352,20 +352,33 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
+/**
+ * Sometimes txn_cache is not initialized before calling txnfs_end_compound
+ * because the start_compound method of PSEUDOFS is called. This function is
+ * intended to check if the txn-related context data has been properly
+ * initialized. If not, we should not perform any txn-related operations.
+ */
+static inline bool txn_context_valid(void)
+{
+	return (op_ctx->op_args != NULL);
+}
+
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+	struct txnfs_fsal_module *fs =
+		container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
 
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
 		 args->argarray.argarray_len);
 
 	// generate txnid and create transaction log
-	/*txn_context_t *context = new_txn_context(args->argarray.argarray_len,
+	txn_context_t *context = new_txn_context(args->argarray.argarray_len,
 	args->argarray.argarray_val);
 
-	op_ctx->txnid = create_txn_log(db, args, context);*/
+	op_ctx->txnid = create_txn_log(fs->db, args, context);
 
 	// initialize txn cache
 	txnfs_cache_init();
@@ -404,6 +417,11 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
 		 res->status, res->resarray.resarray_len);
 
+	/* If txn-related data has neven been properly initialized, don't do
+	 * the following operations. */
+	if (!txn_context_valid())
+		return ret;
+
 	if (res->status == NFS4_OK) {
 		// commit entries to leveldb and remove txnlog entry
 		txnfs_cache_commit();
@@ -437,6 +455,10 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		    exp->export.sub_export, opidx, data, op);
 		op_ctx->fsal_export = &exp->export;
 	}
+
+	/* Do not backup if txn-related data has not been initialized. */
+	if (!txn_context_valid())
+		return status;
 
 	switch (op->argop) {
 		case NFS4_OP_OPEN:
