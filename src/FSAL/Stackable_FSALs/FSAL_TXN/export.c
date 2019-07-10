@@ -439,14 +439,14 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 }
 
 fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
-				   unsigned int opidx, void *compound_data,
+				   unsigned int opidx,
+				   struct fsal_obj_handle *current,
 				   struct nfs_argop4 *op)
 {
-	compound_data_t *data = compound_data;
 	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 	struct fsal_obj_handle *handle = NULL;
 	struct txnfs_fsal_obj_handle *cur_hdl = container_of(
-	    data->current_obj, struct txnfs_fsal_obj_handle, obj_handle);
+	    current, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	char *pathname = NULL;
@@ -455,7 +455,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
 		op_ctx->fsal_export = exp->export.sub_export;
 		status = exp->export.sub_export->exp_ops.backup_nfs4_op(
-		    exp->export.sub_export, opidx, data, op);
+		    exp->export.sub_export, opidx, cur_hdl->sub_handle, op);
 		op_ctx->fsal_export = &exp->export;
 	}
 

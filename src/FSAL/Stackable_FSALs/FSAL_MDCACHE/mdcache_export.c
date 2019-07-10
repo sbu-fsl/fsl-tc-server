@@ -806,6 +806,26 @@ static void mdcache_prepare_unexport(struct fsal_export *exp_hdl)
 	subcall_raw(exp, sub_export->exp_ops.prepare_unexport(sub_export));
 }
 
+static fsal_status_t mdcache_backup_nfs4_op(struct fsal_export *exp_hdl,
+	unsigned int opidx, struct fsal_obj_handle *current,
+	struct nfs_argop4 *op)
+{
+	fsal_status_t ret = {ERR_FSAL_NO_ERROR, 0};
+	struct mdcache_fsal_obj_handle *mdc_obj = 
+		container_of(current, struct mdcache_fsal_obj_handle,
+			     obj_handle);
+	struct mdcache_fsal_export *exp = mdc_export(exp_hdl);
+	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
+
+	subcall_raw(exp,
+		ret = sub_export->exp_ops.backup_nfs4_op(sub_export,
+			opidx, mdc_obj->sub_handle, op)
+		);
+
+	return ret;
+}
+
+
 /* mdcache_export_ops_init
  * overwrite vector entries with the methods that we support
  */
@@ -844,6 +864,7 @@ void mdcache_export_ops_init(struct export_ops *ops)
 	ops->alloc_state = mdcache_alloc_state;
 	ops->free_state = mdcache_free_state;
 	ops->is_superuser = mdcache_is_superuser;
+	ops->backup_nfs4_op = mdcache_backup_nfs4_op;
 }
 
 #if 0
