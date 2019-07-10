@@ -208,13 +208,13 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 {
 	UDBG;
 	struct fsal_obj_handle *dst_hdl = NULL;
-	struct fsal_obj_handle *root_entry = NULL;
+	struct fsal_obj_handle *bkp_folder = NULL;
 	uint64_t copied = 0;
 	struct attrlist attrs = {0};
 	struct attrlist attrs_out = {0};
 	char backup_name[20];
 
-	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&root_entry);
+	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
 	assert(status.major == 0);
 
 	struct txnfs_fsal_export *exp =
@@ -239,6 +239,8 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
 		attrs.mode = 0666;
 		attrs.owner = 0;
+		status = fsal_create(bkp_folder, backup_name, REGULAR_FILE,
+				     &attrs, NULL, &dst_hdl, NULL);
 		assert(status.major == 0);
 		status = fsal_copy(src_hdl, 0 /* src_offset */,
 				   dst_hdl, 0 /* dst_offset */,
