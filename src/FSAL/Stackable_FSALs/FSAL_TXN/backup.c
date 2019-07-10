@@ -198,6 +198,9 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
  * @params[in] opidx	Operation index. This is used to compose the file name.
  * @params[in] src_hdl	The @c fsal_obj_handle of the source file
  *
+ * NOTE: We assume that @c src_hdl is a sub-handle but the current FSAL export
+ * should NOT be switched and should be TXNFS's export.
+ *
  * @return FSAL status code
  */
 fsal_status_t txnfs_backup_file(unsigned int opidx,
@@ -211,11 +214,6 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	struct attrlist attrs_out = {0};
 	char backup_name[20];
 
-	struct txnfs_fsal_obj_handle *txn_src_hdl =
-	    container_of(src_hdl, struct txnfs_fsal_obj_handle, obj_handle);
-
-	assert(txn_src_hdl);
-
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&root_entry);
 	assert(status.major == 0);
 
@@ -226,7 +224,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 
 	/* get file size */
 	attrs_out.request_mask = ATTR_SIZE;
-	status = get_optional_attrs(txn_src_hdl->sub_handle, &attrs_out);
+	status = get_optional_attrs(src_hdl, &attrs_out);
 	assert(status.major == 0);
 
 	/* copy src to backup dir */
@@ -242,7 +240,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 		attrs.mode = 0666;
 		attrs.owner = 0;
 		assert(status.major == 0);
-		status = fsal_copy(txn_src_hdl->sub_handle, 0 /* src_offset */,
+		status = fsal_copy(src_hdl, 0 /* src_offset */,
 				   dst_hdl, 0 /* dst_offset */,
 				   attrs_out.filesize, &copied);
 
