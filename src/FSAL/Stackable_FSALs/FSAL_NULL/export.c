@@ -385,15 +385,15 @@ static void nullfs_prepare_unexport(struct fsal_export *exp_hdl)
 }
 
 static fsal_status_t nullfs_backup_nfs4_op(struct fsal_export *exp_hdl,
-	unsigned int opidx, struct fsal_obj_handle *current,
-	struct nfs_argop4 *op)
+					   unsigned int opidx,
+					   struct fsal_obj_handle *current,
+					   struct nfs_argop4 *op)
 {
 	fsal_status_t ret = {ERR_FSAL_NO_ERROR, 0};
 	struct nullfs_fsal_obj_handle *cur_hdl = 
-		container_of(current, struct nullfs_fsal_obj_handle,
-			     obj_handle);
+	    container_of(current, struct nullfs_fsal_obj_handle, obj_handle);
 	struct nullfs_fsal_export *exp = 
-		container_of(exp_hdl, struct nullfs_fsal_export, export);
+	    container_of(exp_hdl, struct nullfs_fsal_export, export);
 	struct fsal_export *sub_export = exp->export.sub_export;
 
 	op_ctx->fsal_export = sub_export;
