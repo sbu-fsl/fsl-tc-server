@@ -43,6 +43,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
+#include <nfs_proto_tools.h>
 
 /* helpers to/from other NULL objects
  */
@@ -448,6 +449,8 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	    data->current_obj, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	char *pathname = NULL;
+	nfsstat4 ret;
 
 	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
 		op_ctx->fsal_export = exp->export.sub_export;
@@ -461,6 +464,11 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		return status;
 
 	switch (op->argop) {
+		/**
+		 * Do we really need to backup on OPEN operation?
+		 * If a new file is created, then it would NOT exist before
+		 * anyway.
+		 */
 		case NFS4_OP_OPEN:
 			// lookup first
 			if (op->nfs_argop4_u.opopen.openhow.opentype &
@@ -488,13 +496,21 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			break;
 		case NFS4_OP_REMOVE:
 			// lookup first
+			ret = nfs4_utf8string2dynamic(
+				&op->nfs_argop4_u.opremove.target,
+				UTF8_SCAN_ALL, &pathname);
+			if (ret != NFS4_OK) {
+				LogWarn(COMPONENT_FSAL,
+					"utf8 conversion failed. "
+					"status=%d", ret);
+				break;
+			}
 			op_ctx->fsal_export = exp->export.sub_export;
 			status = cur_hdl->sub_handle->obj_ops->lookup(
-			    cur_hdl->sub_handle,
-			    op->nfs_argop4_u.opremove.target.utf8string_val,
-			    &handle, NULL);
-
+			    cur_hdl->sub_handle, pathname, &handle, NULL);
 			op_ctx->fsal_export = &exp->export;
+
+			free(pathname);
 
 			if (status.major == ERR_FSAL_NO_ERROR) {
 				txnfs_backup_file(opidx, handle);

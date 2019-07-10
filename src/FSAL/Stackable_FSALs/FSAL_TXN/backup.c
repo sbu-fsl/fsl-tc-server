@@ -136,7 +136,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	struct attrlist attrs = {0};
 	uint64_t txnid = op_ctx->txnid;
 	char txnid_name[20] = {'\0'};
-	fsal_status_t status;
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 
 	/* get txnfs root directory handle */
 	get_txn_root(&root_entry, &attrs);
