@@ -475,6 +475,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		 * anyway.
 		 */
 		case NFS4_OP_OPEN:
+			/*
 			// lookup first
 			if (op->nfs_argop4_u.opopen.openhow.opentype &
 			    OPEN4_CREATE) {
@@ -493,6 +494,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 					assert(!"lookup failure!");
 				}
 			}
+			*/
 			break;
 
 		case NFS4_OP_WRITE:
