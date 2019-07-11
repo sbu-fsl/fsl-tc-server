@@ -145,7 +145,7 @@ static inline int replay_lookup(struct nfs_argop4 *arg,
 		return status.major;
 	}
 
-	*current = queried;
+	exchange_cfh(current, queried);
 	if (attrs) *attrs = queried_attrs;
 	return 0;
 }
@@ -652,9 +652,8 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 
 			case NFS4_OP_LOOKUP:
 				/* update current fh to the queried one */
-				ret =
-				    replay_lookup(curop_arg, &temp, &cur_attr);
-				exchange_cfh(&current, temp);
+				ret = replay_lookup(curop_arg, &current,
+						    &cur_attr);
 				break;
 
 			case NFS4_OP_LOOKUPP:
