@@ -212,6 +212,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	uint64_t copied = 0;
 	struct attrlist attrs = {0};
 	struct attrlist attrs_out = {0};
+	struct gsh_buffdesc sym_content = {NULL, 0};
 	char backup_name[20];
 
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
@@ -231,24 +232,31 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	/* TODO: currently we are copying the whole file, but we plan to
 	 * implement copy_range where we copy only the parts changed by the
 	 * compound operation. */
-	if (attrs_out.filesize > 0) {
-		/* create dst_handle */
-		snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
-		FSAL_CLEAR_MASK(attrs.valid_mask);
-		FSAL_SET_MASK(attrs.valid_mask,
-			      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-		attrs.mode = 0666;
-		attrs.owner = 0;
-		status = fsal_create(bkp_folder, backup_name, src_hdl->type,
-				     &attrs, NULL, &dst_hdl, NULL);
+	/* create dst_handle */
+	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
+	FSAL_CLEAR_MASK(attrs.valid_mask);
+	FSAL_SET_MASK(attrs.valid_mask,
+		      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+	attrs.mode = 0666;
+	attrs.owner = 0;
+	/* we should handle symlinks differently */
+	if (src_hdl->type == SYMBOLIC_LINK) {
+		sym_content.addr = gsh_malloc(attrs_out.filesize + 1);
+		sym_content.len = attrs_out.filesize + 1;
+		memset(sym_content.addr, 0, sym_content.len);
+
+		status = fsal_readlink(src_hdl, &sym_content);
 		assert(status.major == 0);
-		/* let's copy ONLY when source is a regular file */
-		if (src_hdl->type == REGULAR_FILE) {
-			status = fsal_copy(src_hdl, 0 /* src_offset */,
-				   	   dst_hdl, 0 /* dst_offset */,
-				   	   attrs_out.filesize, &copied);
-			assert(status.major == 0);
-		}
+	}
+	status = fsal_create(bkp_folder, backup_name, src_hdl->type,
+			     &attrs, sym_content.addr, &dst_hdl, NULL);
+	assert(status.major == 0);
+	/* let's copy ONLY when source is a regular file */
+	if (src_hdl->type == REGULAR_FILE && attrs_out.filesize > 0) {
+		status = fsal_copy(src_hdl, 0 /* src_offset */,
+			   	   dst_hdl, 0 /* dst_offset */,
+			   	   attrs_out.filesize, &copied);
+		assert(status.major == 0);
 	}
 	op_ctx->fsal_export = &exp->export;
 	return status;
