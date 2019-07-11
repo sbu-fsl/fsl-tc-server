@@ -239,14 +239,16 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
 		attrs.mode = 0666;
 		attrs.owner = 0;
-		status = fsal_create(bkp_folder, backup_name, REGULAR_FILE,
+		status = fsal_create(bkp_folder, backup_name, src_hdl->type,
 				     &attrs, NULL, &dst_hdl, NULL);
 		assert(status.major == 0);
-		status = fsal_copy(src_hdl, 0 /* src_offset */,
-				   dst_hdl, 0 /* dst_offset */,
-				   attrs_out.filesize, &copied);
-
-		assert(status.major == 0);
+		/* let's copy ONLY when source is a regular file */
+		if (src_hdl->type == REGULAR_FILE) {
+			status = fsal_copy(src_hdl, 0 /* src_offset */,
+				   	   dst_hdl, 0 /* dst_offset */,
+				   	   attrs_out.filesize, &copied);
+			assert(status.major == 0);
+		}
 	}
 	op_ctx->fsal_export = &exp->export;
 	return status;
