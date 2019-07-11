@@ -428,7 +428,12 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 		txnfs_cache_commit();
 	} else {
 		// TODO: restore backups
-		assert(txnfs_compound_restore(op_ctx->txnid, res) == 0);
+		int err;
+		err = txnfs_compound_restore(op_ctx->txnid, res);
+		if (err != 0) {
+			LogWarn(COMPONENT_FSAL,
+				"compound_restore error: %d", err);
+		}
 		// remove txn log entry
 	}
 
