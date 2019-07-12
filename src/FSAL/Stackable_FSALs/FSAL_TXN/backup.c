@@ -150,7 +150,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	/* Config attributes if we need to create something */
 	FSAL_CLEAR_MASK(attrs.valid_mask);
 	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-	attrs.mode = 0666;
+	attrs.mode = 0777;
 	attrs.owner = 0;
 	attrs.group = 0;
 
