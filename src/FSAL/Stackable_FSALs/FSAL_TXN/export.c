@@ -399,6 +399,56 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	return res;
 }
 
+static void txnfs_cleanup_backup(void)
+{
+	struct fsal_obj_handle *txn_root = NULL;
+	struct fsal_obj_handle *bkp_root = NULL;
+	struct fsal_obj_handle *bkp_folder = NULL;
+	struct fsal_obj_handle *file = NULL;
+	struct fsal_export *exp = op_ctx->fsal_export;
+	fsal_status_t status = {0};
+	char name[BKP_FN_LEN] = {'\0'};
+
+	get_txn_root(&txn_root, NULL);
+	assert(txn_root);
+
+	/* ---- switch export ---- */
+	op_ctx->fsal_export = exp->sub_export;
+
+	bkp_root = query_backup_root(txn_root);
+	if (!bkp_root) {
+		LogDebug(COMPONENT_FSAL, "backup root not created");
+		goto end;
+	}
+
+	bkp_folder = query_txn_backup(bkp_root, op_ctx->txnid);
+	if (!bkp_folder) {
+		LogDebug(COMPONENT_FSAL, "bkp folder not created");
+		goto end;
+	}
+
+	for (uint32_t i = 0; i < op_ctx->op_args->argarray.argarray_len; i++) {
+		snprintf(name, BKP_FN_LEN, "%u.bkp", i);
+		status = fsal_lookup(bkp_folder, name, &file, NULL);
+		/* if we can find the backup item, remove it */
+		if (status.major == 0) {
+			status = bkp_folder->obj_ops->unlink(bkp_folder, 
+							     file, name);
+			assert(status.major == 0);
+		}
+	}
+	/* remove the backup folder */
+	snprintf(name, BKP_FN_LEN, "%lu", op_ctx->txnid);
+	status = bkp_root->obj_ops->unlink(bkp_root, bkp_folder, name);
+	if (status.major != 0) {
+		LogWarn(COMPONENT_FSAL, "cannot remove backup dir: %d",
+			status.major);
+	}
+end:
+	/* ---- resume export ---- */
+	op_ctx->fsal_export = exp;
+}
+
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4res *res = data;
@@ -439,6 +489,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
+	txnfs_cleanup_backup();
 
 	return ret;
 }
