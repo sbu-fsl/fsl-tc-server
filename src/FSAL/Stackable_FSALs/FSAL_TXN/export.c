@@ -38,12 +38,12 @@
 #include "txnfs_methods.h"
 #include <dlfcn.h>
 #include <libgen.h> /* used for 'dirname' */
+#include <nfs_proto_tools.h>
 #include <os/mntent.h>
 #include <os/quota.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
-#include <nfs_proto_tools.h>
 
 /* helpers to/from other NULL objects
  */
@@ -359,17 +359,14 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
  * intended to check if the txn-related context data has been properly
  * initialized. If not, we should not perform any txn-related operations.
  */
-static inline bool txn_context_valid(void)
-{
-	return (op_ctx->op_args != NULL);
-}
+static inline bool txn_context_valid(void) { return (op_ctx->op_args != NULL); }
 
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
 	struct txnfs_fsal_module *fs =
-		container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
+	    container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
 
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
@@ -377,7 +374,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	// generate txnid and create transaction log
 	txn_context_t *context = new_txn_context(args->argarray.argarray_len,
-	args->argarray.argarray_val);
+						 args->argarray.argarray_val);
 
 	op_ctx->txnid = create_txn_log(fs->db, args, context);
 
@@ -432,8 +429,8 @@ static void txnfs_cleanup_backup(void)
 		status = fsal_lookup(bkp_folder, name, &file, NULL);
 		/* if we can find the backup item, remove it */
 		if (status.major == 0) {
-			status = bkp_folder->obj_ops->unlink(bkp_folder, 
-							     file, name);
+			status =
+			    bkp_folder->obj_ops->unlink(bkp_folder, file, name);
 			assert(status.major == 0);
 		}
 	}
@@ -470,8 +467,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 
 	/* If txn-related data has neven been properly initialized, don't do
 	 * the following operations. */
-	if (!txn_context_valid())
-		return ret;
+	if (!txn_context_valid()) return ret;
 
 	if (res->status == NFS4_OK) {
 		// commit entries to leveldb and remove txnlog entry
@@ -481,8 +477,8 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 		int err;
 		err = txnfs_compound_restore(op_ctx->txnid, res);
 		if (err != 0) {
-			LogWarn(COMPONENT_FSAL,
-				"compound_restore error: %d", err);
+			LogWarn(COMPONENT_FSAL, "compound_restore error: %d",
+				err);
 		}
 		// remove txn log entry
 	}
@@ -494,6 +490,19 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	return ret;
 }
 
+static inline int get_open_filename(struct nfs_argop4 *op, char **out)
+{
+	return nfs4_utf8string2dynamic(
+	    &op->nfs_argop4_u.opopen.claim.open_claim4_u.file, UTF8_SCAN_ALL,
+	    out);
+}
+
+static inline int get_remove_filename(struct nfs_argop4 *op, char **out)
+{
+	return nfs4_utf8string2dynamic(&op->nfs_argop4_u.opremove.target,
+				       UTF8_SCAN_ALL, out);
+}
+
 fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 				   unsigned int opidx,
 				   struct fsal_obj_handle *current,
@@ -501,8 +510,8 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 {
 	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 	struct fsal_obj_handle *handle = NULL;
-	struct txnfs_fsal_obj_handle *cur_hdl = container_of(
-	    current, struct txnfs_fsal_obj_handle, obj_handle);
+	struct txnfs_fsal_obj_handle *cur_hdl =
+	    container_of(current, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	char *pathname = NULL;
@@ -516,27 +525,33 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	}
 
 	/* Do not backup if txn-related data has not been initialized. */
-	if (!txn_context_valid())
-		return status;
+	if (!txn_context_valid()) return status;
 
 	switch (op->argop) {
 		/**
 		 * Do we really need to backup on OPEN operation?
 		 * If a new file is created, then it would NOT exist before
 		 * anyway.
+		 *
+		 * >> We do need this since OPEN_CREATE may truncate the
+		 * existing file if createattrs->filesize is 0. However let's
+		 * narrow down the condition in the next PR.
 		 */
 		case NFS4_OP_OPEN:
-			/*
 			// lookup first
 			if (op->nfs_argop4_u.opopen.openhow.opentype &
 			    OPEN4_CREATE) {
+				ret = get_open_filename(op, &pathname);
+				if (ret != NFS4_OK) {
+					LogFatal(COMPONENT_FSAL,
+						 "utf8 conversion failed. "
+						 "state=%d",
+						 ret);
+				}
 				op_ctx->fsal_export = exp->export.sub_export;
 				status = cur_hdl->sub_handle->obj_ops->lookup(
-				    cur_hdl->sub_handle,
-				    op->nfs_argop4_u.opopen.claim.open_claim4_u
-					.file.utf8string_val,
-				    &handle, NULL);
-
+				    cur_hdl->sub_handle, pathname, &handle,
+				    NULL);
 				op_ctx->fsal_export = &exp->export;
 
 				if (status.major == ERR_FSAL_NO_ERROR) {
@@ -545,7 +560,6 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 					assert(!"lookup failure!");
 				}
 			}
-			*/
 			break;
 
 		case NFS4_OP_WRITE:
@@ -554,13 +568,12 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			break;
 		case NFS4_OP_REMOVE:
 			// lookup first
-			ret = nfs4_utf8string2dynamic(
-				&op->nfs_argop4_u.opremove.target,
-				UTF8_SCAN_ALL, &pathname);
+			ret = get_remove_filename(op, &pathname);
 			if (ret != NFS4_OK) {
-				LogWarn(COMPONENT_FSAL,
-					"utf8 conversion failed. "
-					"status=%d", ret);
+				LogFatal(COMPONENT_FSAL,
+					 "utf8 conversion failed. "
+					 "status=%d",
+					 ret);
 				break;
 			}
 			op_ctx->fsal_export = exp->export.sub_export;
