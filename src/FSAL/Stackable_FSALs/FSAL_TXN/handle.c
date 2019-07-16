@@ -792,8 +792,9 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 
 	op_ctx->fsal_export = &export->export;
 
-	LogDebug(COMPONENT_FSAL, "handle %p found. obj_hdl=%p, fileid=%lu",
-		 hdl_desc->addr, sub_handle, sub_handle->fileid);
+	/* txnfs_db_get_handle returns a new buffer, so we have to free after
+	 * use. */
+	gsh_free(sub_fh.addr);
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */

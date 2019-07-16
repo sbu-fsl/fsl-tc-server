@@ -80,17 +80,25 @@ int txnfs_cache_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 {
 	struct txnfs_cache_entry *entry;
 	struct glist_head *glist;
-	char uuid_str[UUID_STR_LEN];
+	char *hdl_str;
 
 	glist_for_each(glist, &op_ctx->txn_cache)
 	{
 		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
 
-		uuid_unparse_lower(uuid, uuid_str);
-		LogDebug(COMPONENT_FSAL, "uuid=%s\n", uuid_str);
+		/* If a matching entry is found in cache, it will copy the
+		 * content of file handle into a new buffer. BE SURE TO FREE.
+		 * The reason for such design is to make it consistent with
+		 * txnfs_db_get_handle.
+		 */
 		if (entry->entry_type == txnfs_cache_entry_create &&
 		    memcmp(entry->uuid, uuid, sizeof(uuid_t)) == 0) {
-			*hdl_desc = entry->hdl_desc;
+			size_t len = entry->hdl_desc.len;
+
+			hdl_str = gsh_malloc(len);
+			memcpy(hdl_str, entry->hdl_desc.addr, len);
+			hdl_desc->addr = hdl_str;
+			hdl_desc->len = len;
 			return 0;
 		}
 	}
@@ -321,6 +329,7 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 	if (!val)
 		return -1;
 
+	/* NOTE: Be sure to **free** hdl_desc->addr after use */
 	hdl_desc->len = length;
 	hdl_desc->addr = val;
 	return 0;
