@@ -76,6 +76,28 @@ int txnfs_cache_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	return -1;
 }
 
+int txnfs_cache_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
+{
+	struct txnfs_cache_entry *entry;
+	struct glist_head *glist;
+	char uuid_str[UUID_STR_LEN];
+
+	glist_for_each(glist, &op_ctx->txn_cache)
+	{
+		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
+
+		uuid_unparse_lower(uuid, uuid_str);
+		LogDebug(COMPONENT_FSAL, "uuid=%s\n", uuid_str);
+		if (entry->entry_type == txnfs_cache_entry_create &&
+		    memcmp(entry->uuid, uuid, sizeof(uuid_t)) == 0) {
+			*hdl_desc = entry->hdl_desc;
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 int txnfs_cache_delete_uuid(uuid_t uuid)
 {
 	UDBG;
@@ -268,6 +290,39 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	assert(val_len == TXN_UUID_LEN);
 	uuid_copy(uuid, val);
 	free(val);
+	return 0;
+}
+
+int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
+{
+	struct fsal_module *fs = op_ctx->fsal_export->fsal;
+	struct txnfs_fsal_module *txnfs = 
+	    container_of(fs, struct txnfs_fsal_module, module);
+	db_store_t *db = txnfs->db;
+
+	/* look up in the cache first */
+	if (!glist_null(&op_ctx->txn_cache) &&
+	    txnfs_cache_get_handle(uuid, hdl_desc) == 0) {
+		return 0;
+	}
+
+	char *val;
+	size_t length;
+	char *err = NULL;
+
+	val = leveldb_get(db->db, db->r_options, uuid, sizeof(uuid_t),
+			  &length, &err);
+
+	if (err) {
+		leveldb_free(err);
+		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
+	}
+
+	if (!val)
+		return -1;
+
+	hdl_desc->len = length;
+	hdl_desc->addr = val;
 	return 0;
 }
 

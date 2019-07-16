@@ -249,6 +249,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
+int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */
