@@ -71,7 +71,7 @@ add_cpplib(lwrapper leveldb ${GLIB_LIBRARIES})
 
 # add_cpplib(id_manager absl_numeric lwrapper leveldb)
 
-add_cpplib(txn_context id_manager uuid)
+add_cpplib(txn_context uuid)
 
 add_cpplib(lock_manager lwrapper)
 

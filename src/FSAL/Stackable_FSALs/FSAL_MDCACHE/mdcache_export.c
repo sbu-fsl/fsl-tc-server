@@ -806,56 +806,6 @@ static void mdcache_prepare_unexport(struct fsal_export *exp_hdl)
 	subcall_raw(exp, sub_export->exp_ops.prepare_unexport(sub_export));
 }
 
-fsal_status_t mdcache_start_compound(struct fsal_export *exp_hdl, void* data)
-{
-	struct mdcache_fsal_export *exp = mdc_export(exp_hdl);
-	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
-
-	LogDebug(COMPONENT_FSAL,
-		 "Start Compound in MDCACHE layer ");
-	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
-
-	subcall_raw(exp,
-		fsal_status = sub_export->exp_ops.start_compound(sub_export, data)
-	       );
-
-	return fsal_status;
-}
-
-fsal_status_t mdcache_end_compound(struct fsal_export* exp_hdl, void* data)
-{
-	struct mdcache_fsal_export *exp = mdc_export(exp_hdl);
-	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
-
-	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
-	subcall_raw(exp,
-		fsal_status = sub_export->exp_ops.end_compound(sub_export, data)
-	       );
-
-	LogDebug(COMPONENT_FSAL,
-		 "End Compound in MDCACHE layer ");
-	
-	return fsal_status;
-}
-
-fsal_status_t mdcache_backup_nfs4_op(struct fsal_export* exp_hdl, unsigned int opidx, void* data, struct nfs_argop4* op)
-{
-	struct mdcache_fsal_export *exp = mdc_export(exp_hdl);
-	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
-
-	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
-	
-	LogDebug(COMPONENT_FSAL,
-		 "nfs op backup in MDCACHE layer ");
-	
-	subcall_raw(exp,
-		fsal_status = sub_export->exp_ops.backup_nfs4_op(sub_export, opidx, data, op)
-	       );
-
-	
-	return fsal_status;
-}
-
 /* mdcache_export_ops_init
  * overwrite vector entries with the methods that we support
  */
@@ -894,10 +844,6 @@ void mdcache_export_ops_init(struct export_ops *ops)
 	ops->alloc_state = mdcache_alloc_state;
 	ops->free_state = mdcache_free_state;
 	ops->is_superuser = mdcache_is_superuser;
-
-	ops->start_compound = mdcache_start_compound;
-	ops->end_compound = mdcache_end_compound;
-	ops->backup_nfs4_op = mdcache_backup_nfs4_op;
 }
 
 #if 0

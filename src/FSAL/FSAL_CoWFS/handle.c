@@ -1580,8 +1580,6 @@ void cowfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->setextattr_value_by_id = cowfs_setextattr_value_by_id;
 	ops->remove_extattr_by_id = cowfs_remove_extattr_by_id;
 	ops->remove_extattr_by_name = cowfs_remove_extattr_by_name;
-	ops->start_compound = cowfs_start_compound;
-	ops->end_compound = cowfs_end_compound;
 
 	/* transaction related function */
 	ops->clone = cowfs_clone;

@@ -38,11 +38,11 @@
 
 #ifndef IDMAPPER_H
 #define IDMAPPER_H
-#include <stdbool.h>
-#include <stdint.h>
-#include <pthread.h>
 #include "gsh_rpc.h"
 #include "gsh_types.h"
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 /* Arbitrary string buffer lengths */
 #define PWENT_BEST_GUESS_LEN 1024
@@ -58,8 +58,7 @@ extern pthread_rwlock_t idmapper_user_lock;
 extern pthread_rwlock_t idmapper_group_lock;
 
 void idmapper_cache_init(void);
-bool idmapper_add_user(const struct gsh_buffdesc *, uid_t, const gid_t *,
-		       bool);
+bool idmapper_add_user(const struct gsh_buffdesc *, uid_t, const gid_t *, bool);
 bool idmapper_add_group(const struct gsh_buffdesc *, gid_t);
 bool idmapper_lookup_by_uname(const struct gsh_buffdesc *, uid_t *,
 			      const gid_t **, bool);
@@ -86,5 +85,5 @@ bool principal2uid(char *, uid_t *, gid_t *);
 #endif
 #endif
 
-#endif				/* IDMAPPER_H */
+#endif /* IDMAPPER_H */
 /** @} */

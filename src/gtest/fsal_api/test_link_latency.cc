@@ -342,13 +342,13 @@ int main(int argc, char *argv[])
        "ganesha debug level")
 
       ("session", po::value<string>(),
-	"LTTng session name")
+	     "LTTng session name")
 
       ("event-list", po::value<string>(),
-	"LTTng event list, comma separated")
+	     "LTTng event list, comma separated")
 
       ("profile", po::value<string>(),
-	"Enable profiling and set output file.")
+	     "Enable profiling and set output file.")
       ;
 
     po::variables_map::iterator vm_iter;

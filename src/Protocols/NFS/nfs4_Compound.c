@@ -635,6 +635,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	char *tagname = notag;
 	const char *bad_op_state_reason = "";
 	log_components_t alt_component = COMPONENT_NFS_V4;
+	bool txn_ready = false, start_compound_called = false;
 
 	if (compound4_minor > 2) {
 		LogCrit(COMPONENT_NFS_V4, "Bad Minor Version %d",
@@ -785,7 +786,6 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
-	op_ctx->fsal_export->exp_ops.start_compound(op_ctx->fsal_export, &arg->arg_compound4);
 	for (i = 0; i < argarray_len; i++) {
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data.oppos = i;
@@ -943,7 +943,9 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			   data.opname);
 #endif
 		// create backups for txnfs
-		op_ctx->fsal_export->exp_ops.backup_nfs4_op(op_ctx->fsal_export, i, &data, &argarray[i]);
+		if (txn_ready)
+			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
+				op_ctx->fsal_export, i, &data, &argarray[i]);
 		
 		status = (optabv4[opcode].funct) (&argarray[i],
 						  &data,
@@ -1011,6 +1013,22 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				     nfsstat4_to_str(status));
 			break;	/* Exit the for loop */
 		}
+
+		/* Check if transactional compound operation is ready */
+		if (op_ctx->fsal_export
+			&& op_ctx->fsal_export->exp_ops.start_compound
+			&& op_ctx->fsal_export->exp_ops.end_compound
+			&& op_ctx->fsal_export->exp_ops.backup_nfs4_op)
+			txn_ready = true;
+		else
+			txn_ready = false;
+
+		if (!start_compound_called && txn_ready) {
+			op_ctx->fsal_export->exp_ops.start_compound(
+				op_ctx->fsal_export, &arg->arg_compound4);
+			start_compound_called = true;
+		}
+
 	}			/* for */
 
 	server_stats_compound_done(argarray_len, status);
@@ -1019,7 +1037,10 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 * unsuccessfull COMPOUD
 	 */
 	res->res_compound4.status = status;
-	op_ctx->fsal_export->exp_ops.end_compound(op_ctx->fsal_export, &res->res_compound4);
+	
+	if (txn_ready)
+		op_ctx->fsal_export->exp_ops.end_compound(
+			op_ctx->fsal_export, &res->res_compound4);
 
 	/* Manage session's DRC: keep NFS4.1 replay for later use, but don't
 	 * save a replayed result again.

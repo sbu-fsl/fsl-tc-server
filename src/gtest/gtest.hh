@@ -47,12 +47,12 @@ void admin_halt(void);
 
 #define NAMELEN 24
 
-#define gtws_subcall(call)                                                     \
-  do {                                                                         \
-    struct fsal_export *_saveexp = op_ctx->fsal_export;                        \
-    op_ctx->fsal_export = _saveexp->sub_export;                                \
-    call;                                                                      \
-    op_ctx->fsal_export = _saveexp;                                            \
+#define gtws_subcall(call)                              \
+  do {                                                  \
+    struct fsal_export *_saveexp = op_ctx->fsal_export; \
+    op_ctx->fsal_export = _saveexp->sub_export;         \
+    call;                                               \
+    op_ctx->fsal_export = _saveexp;                     \
   } while (0)
 
 namespace gtest {
@@ -60,13 +60,15 @@ namespace gtest {
 class Environment *env;
 
 class Environment : public ::testing::Environment {
-public:
+ public:
   Environment() : Environment(NULL, NULL, -1, NULL) {}
   Environment(char *ganesha_conf, char *lpath, int dlevel, char *_ses_name,
               const char *_test_root_name = nullptr, uint16_t _export_id = 77)
       : ganesha(nfs_libmain, ganesha_conf, lpath, dlevel),
-        session_name(_ses_name), test_root_name(_test_root_name),
-        export_id(_export_id), handle(NULL) {
+        session_name(_ses_name),
+        test_root_name(_test_root_name),
+        export_id(_export_id),
+        handle(NULL) {
     using namespace std::literals;
     std::this_thread::sleep_for(5s);
   }
@@ -115,7 +117,7 @@ public:
 };
 
 class GaneshaBaseTest : public ::testing::Test {
-protected:
+ protected:
   virtual void enableEvents(char *event_list) {
     struct lttng_event ev;
     int ret;
@@ -194,11 +196,10 @@ protected:
 
 class GaneshaFSALBaseTest : public gtest::GaneshaBaseTest {
 
-protected:
-  static fsal_errors_t
-  readdir_callback(void *opaque, struct fsal_obj_handle *obj,
-                   const struct attrlist *attr, uint64_t mounted_on_fileid,
-                   uint64_t cookie, enum cb_state cb_state) {
+ protected:
+  static fsal_errors_t readdir_callback(
+      void *opaque, struct fsal_obj_handle *obj, const struct attrlist *attr,
+      uint64_t mounted_on_fileid, uint64_t cookie, enum cb_state cb_state) {
     return ERR_FSAL_NO_ERROR;
   }
 
@@ -281,8 +282,7 @@ protected:
     uint32_t tracker;
     struct fsal_obj_handle *obj;
 
-    if (directory == NULL)
-      directory = test_root;
+    if (directory == NULL) directory = test_root;
 
     /* create a bunch of dirents */
     for (int i = 0; i < count; ++i) {
@@ -312,14 +312,12 @@ protected:
     fsal_status_t status;
     char fname[NAMELEN];
 
-    if (directory == NULL)
-      directory = test_root;
+    if (directory == NULL) directory = test_root;
 
     for (int i = 0; i < count; ++i) {
       sprintf(fname, "f-%08x", i);
 
-      if (objs != NULL)
-        objs[i]->obj_ops->put_ref(objs[i]);
+      if (objs != NULL) objs[i]->obj_ops->put_ref(objs[i]);
       status = fsal_remove(directory, fname);
       EXPECT_EQ(status.major, 0);
     }
@@ -335,6 +333,6 @@ protected:
   struct fsal_obj_handle *root_entry = nullptr;
   struct fsal_obj_handle *test_root = nullptr;
 };
-} // namespace gtest
+}  // namespace gtest
 
 #endif /* GTEST_GTEST_HH */

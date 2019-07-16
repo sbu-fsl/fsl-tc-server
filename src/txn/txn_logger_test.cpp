@@ -219,7 +219,7 @@ TEST_F(TxnTest, RenameTest) {
   EXPECT_EQ(0, compare(&txn_log, &deserialized_txn_log));
 }
 
-TEST_F(TxnTest, CreateTxnLogTest) {
+TEST(NfsOpTest, CreateTxnLogTest) {
   struct TxnLog txnlog;
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];
@@ -240,7 +240,7 @@ TEST_F(TxnTest, CreateTxnLogTest) {
   EXPECT_STREQ(txnlog.created_file_ids[0].path, filename);
 }
 
-TEST_F(TxnTest, WriteTxnLogTest) {
+TEST(NfsOpTest, WriteTxnLogTest) {
   struct TxnLog txnlog;
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];
@@ -262,7 +262,7 @@ TEST_F(TxnTest, WriteTxnLogTest) {
   EXPECT_STREQ(txnlog.created_file_ids[0].path, filename);
 }
 
-TEST_F(TxnTest, RemoveTxnLogTest) {
+TEST(NfsOpTest, RemoveTxnLogTest) {
   struct TxnLog txnlog;
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];

@@ -1,8 +1,7 @@
 // -*- mode:C; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 /*
- * Copyright (C) 2018 Red Hat, Inc.
- * Contributor : Frank Filz <ffilzlnx@mindspring.com>
+ * Copyright (C) Stony Brook University 2019
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,8 +17,6 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301 USA
- *
- * -------------
  */
 
 #include <boost/filesystem.hpp>
@@ -73,7 +70,7 @@ char *event_list = nullptr;
 char *profile_out = nullptr;
 
 class GaneshaCompoundBaseTest : public gtest::GaeshaNFS4BaseTest {
-protected:
+ protected:
   void init_args(int nops) {
     ops = (struct nfs_argop4 *)gsh_calloc(nops, sizeof(struct nfs_argop4));
     arg.arg_compound4.argarray.argarray_len = nops;
@@ -305,23 +302,28 @@ int main(int argc, char *argv[]) {
 
   try {
 
-    opts.add_options()("config", po::value<string>(),
-                       "path to Ganesha conf file")
+    opts.add_options()
+      ("config", po::value<string>(),
+       "path to Ganesha conf file")
 
-        ("logfile", po::value<string>(), "log to the provided file path")
+      ("logfile", po::value<string>(),
+       "log to the provided file path")
+      
+      ("export", po::value<uint16_t>(),
+       "id of export on which to operate (must exist)")
 
-            ("export", po::value<uint16_t>(),
-             "id of export on which to operate (must exist)")
+      ("debug", po::value<string>(),
+       "ganesha debug level")
 
-                ("debug", po::value<string>(), "ganesha debug level")
+      ("session", po::value<string>(),
+       "LTTng session name")
 
-                    ("session", po::value<string>(), "LTTng session name")
+      ("event-list", po::value<string>(),
+       "LTTng event list, comma separated")
 
-                        ("event-list", po::value<string>(),
-                         "LTTng event list, comma separated")
-
-                            ("profile", po::value<string>(),
-                             "Enable profiling and set output file.");
+      ("profile", po::value<string>(),
+       "Enable profiling and set output file.")
+      ;
 
     po::variables_map::iterator vm_iter;
     po::command_line_parser parser{argc, argv};

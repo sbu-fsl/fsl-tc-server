@@ -58,7 +58,7 @@ class PutfhEmptyLatencyTest : public gtest::GaeshaNFS4BaseTest {};
 
 class PutfhFullLatencyTest : public gtest::GaeshaNFS4BaseTest {
 
-protected:
+ protected:
   virtual void SetUp() {
     GaeshaNFS4BaseTest::SetUp();
 
@@ -142,8 +142,7 @@ TEST_F(PutfhFullLatencyTest, BIG) {
   struct timespec s_time, e_time;
 
   enableEvents(event_list);
-  if (profile_out)
-    ProfilerStart(profile_out);
+  if (profile_out) ProfilerStart(profile_out);
 
   now(&s_time);
 
@@ -159,8 +158,7 @@ TEST_F(PutfhFullLatencyTest, BIG) {
 
   now(&e_time);
 
-  if (profile_out)
-    ProfilerStop();
+  if (profile_out) ProfilerStop();
   disableEvents(event_list);
 
   fprintf(stderr, "Average time per putfh: %" PRIu64 " ns\n",
@@ -184,23 +182,28 @@ int main(int argc, char *argv[]) {
 
   try {
 
-    opts.add_options()("config", po::value<string>(),
-                       "path to Ganesha conf file")
+    opts.add_options()
+      ("config", po::value<string>(),
+       "path to Ganesha conf file")
 
-        ("logfile", po::value<string>(), "log to the provided file path")
+      ("logfile", po::value<string>(),
+       "log to the provided file path")
 
-            ("export", po::value<uint16_t>(),
-             "id of export on which to operate (must exist)")
+      ("export", po::value<uint16_t>(),
+       "id of export on which to operate (must exist)")
 
-                ("debug", po::value<string>(), "ganesha debug level")
+      ("debug", po::value<string>(),
+       "ganesha debug level")
 
-                    ("session", po::value<string>(), "LTTng session name")
+      ("session", po::value<string>(),
+       "LTTng session name")
 
-                        ("event-list", po::value<string>(),
-                         "LTTng event list, comma separated")
+      ("event-list", po::value<string>(),
+       "LTTng event list, comma separated")
 
-                            ("profile", po::value<string>(),
-                             "Enable profiling and set output file.");
+      ("profile", po::value<string>(),
+       "Enable profiling and set output file.")
+      ;
 
     po::variables_map::iterator vm_iter;
     po::command_line_parser parser{argc, argv};

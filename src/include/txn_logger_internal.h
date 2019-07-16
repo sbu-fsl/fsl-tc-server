@@ -7,7 +7,7 @@ namespace txnfs {
 namespace proto {
 class TransactionLog;
 }
-} // namespace txnfs
+}  // namespace txnfs
 
 using namespace txnfs;
 

@@ -1441,9 +1441,9 @@ static int display_log_component(struct display_buffer *dsp_log,
 
 	if (b_left > 0 && logfields->disp_filename) {
 		if (logfields->disp_linenum)
-			b_left = display_printf(dsp_log, "%s:", basename((char*)file));
+			b_left = display_printf(dsp_log, "%s:", file);
 		else
-			b_left = display_printf(dsp_log, "%s :", basename((char*)file));
+			b_left = display_printf(dsp_log, "%s :", file);
 	}
 
 	if (b_left > 0 && logfields->disp_linenum)

@@ -7,16 +7,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <endian.h>
 #include "lwrapper.h"
+#include <endian.h>
 
 typedef struct uuid {
 #if (BYTE_ORDER != BIG_ENDIAN)
-        uint64_t lo;
-        uint64_t hi;
+	uint64_t lo;
+	uint64_t hi;
 #else
-        uint64_t hi;
-        uint64_t lo;
+	uint64_t hi;
+	uint64_t lo;
 #endif
 } uuid_t;
 
@@ -25,10 +25,10 @@ int initialize_id_manager(const db_store_t* db);
 
 // Returns an opaque 16 byte buffer containing the file ID
 // This buffer may contain null bytes
-char *generate_file_id(const db_store_t* db);
+char* generate_file_id(const db_store_t* db);
 
 // Returns a file ID that represents the root of the file system.
-char *get_root_id(const db_store_t* db);
+char* get_root_id(const db_store_t* db);
 
 // Returns the lower-64 bits of the id.
 uint64_t get_lower_half(const char* id);
@@ -45,7 +45,7 @@ uuid_t uuid_null();
 uuid_t uuid_next(uuid_t current);
 
 // Pre-allocates |n| consecutive UUIDs and returns the value of the first one.
-uuid_t uuid_allocate(const db_store_t *db, int n);
+uuid_t uuid_allocate(const db_store_t* db, int n);
 
 // Returns a buf that encodes the given |id|. The size of the buf is fixed to
 // TXN_UUID_LEN.
@@ -65,6 +65,6 @@ inline bool uuid_is_null(uuid_t id) { return (id.lo == 0) && (id.hi == 0); }
 
 // Returns a base10 null terminated ascii representation of
 // the opaque file id returned by generate_file_id()
-char *id_to_string(const char *buf);
+char* id_to_string(const char* buf);
 
-#endif // _ID_MANAGER_H
+#endif  // _ID_MANAGER_H

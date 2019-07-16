@@ -101,15 +101,14 @@ void serialize_create_txn(struct TxnLog *txn_log,
     struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_uuid((const char *)txnobj->base_id.id);
-
+    object->mutable_base()->set_uuid(txnobj->base_id.id, TXN_UUID_LEN);
     // set FileType
     object->mutable_base()->set_type(
         get_file_type_txn(txnobj->base_id.file_type));
 
     // set FileId
-    object->mutable_allocated_id()->set_uuid(
-        (const char *)txnobj->allocated_id.id);
+    object->mutable_allocated_id()->set_uuid(txnobj->allocated_id.id,
+                                             TXN_UUID_LEN);
 
     // set FileType
     object->mutable_allocated_id()->set_type(
@@ -132,15 +131,15 @@ void serialize_mkdir_txn(struct TxnLog *txn_log,
     struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_uuid((const char *)txnobj->base_id.id);
+    object->mutable_base()->set_uuid(txnobj->base_id.id, TXN_UUID_LEN);
 
     // set FileType
     object->mutable_base()->set_type(
         get_file_type_txn(txnobj->base_id.file_type));
 
     // set FileId
-    object->mutable_allocated_id()->set_uuid(
-        (const char *)txnobj->allocated_id.id);
+    object->mutable_allocated_id()->set_uuid(txnobj->allocated_id.id,
+                                             TXN_UUID_LEN);
 
     // set FileType
     object->mutable_allocated_id()->set_type(
@@ -164,15 +163,14 @@ void serialize_write_txn(struct TxnLog *txn_log,
     struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_uuid((const char *)txnobj->base_id.id);
-
+    object->mutable_base()->set_uuid(txnobj->base_id.id, TXN_UUID_LEN);
     // set FileType
     object->mutable_base()->set_type(
         get_file_type_txn(txnobj->base_id.file_type));
 
     // set FileId
-    object->mutable_allocated_id()->set_uuid(
-        (const char *)txnobj->allocated_id.id);
+    object->mutable_allocated_id()->set_uuid(txnobj->allocated_id.id,
+                                             TXN_UUID_LEN);
 
     // set FileType
     object->mutable_allocated_id()->set_type(
@@ -196,8 +194,8 @@ void serialize_unlink_txn(struct TxnLog *txn_log,
     struct UnlinkId *txnobj = &txn_log->created_unlink_ids[i];
 
     // set FileId
-    unlink_obj->mutable_parent_id()->set_uuid(
-        (const char *)txnobj->parent_id.id);
+    unlink_obj->mutable_parent_id()->set_uuid(txnobj->parent_id.id,
+                                              TXN_UUID_LEN);
 
     // set FileType
     unlink_obj->mutable_parent_id()->set_type(
@@ -221,8 +219,8 @@ void serialize_symlink_txn(struct TxnLog *txn_log,
 
     // set destination
     // set FileId
-    symlink_obj->mutable_parent_id()->set_uuid(
-        (const char *)txnobj->parent_id.id);
+    symlink_obj->mutable_parent_id()->set_uuid(txnobj->parent_id.id,
+                                               TXN_UUID_LEN);
 
     // set FileType
     symlink_obj->mutable_parent_id()->set_type(
@@ -616,6 +614,12 @@ int nfs_vcreate_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
       uuid_copy(base, kRootUuid);
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
       extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
+      // uuid_copy(context->op_contexts[i].id, base);
+      // context->op_contexts[i].is_new = false;
+    } else if (ops[i].argop == NFS4_OP_PUTFH) {
+      extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
+      // uuid_copy(context->op_contexts[i].id, base);
+      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
@@ -654,8 +658,12 @@ int nfs_vwrite_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
   for (int i = 0; i < ops_len; ++i) {
     if (ops[i].argop == NFS4_OP_PUTROOTFH) {
       uuid_copy(base, kRootUuid);
+      // uuid_copy(context->op_contexts[i].id, base);
+      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
       extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
+      // uuid_copy(context->op_contexts[i].id, base);
+      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
@@ -753,10 +761,10 @@ uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg) {
     assert(!"not implemented");
     break;
   }
-  const string key = absl::StrCat("txn-", txnpb.id());
-
   // TxnLog to protobuf
   txn_log_to_pb(&txn_log, &txnpb);
+  // context->txn_id = txn_log.id();
+  const string key = absl::StrCat("txn-", txnpb.id());
 
   // Write txn_log to database.
   std::ostringstream output;

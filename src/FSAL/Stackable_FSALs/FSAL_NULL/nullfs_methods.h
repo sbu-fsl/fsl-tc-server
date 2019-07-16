@@ -163,6 +163,10 @@ fsal_status_t nullfs_close2(struct fsal_obj_handle *obj_hdl,
 fsal_status_t nullfs_fallocate(struct fsal_obj_handle *obj_hdl,
 			       struct state_t *state, uint64_t offset,
 			       uint64_t length, bool allocate);
+fsal_status_t nullfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
+			 struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+			 uint64_t count, uint64_t *copied);
+
 
 /* extended attributes management */
 fsal_status_t nullfs_list_ext_attrs(struct fsal_obj_handle *obj_hdl,
@@ -197,7 +201,5 @@ fsal_status_t nullfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
 					  unsigned int xattr_id);
 fsal_status_t nullfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 					    const char *xattr_name);
-fsal_status_t nullfs_start_compound(struct fsal_export *exp_hdl, void *data);
-fsal_status_t nullfs_end_compound(struct fsal_export *exp_hdl, void *data);
 
 #endif			/* NULLFS_METHODS_H */
