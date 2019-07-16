@@ -88,8 +88,13 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 				   .len = fh->nfs_fh4_len};
 	struct fsal_obj_handle *handle = NULL;
 	struct attrlist _attrs = {0};
-	fsal_status_t ret =
-	    txnfs_create_handle(op_ctx->fsal_export, &buf, &handle, &_attrs);
+	struct fsal_export *exp = op_ctx->fsal_export;
+	fsal_status_t ret;
+
+	ret = exp->exp_ops.wire_to_host(exp, FSAL_DIGEST_NFSV4, &buf, 0);
+	assert(ret.major == 0);
+
+	ret = exp->exp_ops.create_handle(exp, &buf, &handle, &_attrs);
 	if (ret.major == 0) {
 		if (attrs) *attrs = _attrs;
 		return handle;
