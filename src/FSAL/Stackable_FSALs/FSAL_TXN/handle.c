@@ -565,9 +565,8 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 {
 	struct txnfs_fsal_obj_handle *handle =
 	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
-	UDBG;
-	/*LogDebug(COMPONENT_FSAL, "Creating digest for file id %s",
-	 * handle->uuid);*/
+
+	memset(fh_desc->addr, 0, fh_desc->len);
 	if (fh_desc->len >= TXN_UUID_LEN) {
 		uuid_copy(fh_desc->addr, handle->uuid);
 		fh_desc->len = sizeof(uuid_t);
@@ -760,21 +759,41 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	struct fsal_obj_handle *sub_handle; /*< New subfsal handle.*/
-	*handle = NULL;
-	UDBG;
-	/* call to subfsal lookup with the good context. */
+	struct gsh_buffdesc sub_fh;
 	fsal_status_t status;
+	uuid_t uuid = {0};
+	void *start;
 
-	// handle should exist in the database
-	if (!txnfs_db_handle_exists(hdl_desc)) {
+	*handle = NULL;
+
+	LogDebug(COMPONENT_FSAL, "handle: %p, len: %lu", hdl_desc->addr,
+		 hdl_desc->len);
+
+	/* The NFS file handle passed in **contains** the UUID. However based
+	 * on observation, the UUID is located in the LATTER part of the
+	 * handle.
+	 *
+	 * Here we should query the db/cache for sub-FSAL's host handle, and
+	 * call sub-FSAL's create_handle method to retrieve the sub-handle. 
+	 */
+
+	start = (char *)hdl_desc->addr + (hdl_desc->len - sizeof(uuid_t));
+	memcpy(uuid, start, sizeof(uuid_t));
+
+	if (txnfs_db_get_handle(uuid, &sub_fh) != 0) {
+		LogDebug(COMPONENT_FSAL, "handle %p is not in db",
+			 hdl_desc->addr);
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	op_ctx->fsal_export = export->export.sub_export;
 
 	status = export->export.sub_export->exp_ops.create_handle(
-	    export->export.sub_export, hdl_desc, &sub_handle, attrs_out);
+	    export->export.sub_export, &sub_fh, &sub_handle, attrs_out);
 
 	op_ctx->fsal_export = &export->export;
+
+	LogDebug(COMPONENT_FSAL, "handle %p found. obj_hdl=%p, fileid=%lu",
+		 hdl_desc->addr, sub_handle, sub_handle->fileid);
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
