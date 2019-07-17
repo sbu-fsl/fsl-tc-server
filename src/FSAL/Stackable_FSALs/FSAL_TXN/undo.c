@@ -323,7 +323,6 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	char *name = extract_open_name(&arg->nfs_argop4_u.opopen.claim);
 	struct fsal_obj_handle *target;
 
-	struct fsal_obj_handle *current;
 	fsal_status_t status;
 
 	/* retrieve the file handle being opened */
@@ -337,9 +336,10 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 			ret = status.major;
 			goto end;
 		}
+	} else {
+		/* if name is NULL then CURRENT is what is to be opened */
+		target = *cur;
 	}
-	/* if name is NULL then CURRENT is what is to be opened */
-	target = *cur;
 
 	/* to undo, let's close the file */
 	target->obj_ops->close(target);
@@ -348,7 +348,7 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	 * that the file is newly created. In this case we will remove that
 	 * file */
 	if (!file_has_uuid(target)) {
-		status = current->obj_ops->unlink(current, target, name);
+		status = (*cur)->obj_ops->unlink(*cur, target, name);
 		ret = status.major;
 	}
 
