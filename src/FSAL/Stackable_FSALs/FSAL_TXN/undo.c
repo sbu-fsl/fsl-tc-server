@@ -549,9 +549,9 @@ end:
 static int dispatch_undoer(struct op_vector *vec)
 {
 	struct op_desc *el = NULL;
-	int opidx, ret = 0;
+	int i, ret = 0;
 
-	opvec_iter_back(opidx, vec, el)
+	opvec_iter_back(i, vec, el)
 	{
 		switch (vec->op) {
 			case NFS4_OP_CREATE:
@@ -564,7 +564,7 @@ static int dispatch_undoer(struct op_vector *vec)
 
 			case NFS4_OP_REMOVE:
 				ret = undo_remove(el->arg, el->cwh, vec->txnid,
-						  opidx);
+						  el->opidx);
 				break;
 
 			case NFS4_OP_RENAME:
@@ -573,7 +573,8 @@ static int dispatch_undoer(struct op_vector *vec)
 			case NFS4_OP_WRITE:
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				ret = undo_write(el->cwh, vec->txnid, opidx);
+				ret = undo_write(el->cwh, vec->txnid,
+						 el->opidx);
 				break;
 
 			default:
@@ -585,7 +586,7 @@ static int dispatch_undoer(struct op_vector *vec)
 			LogWarn(COMPONENT_FSAL,
 				"Encountered error: %d, idx: "
 				"%d, opcode: %d - cannot undo.",
-				ret, opidx, el->opcode);
+				ret, el->opidx, el->opcode);
 			break;
 		}
 	}
@@ -707,7 +708,7 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 			case NFS4_OP_WRITE:
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				ret = opvec_push(&vector, op, curop_arg,
+				ret = opvec_push(&vector, i, op, curop_arg,
 						 curop_res, current, saved);
 				break;
 

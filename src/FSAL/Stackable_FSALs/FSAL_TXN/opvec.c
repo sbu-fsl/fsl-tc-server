@@ -50,9 +50,9 @@ void opvec_init(struct op_vector *vec, uint64_t txnid)
  * does not match, return ERR_FSAL_BADTYPE. Note that if there isn't enough
  * memory, @c gsh_realloc will abort the system.
  */
-int opvec_push(struct op_vector *vec, nfs_opnum4 opcode, nfs_argop4 *arg,
-	       nfs_resop4 *res, struct fsal_obj_handle *current,
-	       struct fsal_obj_handle *saved)
+int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
+	       nfs_argop4 *arg, nfs_resop4 *res,
+	       struct fsal_obj_handle *current, struct fsal_obj_handle *saved)
 {
 	/* supply the operation type of this vector */
 	if (vec->op == 0) vec->op = opcode;
@@ -68,6 +68,7 @@ int opvec_push(struct op_vector *vec, nfs_opnum4 opcode, nfs_argop4 *arg,
 	}
 
 	/* add element */
+	vec->v[vec->len].opidx = opidx;
 	vec->v[vec->len].opcode = opcode;
 	vec->v[vec->len].arg = arg;
 	vec->v[vec->len].res = res;
