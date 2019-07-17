@@ -322,7 +322,6 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 			  &length, &err);
 
 	if (err) {
-		leveldb_free(err);
 		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
 	}
 
