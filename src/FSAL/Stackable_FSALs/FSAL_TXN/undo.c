@@ -314,8 +314,8 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
  * Therefore there is a problem - in some cases we cannot figure out whether
  * a file existed before or not. We need further discussion regarding this.
  *
- * A possible workaround: Make backup during open if the opentype is
- * OPEN4_CREATE and the file actually exists.
+ * >> Solution: Look up the persistent LevelDB entry - A newly created file
+ * does not have such entry in DB.
  */
 static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 {
@@ -326,7 +326,7 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 	struct fsal_obj_handle *current;
 	fsal_status_t status;
 
-	/* update current file handle */
+	/* retrieve the file handle being opened */
 	if (name) {
 		status = (*cur)->obj_ops->lookup(*cur, name, &target, NULL);
 		if (status.major != 0) {
@@ -337,13 +337,12 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 			ret = status.major;
 			goto end;
 		}
-		exchange_cfh(cur, target);
 	}
-	/* if name is NULL then CURRENT is to be opened */
-	current = *cur;
+	/* if name is NULL then CURRENT is what is to be opened */
+	target = *cur;
 
 	/* to undo, let's close the file */
-	current->obj_ops->close(current);
+	target->obj_ops->close(target);
 
 	/* if the file does not have an associated UUID, then we can say
 	 * that the file is newly created. In this case we will remove that
@@ -352,6 +351,8 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur)
 		status = current->obj_ops->unlink(current, target, name);
 		ret = status.major;
 	}
+
+	exchange_cfh(cur, target);
 end:
 	gsh_free(name);
 	return ret;
