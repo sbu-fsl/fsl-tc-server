@@ -286,8 +286,8 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 
 	/* query the db: we don't use txnfs_db_get_uuid because that function
 	 * also looks up the cache. */
-	uuid_val = leveldb_get(db->db, db->r_options, fh_desc.addr,
-			       fh_desc.len, &len, &err);
+	uuid_val = leveldb_get(db->db, db->r_options, fh_desc.addr, fh_desc.len,
+			       &len, &err);
 
 	if (err) {
 		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
@@ -573,8 +573,8 @@ static int dispatch_undoer(struct op_vector *vec)
 			case NFS4_OP_WRITE:
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				ret = undo_write(el->cwh, vec->txnid,
-						 el->opidx);
+				ret =
+				    undo_write(el->cwh, vec->txnid, el->opidx);
 				break;
 
 			default:
