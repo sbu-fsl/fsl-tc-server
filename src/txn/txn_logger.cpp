@@ -643,8 +643,11 @@ int nfs_vcreate_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
       return -1;
     }
   }
-  txnlog->created_file_ids = created_file_ids.data();
   txnlog->num_files = created_file_ids.size();
+  txnlog->created_file_ids =
+      (CreatedObject *)malloc(sizeof(CreatedObject) * txnlog->num_files);
+  std::copy(created_file_ids.begin(), created_file_ids.end(),
+            txnlog->created_file_ids);
   return 0;
 }
 
@@ -689,8 +692,11 @@ int nfs_vwrite_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
       std::cerr << "Unknow operation for VWrite: " << ops[i].argop;
     }
   }
-  txnlog->created_file_ids = created_file_ids.data();
   txnlog->num_files = created_file_ids.size();
+  txnlog->created_file_ids =
+      (CreatedObject *)malloc(sizeof(CreatedObject) * txnlog->num_files);
+  std::copy(created_file_ids.begin(), created_file_ids.end(),
+            txnlog->created_file_ids);
   return 0;
 }
 
@@ -728,8 +734,11 @@ int nfs_vunlink_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
       std::cerr << "Unknow operation for VRemove: " << ops[i].argop;
     }
   }
-  txnlog->created_unlink_ids = created_unlink_ids.data();
   txnlog->num_files = created_unlink_ids.size();
+  txnlog->created_unlink_ids =
+      (UnlinkId *)malloc(sizeof(UnlinkId) * txnlog->num_files);
+  std::copy(created_unlink_ids.begin(), created_unlink_ids.end(),
+            txnlog->created_unlink_ids);
   return 0;
 }
 
@@ -763,7 +772,6 @@ uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg) {
   }
   // TxnLog to protobuf
   txn_log_to_pb(&txn_log, &txnpb);
-  // context->txn_id = txn_log.id();
   const string key = absl::StrCat("txn-", txnpb.id());
 
   // Write txn_log to database.

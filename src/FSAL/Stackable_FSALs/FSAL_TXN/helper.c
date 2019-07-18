@@ -130,17 +130,17 @@ int txnfs_cache_commit(void)
 
 		if (entry->entry_type == txnfs_cache_entry_create) {
 			leveldb_writebatch_put(
-			    commit_batch, entry->uuid, TXN_UUID_LEN,
+			    commit_batch, entry->uuid, sizeof(uuid_t),
 			    entry->hdl_desc.addr, entry->hdl_desc.len);
 
 			leveldb_writebatch_put(
 			    commit_batch, entry->hdl_desc.addr,
-			    entry->hdl_desc.len, entry->uuid, TXN_UUID_LEN);
+			    entry->hdl_desc.len, entry->uuid, sizeof(uuid_t));
 
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
 			leveldb_writebatch_delete(commit_batch, entry->uuid,
-						  TXN_UUID_LEN);
+						  sizeof(uuid_t));
 			leveldb_writebatch_delete(commit_batch,
 						  entry->hdl_desc.addr,
 						  entry->hdl_desc.len);
@@ -153,7 +153,7 @@ int txnfs_cache_commit(void)
 	/*char txnkey[20];
 	strcpy(txnkey, "txn-", 4);
 	uuid_copy(txnkey + 4, op_ctx->uuid);
-	leveldb_writebatch_delete(commit_batch, txnkey, TXN_UUID_LEN + 4);*/
+	leveldb_writebatch_delete(commit_batch, txnkey, sizeof(uuid_t) + 4);*/
 
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
@@ -212,10 +212,10 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 
 	/* write to database */
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
-	leveldb_writebatch_put(commit_batch, uuid, TXN_UUID_LEN, hdl_desc->addr,
+	leveldb_writebatch_put(commit_batch, uuid, sizeof(uuid_t), hdl_desc->addr,
 			       hdl_desc->len);
 	leveldb_writebatch_put(commit_batch, hdl_desc->addr, hdl_desc->len,
-			       uuid, TXN_UUID_LEN);
+			       uuid, sizeof(uuid_t));
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
 	if (err) {
@@ -262,7 +262,7 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 		return -1;
 	}
 
-	assert(val_len == TXN_UUID_LEN);
+	assert(val_len == sizeof(uuid_t));
 	uuid_copy(uuid, val);
 	free(val);
 	return 0;
@@ -284,7 +284,7 @@ int txnfs_db_delete_uuid(uuid_t uuid)
 	char *val;
 	char *err = NULL;
 	size_t val_len;
-	val = leveldb_get(db->db, db->r_options, uuid, TXN_UUID_LEN, &val_len,
+	val = leveldb_get(db->db, db->r_options, uuid, sizeof(uuid_t), &val_len,
 			  &err);
 	assert(val);
 
@@ -298,7 +298,7 @@ int txnfs_db_delete_uuid(uuid_t uuid)
 	uuid_unparse_lower(uuid, uuid_str);
 	LogDebug(COMPONENT_FSAL, "delete uuid=%s\n", uuid_str);
 
-	leveldb_delete(db->db, db->w_options, uuid, TXN_UUID_LEN, &err);
+	leveldb_delete(db->db, db->w_options, uuid, sizeof(uuid_t), &err);
 
 	if (err) {
 		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);

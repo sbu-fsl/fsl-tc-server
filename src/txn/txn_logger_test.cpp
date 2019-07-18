@@ -150,6 +150,14 @@ protected:
   }
 };
 
+class NfsOpTest : public ::testing::Test {
+protected:
+  TxnLog txnlog;
+  virtual void SetUp() {}
+
+  virtual void TearDown() { txn_log_free(&txnlog); }
+};
+
 TEST_F(TxnTest, SimpleTest) {
   proto::TransactionLog txnpb;
   txn_log.txn_id = 9990;
@@ -219,8 +227,7 @@ TEST_F(TxnTest, RenameTest) {
   EXPECT_EQ(0, compare(&txn_log, &deserialized_txn_log));
 }
 
-TEST(NfsOpTest, CreateTxnLogTest) {
-  struct TxnLog txnlog;
+TEST_F(NfsOpTest, CreateTxnLogTest) {
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];
   nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
@@ -240,8 +247,7 @@ TEST(NfsOpTest, CreateTxnLogTest) {
   EXPECT_STREQ(txnlog.created_file_ids[0].path, filename);
 }
 
-TEST(NfsOpTest, WriteTxnLogTest) {
-  struct TxnLog txnlog;
+TEST_F(NfsOpTest, WriteTxnLogTest) {
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];
   nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
@@ -262,8 +268,7 @@ TEST(NfsOpTest, WriteTxnLogTest) {
   EXPECT_STREQ(txnlog.created_file_ids[0].path, filename);
 }
 
-TEST(NfsOpTest, RemoveTxnLogTest) {
-  struct TxnLog txnlog;
+TEST_F(NfsOpTest, RemoveTxnLogTest) {
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];
   nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
