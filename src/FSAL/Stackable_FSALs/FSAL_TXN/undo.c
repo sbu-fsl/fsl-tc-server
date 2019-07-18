@@ -302,9 +302,8 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 	return ret;
 }
 
-static int restore_data(struct fsal_obj_handle *target,
-			uint64_t txnid, int opidx,
-			bool truncate_dest)
+static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
+			int opidx, bool truncate_dest)
 {
 	char backup_name[20] = {'\0'};
 	struct fsal_obj_handle *root, *backup_root, *backup_dir;
@@ -332,8 +331,8 @@ static int restore_data(struct fsal_obj_handle *target,
 	if (status.major != 0) {
 		ret = status.major;
 		LogWarn(COMPONENT_FSAL,
-			"can't lookup backup. err=%d, txnid=%lu, opidx=%d",
-			ret, txnid, opidx);
+			"can't lookup backup. err=%d, txnid=%lu, opidx=%d", ret,
+			txnid, opidx);
 		goto end;
 	}
 
@@ -343,8 +342,7 @@ static int restore_data(struct fsal_obj_handle *target,
 	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
 
 	/* truncate the source file if requested */
-	if (truncate_dest)
-		truncate_file(sub_cur);
+	if (truncate_dest) truncate_file(sub_cur);
 
 	size = get_file_size(backup_file);
 	/* overwrite the source file. CFH is the file being written */
@@ -427,11 +425,11 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur,
 	if (!file_has_uuid(target)) {
 		status = (*cur)->obj_ops->unlink(*cur, target, name);
 		ret = status.major;
-	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE
-		   && attrs.filesize == 0) {
+	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE &&
+		   attrs.filesize == 0) {
 		/* In this case the file might have been truncated when open */
 		ret = restore_data(target, txnid, opidx, false);
-	}  
+	}
 
 	exchange_cfh(cur, target);
 end:
@@ -557,8 +555,7 @@ static inline void truncate_file(struct fsal_obj_handle *f)
 	ret = fsal_open2(f, NULL, FSAL_O_TRUNC, FSAL_NO_CREATE, NULL, NULL,
 			 NULL, &new_hdl, NULL);
 	if (ret.major != 0) {
-		LogWarn(COMPONENT_FSAL,
-			"can't open file: %d", ret.major);
+		LogWarn(COMPONENT_FSAL, "can't open file: %d", ret.major);
 	}
 	fsal_close(f);
 }
