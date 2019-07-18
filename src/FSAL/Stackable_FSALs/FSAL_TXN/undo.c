@@ -472,8 +472,9 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 static inline void truncate_file(struct fsal_obj_handle *f)
 {
 	fsal_status_t ret;
+	struct fsal_obj_handle *new_hdl;
 	ret = fsal_open2(f, NULL, FSAL_O_TRUNC, FSAL_NO_CREATE, NULL, NULL,
-			 NULL, NULL, NULL);
+			 NULL, &new_hdl, NULL);
 	if (ret.major != 0) {
 		LogWarn(COMPONENT_FSAL,
 			"can't open file: %d", ret.major);
@@ -541,8 +542,8 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	if (status.major != 0) {
 		LogWarn(COMPONENT_FSAL, "clone failed (%d, %d), try copy",
 			status.major, status.minor);
-		status = backup_file->obj_ops->copy(backup_file, &in, sub_cur,
-						    &out, size, &copied);
+		status = backup_file->obj_ops->copy(backup_file, in, sub_cur,
+						    out, size, &copied);
 		LogDebug(COMPONENT_FSAL, "%lu bytes copied", copied);
 	}
 	ret = status.major;
