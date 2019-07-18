@@ -471,13 +471,14 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
  */
 static inline void truncate_file(struct fsal_obj_handle *f)
 {
-	struct attrlist attrs = {.filesize = 0};
-	fsal_status_t ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
-	if (ret.major != 0)
+	fsal_status_t ret;
+	ret = fsal_open2(f, NULL, FSAL_O_TRUNC, FSAL_NO_CREATE, NULL, NULL,
+			 NULL, NULL, NULL);
+	if (ret.major != 0) {
 		LogWarn(COMPONENT_FSAL,
-			"truncate_file failed: error %d, "
-			"fileid=%lu",
-			ret.major, f->fileid);
+			"can't open file: %d", ret.major);
+	}
+	fsal_close(f);
 }
 
 /**
