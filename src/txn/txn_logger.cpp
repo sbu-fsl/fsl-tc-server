@@ -614,12 +614,8 @@ int nfs_vcreate_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
       uuid_copy(base, kRootUuid);
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
       extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
-      // uuid_copy(context->op_contexts[i].id, base);
-      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
       extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
-      // uuid_copy(context->op_contexts[i].id, base);
-      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
@@ -661,12 +657,8 @@ int nfs_vwrite_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog) {
   for (int i = 0; i < ops_len; ++i) {
     if (ops[i].argop == NFS4_OP_PUTROOTFH) {
       uuid_copy(base, kRootUuid);
-      // uuid_copy(context->op_contexts[i].id, base);
-      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_PUTFH) {
       extract_uuid_from_fh(ops[i].nfs_argop4_u.opputfh.object, base);
-      // uuid_copy(context->op_contexts[i].id, base);
-      // context->op_contexts[i].is_new = false;
     } else if (ops[i].argop == NFS4_OP_LOOKUP) {
       path_components.emplace_back(
           nfs4_string(ops[i].nfs_argop4_u.oplookup.objname));
