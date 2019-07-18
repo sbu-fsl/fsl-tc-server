@@ -30,29 +30,29 @@
 #define BKP_FN_LEN 20
 
 enum txnfs_cache_entry_type {
-  txnfs_cache_entry_create = 0,
-  txnfs_cache_entry_delete = 1
+	txnfs_cache_entry_create = 0,
+	txnfs_cache_entry_delete = 1
 };
 
 struct txnfs_cache_entry {
-  uuid_t uuid;
-  struct gsh_buffdesc hdl_desc;
-  enum txnfs_cache_entry_type entry_type;
+	uuid_t uuid;
+	struct gsh_buffdesc hdl_desc;
+	enum txnfs_cache_entry_type entry_type;
 
-  struct glist_head glist;
+	struct glist_head glist;
 };
 
 struct txnfs_fsal_module {
-  struct fsal_module module;
-  struct fsal_obj_ops handle_ops;
+	struct fsal_module module;
+	struct fsal_obj_ops handle_ops;
 
-  /** Config - database path */
-  char *db_path;
-  db_store_t *db;
-  lock_manager_t *lm;
+	/** Config - database path */
+	char *db_path;
+	db_store_t *db;
+	lock_manager_t *lm;
 
-  /** Config - backup path */
-  char *backup_path;
+	/** Config - backup path */
+	char *backup_path;
 };
 
 extern struct txnfs_fsal_module TXNFS;
@@ -64,10 +64,10 @@ long fileid;
 struct txnfs_fsal_obj_handle;
 
 struct next_ops {
-  struct export_ops exp_ops;           /*< Vector of operations */
-  struct fsal_obj_ops obj_ops;         /*< Shared handle methods vector */
-  struct fsal_dsh_ops dsh_ops;         /*< Shared handle methods vector */
-  const struct fsal_up_vector *up_ops; /*< Upcall operations */
+	struct export_ops exp_ops;	   /*< Vector of operations */
+	struct fsal_obj_ops obj_ops;	 /*< Shared handle methods vector */
+	struct fsal_dsh_ops dsh_ops;	 /*< Shared handle methods vector */
+	const struct fsal_up_vector *up_ops; /*< Upcall operations */
 };
 
 #define UDBG LogDebug(COMPONENT_FSAL, "TXDEBUG")
@@ -78,9 +78,9 @@ struct next_ops {
  * stackable fsal or the inode cache), the context has to be restored.
  */
 struct txnfs_readdir_state {
-  fsal_readdir_cb cb;            /*< Callback to the upper layer. */
-  struct txnfs_fsal_export *exp; /*< Export of the current txnfsal. */
-  void *dir_state;               /*< State to be sent to the next callback. */
+	fsal_readdir_cb cb;	    /*< Callback to the upper layer. */
+	struct txnfs_fsal_export *exp; /*< Export of the current txnfsal. */
+	void *dir_state; /*< State to be sent to the next callback. */
 };
 
 extern struct fsal_up_vector fsal_up_top;
@@ -90,25 +90,25 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops);
  * TXNFS internal export
  */
 struct txnfs_fsal_export {
-  struct fsal_export export;
-  /* Other private export data goes here */
+	struct fsal_export export;
+	/* Other private export data goes here */
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
-                                struct fsal_obj_handle **handle,
-                                struct attrlist *attrs_out);
+				struct fsal_obj_handle **handle,
+				struct attrlist *attrs_out);
 
 fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
-                                  struct gsh_buffdesc *hdl_desc,
-                                  struct fsal_obj_handle **handle,
-                                  struct attrlist *attrs_out);
+				  struct gsh_buffdesc *hdl_desc,
+				  struct fsal_obj_handle **handle,
+				  struct attrlist *attrs_out);
 
 fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
-                                           struct fsal_obj_handle *sub_handle,
-                                           struct fsal_filesystem *fs,
-                                           struct fsal_obj_handle **new_handle,
-                                           fsal_status_t subfsal_status,
-                                           bool is_creation);
+					   struct fsal_obj_handle *sub_handle,
+					   struct fsal_filesystem *fs,
+					   struct fsal_obj_handle **new_handle,
+					   fsal_status_t subfsal_status,
+					   bool is_creation);
 
 /*
  * TXNFS internal object handle
@@ -123,119 +123,122 @@ fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
  */
 
 struct txnfs_fsal_obj_handle {
-  struct fsal_obj_handle obj_handle;  /*< Handle containing txnfs data.*/
-  struct fsal_obj_handle *sub_handle; /*< Handle of the sub fsal.*/
-  int32_t refcnt; /*< Reference count.  This is signed to make
-                     mistakes easy to see. */
-  uuid_t uuid;    /*< owned by txnfs_fsal_obj_handle */
+	struct fsal_obj_handle obj_handle;  /*< Handle containing txnfs data.*/
+	struct fsal_obj_handle *sub_handle; /*< Handle of the sub fsal.*/
+	int32_t refcnt; /*< Reference count.  This is signed to make
+			   mistakes easy to see. */
+	uuid_t uuid;    /*< owned by txnfs_fsal_obj_handle */
 };
 
 int txnfs_fsal_open(struct txnfs_fsal_obj_handle *, int, fsal_errors_t *);
 int txnfs_fsal_readlink(struct txnfs_fsal_obj_handle *, fsal_errors_t *);
 
-static inline bool txnfs_unopenable_type(object_file_type_t type) {
-  if ((type == SOCKET_FILE) || (type == CHARACTER_FILE) ||
-      (type == BLOCK_FILE)) {
-    return true;
-  } else {
-    return false;
-  }
+static inline bool txnfs_unopenable_type(object_file_type_t type)
+{
+	if ((type == SOCKET_FILE) || (type == CHARACTER_FILE) ||
+	    (type == BLOCK_FILE)) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 /* I/O management */
 fsal_status_t txnfs_open(struct fsal_obj_handle *obj_hdl,
-                         fsal_openflags_t openflags);
+			 fsal_openflags_t openflags);
 fsal_openflags_t txnfs_status(struct fsal_obj_handle *obj_hdl);
 fsal_status_t txnfs_read(struct fsal_obj_handle *obj_hdl, uint64_t offset,
-                         size_t buffer_size, void *buffer, size_t *read_amount,
-                         bool *end_of_file);
+			 size_t buffer_size, void *buffer, size_t *read_amount,
+			 bool *end_of_file);
 fsal_status_t txnfs_write(struct fsal_obj_handle *obj_hdl, uint64_t offset,
-                          size_t buffer_size, void *buffer,
-                          size_t *write_amount, bool *fsal_stable);
+			  size_t buffer_size, void *buffer,
+			  size_t *write_amount, bool *fsal_stable);
 fsal_status_t txnfs_commit(struct fsal_obj_handle *obj_hdl, /* sync */
-                           off_t offset, size_t len);
+			   off_t offset, size_t len);
 fsal_status_t txnfs_lock_op(struct fsal_obj_handle *obj_hdl, void *p_owner,
-                            fsal_lock_op_t lock_op,
-                            fsal_lock_param_t *request_lock,
-                            fsal_lock_param_t *conflicting_lock);
+			    fsal_lock_op_t lock_op,
+			    fsal_lock_param_t *request_lock,
+			    fsal_lock_param_t *conflicting_lock);
 fsal_status_t txnfs_share_op(struct fsal_obj_handle *obj_hdl, void *p_owner,
-                             fsal_share_param_t request_share);
+			     fsal_share_param_t request_share);
 fsal_status_t txnfs_close(struct fsal_obj_handle *obj_hdl);
 
 /* Multi-FD */
 fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
-                          struct state_t *state, fsal_openflags_t openflags,
-                          enum fsal_create_mode createmode, const char *name,
-                          struct attrlist *attrs_in, fsal_verifier_t verifier,
-                          struct fsal_obj_handle **new_obj,
-                          struct attrlist *attrs_out, bool *caller_perm_check);
+			  struct state_t *state, fsal_openflags_t openflags,
+			  enum fsal_create_mode createmode, const char *name,
+			  struct attrlist *attrs_in, fsal_verifier_t verifier,
+			  struct fsal_obj_handle **new_obj,
+			  struct attrlist *attrs_out, bool *caller_perm_check);
 bool txnfs_check_verifier(struct fsal_obj_handle *obj_hdl,
-                          fsal_verifier_t verifier);
+			  fsal_verifier_t verifier);
 fsal_openflags_t txnfs_status2(struct fsal_obj_handle *obj_hdl,
-                               struct state_t *state);
+			       struct state_t *state);
 fsal_status_t txnfs_reopen2(struct fsal_obj_handle *obj_hdl,
-                            struct state_t *state, fsal_openflags_t openflags);
+			    struct state_t *state, fsal_openflags_t openflags);
 void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
-                 fsal_async_cb done_cb, struct fsal_io_arg *read_arg,
-                 void *caller_arg);
+		 fsal_async_cb done_cb, struct fsal_io_arg *read_arg,
+		 void *caller_arg);
 void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
-                  fsal_async_cb done_cb, struct fsal_io_arg *write_arg,
-                  void *caller_arg);
+		  fsal_async_cb done_cb, struct fsal_io_arg *write_arg,
+		  void *caller_arg);
 fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
-                          struct state_t *state, struct io_info *info);
+			  struct state_t *state, struct io_info *info);
 fsal_status_t txnfs_io_advise2(struct fsal_obj_handle *obj_hdl,
-                               struct state_t *state, struct io_hints *hints);
+			       struct state_t *state, struct io_hints *hints);
 fsal_status_t txnfs_commit2(struct fsal_obj_handle *obj_hdl, off_t offset,
-                            size_t len);
+			    size_t len);
 fsal_status_t txnfs_lock_op2(struct fsal_obj_handle *obj_hdl,
-                             struct state_t *state, void *p_owner,
-                             fsal_lock_op_t lock_op,
-                             fsal_lock_param_t *req_lock,
-                             fsal_lock_param_t *conflicting_lock);
+			     struct state_t *state, void *p_owner,
+			     fsal_lock_op_t lock_op,
+			     fsal_lock_param_t *req_lock,
+			     fsal_lock_param_t *conflicting_lock);
 fsal_status_t txnfs_close2(struct fsal_obj_handle *obj_hdl,
-                           struct state_t *state);
+			   struct state_t *state);
 fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
-                              struct state_t *state, uint64_t offset,
-                              uint64_t length, bool allocate);
+			      struct state_t *state, uint64_t offset,
+			      uint64_t length, bool allocate);
 fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
-                         struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
-                         uint64_t count, uint64_t *copied);
+			 struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
+			 uint64_t count, uint64_t *copied);
 fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
-                          struct fsal_obj_handle *dir_hdl, char *uuid);
+			  struct fsal_obj_handle *dir_hdl, char *uuid);
 
 fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
-                           struct fsal_obj_handle *dst_hdl, loff_t *off_out,
-                           size_t len, unsigned int flags);
+			   struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+			   size_t len, unsigned int flags);
 
 /* extended attributes management */
-fsal_status_t
-txnfs_list_ext_attrs(struct fsal_obj_handle *obj_hdl, unsigned int cookie,
-                     fsal_xattrent_t *xattrs_tab, unsigned int xattrs_tabsize,
-                     unsigned int *p_nb_returned, int *end_of_list);
+fsal_status_t txnfs_list_ext_attrs(struct fsal_obj_handle *obj_hdl,
+				   unsigned int cookie,
+				   fsal_xattrent_t *xattrs_tab,
+				   unsigned int xattrs_tabsize,
+				   unsigned int *p_nb_returned,
+				   int *end_of_list);
 fsal_status_t txnfs_getextattr_id_by_name(struct fsal_obj_handle *obj_hdl,
-                                          const char *xattr_name,
-                                          unsigned int *pxattr_id);
+					  const char *xattr_name,
+					  unsigned int *pxattr_id);
 fsal_status_t txnfs_getextattr_value_by_name(struct fsal_obj_handle *obj_hdl,
-                                             const char *xattr_name,
-                                             void *buffer_addr,
-                                             size_t buffer_size,
-                                             size_t *p_output_size);
+					     const char *xattr_name,
+					     void *buffer_addr,
+					     size_t buffer_size,
+					     size_t *p_output_size);
 fsal_status_t txnfs_getextattr_value_by_id(struct fsal_obj_handle *obj_hdl,
-                                           unsigned int xattr_id,
-                                           void *buffer_addr,
-                                           size_t buffer_size,
-                                           size_t *p_output_size);
+					   unsigned int xattr_id,
+					   void *buffer_addr,
+					   size_t buffer_size,
+					   size_t *p_output_size);
 fsal_status_t txnfs_setextattr_value(struct fsal_obj_handle *obj_hdl,
-                                     const char *xattr_name, void *buffer_addr,
-                                     size_t buffer_size, int create);
+				     const char *xattr_name, void *buffer_addr,
+				     size_t buffer_size, int create);
 fsal_status_t txnfs_setextattr_value_by_id(struct fsal_obj_handle *obj_hdl,
-                                           unsigned int xattr_id,
-                                           void *buffer_addr,
-                                           size_t buffer_size);
+					   unsigned int xattr_id,
+					   void *buffer_addr,
+					   size_t buffer_size);
 fsal_status_t txnfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
-                                         unsigned int xattr_id);
+					 unsigned int xattr_id);
 fsal_status_t txnfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
-                                           const char *xattr_name);
+					   const char *xattr_name);
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data);
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 
@@ -256,8 +259,8 @@ void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
 /* txn backup and restore */
 struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root);
 struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
-                                         uint64_t txnid);
+					 uint64_t txnid);
 fsal_status_t txnfs_backup_file(unsigned int opidx,
-                                struct fsal_obj_handle *src_hdl);
+				struct fsal_obj_handle *src_hdl);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
 int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);
