@@ -499,6 +499,7 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	int ret = 0;
 	loff_t in = 0, out = 0;
+	uint64_t size = 0, copied = 0;
 
 	/* construct names */
 	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
@@ -530,9 +531,20 @@ static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
 	/* truncate the source file */
 	truncate_file(sub_cur);
 
+	size = get_file_size(backup_file);
 	/* overwrite the source file. CFH is the file being written */
 	status = backup_file->obj_ops->clone2(backup_file, &in, sub_cur, &out,
-					      get_file_size(backup_file), 0);
+					      size, 0);
+	/* ->clone2 uses FICLONERANGE ioctl which depends on CoW support
+	 * in the underlying file system. We'll fall back to ->copy if
+	 * this is not supported. */
+	if (status.major != 0) {
+		LogWarn(COMPONENT_FSAL, "clone failed (%d, %d), try copy",
+			status.major, status.minor);
+		status = backup_file->obj_ops->copy(backup_file, &in, sub_cur,
+						    &out, size, &copied);
+		LogDebug(COMPONENT_FSAL, "%lu bytes copied", copied);
+	}
 	ret = status.major;
 
 end:
