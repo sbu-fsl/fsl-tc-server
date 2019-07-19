@@ -1,14 +1,15 @@
-#!/bin/bash - 
+#!/bin/bash -
 #=============================================================================
 # Install dependency needed by the TC server on ubuntu. Tested on both 16.04
 # and 18.04.
-# 
+#
 # by Ming Chen, v.mingchen@gmail.com
 #=============================================================================
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOTDIR="${DIR}/.."
 cd "$ROOTDIR"
+NCORES=$(nproc --all)
 git submodule update --init --recursive
 
 echo 'Install package'
@@ -66,7 +67,7 @@ git checkout v1.8.x
 mkdir build
 cd build
 cmake ..
-make
+make -j$NCORES
 sudo make install
 
 # install google-benchmark
@@ -77,7 +78,7 @@ git checkout cmake-3_5_1
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_GTEST_TESTS=OFF ../
-make
+make -j$NCORES
 sudo make install
 
 cd "$ROOTDIR/src/abseil-cpp"
@@ -86,5 +87,5 @@ cd ../..
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY=OFF -DUSE_FSAL_GPFS=OFF -DUSE_FSAL_LUSTRE=OFF -DUSE_FSAL_GLUSTER=OFF -DUSE_9P=OFF -DUSE_ADMIN_TOOLS=OFF -DLTTNG_PATH_HINT=/usr/ -DUSE_LTTNG=ON -DUSE_FSAL_RGW=OFF -DUSE_9P_RDMA=OFF -D_USE_9P_RDMA=OFF -DUSE_NFS_RDMA=OFF -DUSE_GTEST=ON -DUSE_RADOS_RECOV=OFF -DRADOS_URLS=OFF ../src/
-make
+make -j$NCORES
 sudo make install
