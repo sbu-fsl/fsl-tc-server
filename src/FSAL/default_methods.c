@@ -718,30 +718,23 @@ fsal_status_t end_compound(struct fsal_export *exp_hdl, void *data)
 /**
  * @brief Backup NFS4 operation
  *
+ * Note that there won't be a generic backup_nfs4_op method, due to the fact
+ * that each stackable FSAL has its own organization of private object handle
+ * data and the way to retrieve the sub-handle could be different. Therefore
+ * each Stackable FSAL should implement its own backup_nfs4_op method to call
+ * the sub-FSAL's method.
+ *
  * @param[in] exp_hdl		    Export handle
  * @param[in] opidx		    Operation index
- * @param[in] data		    Private data
+ * @param[in] current		    Current FSAL object handle
  * @param[in] op		    NFS4 compound operation argument
  *
  * @returns FSAL status code
  */
 fsal_status_t backup_nfs4_op(struct fsal_export *exp_hdl, unsigned int opidx,
-	void *data, struct nfs_argop4 *op)
+	struct fsal_obj_handle *current, struct nfs_argop4 *op)
 {
-	struct fsal_export *sub_export = exp_hdl->sub_export;
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
-
-	LogDebug(COMPONENT_FSAL,
-		 "backup_nfs4_op in %s layer", exp_hdl->fsal->name);
-
-	if (sub_export) {
-		LogDebug(COMPONENT_FSAL,
-			 "next layer is %s", sub_export->fsal->name);
-		op_ctx->fsal_export = sub_export;
-		res = sub_export->exp_ops.backup_nfs4_op(
-			sub_export, opidx, data, op);
-		op_ctx->fsal_export = exp_hdl;
-	}
 	
 	return res;
 }

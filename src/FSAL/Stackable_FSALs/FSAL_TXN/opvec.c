@@ -29,9 +29,6 @@
  */
 void opvec_init(struct op_vector *vec, uint64_t txnid)
 {
-	/* prevent duplicate initialization */
-	if (vec->v && vec->max > 0) return;
-
 	vec->txnid = txnid;
 	vec->v = gsh_calloc(VEC_INIT_SIZE, sizeof(struct op_desc));
 	vec->len = 0;

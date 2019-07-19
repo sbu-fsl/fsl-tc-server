@@ -384,6 +384,26 @@ static void nullfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
+static fsal_status_t nullfs_backup_nfs4_op(struct fsal_export *exp_hdl,
+					   unsigned int opidx,
+					   struct fsal_obj_handle *current,
+					   struct nfs_argop4 *op)
+{
+	fsal_status_t ret = {ERR_FSAL_NO_ERROR, 0};
+	struct nullfs_fsal_obj_handle *cur_hdl = 
+	    container_of(current, struct nullfs_fsal_obj_handle, obj_handle);
+	struct nullfs_fsal_export *exp = 
+	    container_of(exp_hdl, struct nullfs_fsal_export, export);
+	struct fsal_export *sub_export = exp->export.sub_export;
+
+	op_ctx->fsal_export = sub_export;
+	ret = sub_export->exp_ops.backup_nfs4_op(sub_export, opidx,
+		cur_hdl->sub_handle, op);
+	op_ctx->fsal_export = &exp->export;
+
+	return ret;
+}
+
 
 /* nullfs_export_ops_init
  * overwrite vector entries with the methods that we support
@@ -413,6 +433,7 @@ void nullfs_export_ops_init(struct export_ops *ops)
 	ops->alloc_state = nullfs_alloc_state;
 	ops->free_state = nullfs_free_state;
 	ops->is_superuser = nullfs_is_superuser;
+	ops->backup_nfs4_op = nullfs_backup_nfs4_op;
 }
 
 struct nullfsal_args {

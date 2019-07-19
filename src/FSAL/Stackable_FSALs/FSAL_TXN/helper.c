@@ -30,9 +30,11 @@ int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 	struct txnfs_cache_entry *entry =
 	    gsh_malloc(sizeof(struct txnfs_cache_entry));
 
-	// allocate for handle
+	/* allocate and initialize for handle */
 	uuid_copy(entry->uuid, uuid);
 	entry->entry_type = entry_type;
+	entry->hdl_desc.addr = NULL;
+	entry->hdl_desc.len = 0;
 
 	assert((entry_type == txnfs_cache_entry_create && hdl_desc) ||
 	       (entry_type == txnfs_cache_entry_delete));
@@ -141,9 +143,10 @@ int txnfs_cache_commit(void)
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
 			leveldb_writebatch_delete(commit_batch, entry->uuid,
 						  TXN_UUID_LEN);
-			leveldb_writebatch_delete(commit_batch,
-						  entry->hdl_desc.addr,
-						  entry->hdl_desc.len);
+			if (entry->hdl_desc.addr)
+				leveldb_writebatch_delete(commit_batch,
+						  	  entry->hdl_desc.addr,
+						  	  entry->hdl_desc.len);
 
 			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
 		}

@@ -686,7 +686,8 @@ int build_vwrite_txn(const COMPOUND4args *arg, proto::VWriteTxn *write_txn) {
 
 } // namespace internal
 
-uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg) {
+uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
+    txn_context_t *context) {
   proto::TransactionLog txn_log;
   txn_log.set_id(internal::get_txn_id());
   txn_log.set_type(internal::get_txn_type(arg));
@@ -696,7 +697,7 @@ uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg) {
     // internal::build_vwrite_txn(arg, txn_log.mutable_writes(), context);
   }
 
-  // context->txn_id = txn_log.id();
+  context->txn_id = txn_log.id();
   const string key = absl::StrCat("txn-", txn_log.id());
 
   // Write txn_log to database.
