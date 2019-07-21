@@ -442,7 +442,7 @@ static void txnfs_cleanup_backup(void)
 			status.major);
 	}
 end:
-	/* ---- resume export ---- */
+	/* ---- restore export ---- */
 	op_ctx->fsal_export = exp;
 }
 
