@@ -213,6 +213,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	struct attrlist attrs = {0};
 	struct attrlist attrs_out = {0};
 	struct gsh_buffdesc sym_content = {NULL, 0};
+	loff_t src_offset = 0, dst_offset = 0;
 	char backup_name[20];
 
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
@@ -235,8 +236,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	/* create dst_handle */
 	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
 	FSAL_CLEAR_MASK(attrs.valid_mask);
-	FSAL_SET_MASK(attrs.valid_mask,
-		      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
 	attrs.mode = 0666;
 	attrs.owner = 0;
 	/* we should handle symlinks differently */
@@ -248,15 +248,25 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 		status = fsal_readlink(src_hdl, &sym_content);
 		assert(status.major == 0);
 	}
-	status = fsal_create(bkp_folder, backup_name, src_hdl->type,
-			     &attrs, sym_content.addr, &dst_hdl, NULL);
+	status = fsal_create(bkp_folder, backup_name, src_hdl->type, &attrs,
+			     sym_content.addr, &dst_hdl, NULL);
 	assert(status.major == 0);
 	/* let's copy ONLY when source is a regular file */
 	if (src_hdl->type == REGULAR_FILE && attrs_out.filesize > 0) {
-		status = fsal_copy(src_hdl, 0 /* src_offset */,
-			   	   dst_hdl, 0 /* dst_offset */,
-			   	   attrs_out.filesize, &copied);
-		assert(status.major == 0);
+		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
+						  &dst_offset,
+						  attrs_out.filesize, 0);
+		if (!FSAL_IS_SUCCESS(status)) {
+			LogDebug(COMPONENT_FSAL,
+				 "clone failed (%d, %d), try copy",
+				 status.major, status.minor);
+			src_offset = 0;
+			dst_offset = 0;
+			status =
+			    fsal_copy(src_hdl, src_offset, dst_hdl, dst_offset,
+				      attrs_out.filesize, &copied);
+			assert(FSAL_IS_SUCCESS(status));
+		}
 	}
 	op_ctx->fsal_export = &exp->export;
 	return status;
