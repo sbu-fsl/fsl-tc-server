@@ -56,7 +56,7 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 	ret = fsal_lookup(txn_root_entry->sub_handle, TXN_BKP_DIR,
 			  &txn_backup_root, NULL);
 
-	if (ret.major == 0)
+	if (FSAL_IS_SUCCESS(ret))
 		return txn_backup_root;
 	else if (ret.major == ERR_FSAL_NOENT)
 		return NULL;
@@ -98,7 +98,7 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 
 	ret = fsal_lookup(backup_root, dir_name, &backup_dir, NULL);
 
-	if (ret.major == 0)
+	if (FSAL_IS_SUCCESS(ret))
 		return backup_dir;
 	else if (ret.major == ERR_FSAL_NOENT)
 		return NULL;
@@ -168,7 +168,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 		status =
 		    fsal_create(txn_root_handle->sub_handle, TXN_BKP_DIR,
 				DIRECTORY, &attrs, NULL, &txn_handle, NULL);
-		assert(status.major == 0);
+		assert(FSAL_IS_SUCCESS(status));
 		assert(txn_handle);
 	}
 
@@ -181,7 +181,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 		snprintf(txnid_name, BKP_FN_LEN, "%lu", txnid);
 		status = fsal_create(txn_handle, txnid_name, DIRECTORY, &attrs,
 				     NULL, bkp_handle, NULL);
-		assert(status.major == 0);
+		assert(FSAL_IS_SUCCESS(status));
 		assert(*bkp_handle);
 	}
 
@@ -217,7 +217,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	char backup_name[20];
 
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
-	assert(status.major == 0);
+	assert(FSAL_IS_SUCCESS(status));
 
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
@@ -227,7 +227,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	/* get file size */
 	attrs_out.request_mask = ATTR_SIZE;
 	status = get_optional_attrs(src_hdl, &attrs_out);
-	assert(status.major == 0);
+	assert(FSAL_IS_SUCCESS(status));
 
 	/* copy src to backup dir */
 	/* TODO: currently we are copying the whole file, but we plan to
@@ -246,11 +246,11 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 		memset(sym_content.addr, 0, sym_content.len);
 
 		status = fsal_readlink(src_hdl, &sym_content);
-		assert(status.major == 0);
+		assert(FSAL_IS_SUCCESS(status));
 	}
 	status = fsal_create(bkp_folder, backup_name, src_hdl->type, &attrs,
 			     sym_content.addr, &dst_hdl, NULL);
-	assert(status.major == 0);
+	assert(FSAL_IS_SUCCESS(status));
 	/* let's copy ONLY when source is a regular file */
 	if (src_hdl->type == REGULAR_FILE && attrs_out.filesize > 0) {
 		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,

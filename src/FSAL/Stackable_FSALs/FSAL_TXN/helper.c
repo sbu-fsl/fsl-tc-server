@@ -396,6 +396,6 @@ void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs)
 	fsal_status_t ret = op_ctx->fsal_export->exp_ops.lookup_path(
 	    op_ctx->fsal_export, op_ctx->ctx_export->fullpath, &root_entry,
 	    attrs);
-	assert(ret.major == 0);
+	assert(FSAL_IS_SUCCESS(ret));
 	*root_handle = root_entry;
 }
