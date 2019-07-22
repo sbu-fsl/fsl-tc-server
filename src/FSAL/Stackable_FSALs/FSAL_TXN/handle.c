@@ -739,15 +739,15 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
 /* create_handle
  * Does what original FSAL_ExpandHandle did (sort of)
  * returns a ref counted handle to be later used in cache_inode etc.
- * 
+ *
  * NOTE: If you want to call this method on your own, be sure to
  * have `hdl_desc` contain ONLY `file_handle_v4_t.opaque` equivalent
  * part of the raw file handle from PUTFH arg. Or rather, the first
  * five bytes of the raw FH are used by NFS protocol layer and should
  * not be passed into here.
- * 
+ *
  * NOTE! you must release the output fsal_obj_handle when done with it!
- * 
+ *
  * BEWARE! Thanks to some holes in the *AT syscalls implementation,
  * we cannot get an fd on an AF_UNIX socket, nor reliably on block or
  * character special devices.  Sorry, it just doesn't...
