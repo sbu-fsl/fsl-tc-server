@@ -415,6 +415,7 @@ static enum fsal_dir_result record_dirent(const char *name,
 	return DIR_CONTINUE;
 }
 
+/* TODO: Make backup cleaning an asynchronous operation */
 static void txnfs_cleanup_backup(void)
 {
 	struct fsal_obj_handle *txn_root = NULL;

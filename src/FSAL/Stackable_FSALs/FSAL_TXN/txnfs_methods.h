@@ -35,6 +35,7 @@ enum txnfs_cache_entry_type {
 	txnfs_cache_entry_delete = 1
 };
 
+/* TODO: Use a more efficient data structure for txn cache */
 struct txnfs_cache_entry {
 	uuid_t uuid;
 	struct gsh_buffdesc hdl_desc;
