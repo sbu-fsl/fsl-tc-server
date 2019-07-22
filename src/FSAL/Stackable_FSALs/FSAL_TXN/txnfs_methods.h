@@ -43,6 +43,13 @@ struct txnfs_cache_entry {
 	struct glist_head glist;
 };
 
+struct txnfs_file_entry {
+	char *name;
+	struct fsal_obj_handle *obj;
+
+	struct glist_head glist;
+};
+
 struct txnfs_fsal_module {
 	struct fsal_module module;
 	struct fsal_obj_ops handle_ops;
