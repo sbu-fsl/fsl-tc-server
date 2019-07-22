@@ -501,9 +501,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 		// commit entries to leveldb and remove txnlog entry
 		txnfs_cache_commit();
 	} else {
-		// TODO: restore backups
-		int err;
-		err = txnfs_compound_restore(op_ctx->txnid, res);
+		int err = txnfs_compound_restore(op_ctx->txnid, res);
 		if (err != 0) {
 			LogWarn(COMPONENT_FSAL, "compound_restore error: %d",
 				err);
