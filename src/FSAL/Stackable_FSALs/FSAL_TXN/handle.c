@@ -739,7 +739,15 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
 /* create_handle
  * Does what original FSAL_ExpandHandle did (sort of)
  * returns a ref counted handle to be later used in cache_inode etc.
- * NOTE! you must release this thing when done with it!
+ * 
+ * NOTE: If you want to call this method on your own, be sure to
+ * have `hdl_desc` contain ONLY `file_handle_v4_t.opaque` equivalent
+ * part of the raw file handle from PUTFH arg. Or rather, the first
+ * five bytes of the raw FH are used by NFS protocol layer and should
+ * not be passed into here.
+ * 
+ * NOTE! you must release the output fsal_obj_handle when done with it!
+ * 
  * BEWARE! Thanks to some holes in the *AT syscalls implementation,
  * we cannot get an fd on an AF_UNIX socket, nor reliably on block or
  * character special devices.  Sorry, it just doesn't...
@@ -761,23 +769,13 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	struct gsh_buffdesc sub_fh;
 	fsal_status_t status;
 	uuid_t uuid = {0};
-	void *start;
 
 	*handle = NULL;
 
 	LogDebug(COMPONENT_FSAL, "handle: %p, len: %lu", hdl_desc->addr,
 		 hdl_desc->len);
 
-	/* The NFS file handle passed in **contains** the UUID. However based
-	 * on observation, the UUID is located in the LATTER part of the
-	 * handle.
-	 *
-	 * Here we should query the db/cache for sub-FSAL's host handle, and
-	 * call sub-FSAL's create_handle method to retrieve the sub-handle. 
-	 */
-
-	start = (char *)hdl_desc->addr + (hdl_desc->len - sizeof(uuid_t));
-	memcpy(uuid, start, sizeof(uuid_t));
+	memcpy(uuid, hdl_desc->addr, sizeof(uuid_t));
 
 	if (txnfs_db_get_handle(uuid, &sub_fh) != 0) {
 		LogDebug(COMPONENT_FSAL, "handle %p is not in db",
