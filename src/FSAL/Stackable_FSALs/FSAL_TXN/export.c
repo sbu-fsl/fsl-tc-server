@@ -396,15 +396,38 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	return res;
 }
 
+static enum fsal_dir_result record_dirent(const char *name,
+					  struct fsal_obj_handle *obj,
+					  struct attrlist *attrs,
+					  void *dir_state,
+					  fsal_cookie_t cookie)
+{
+	struct glist_head *flist = (struct glist_head *)dir_state;
+	struct txnfs_file_entry *entry = gsh_malloc(sizeof(*entry));
+	size_t name_len = strnlen(name, NAME_MAX) + 1;
+
+	entry->name = gsh_malloc(name_len);
+	entry->name[name_len - 1] = 0;
+	strncpy(entry->name, name, name_len);
+	entry->obj = obj;
+	glist_add(flist, &entry->glist);
+
+	return DIR_CONTINUE;
+}
+
 static void txnfs_cleanup_backup(void)
 {
 	struct fsal_obj_handle *txn_root = NULL;
 	struct fsal_obj_handle *bkp_root = NULL;
 	struct fsal_obj_handle *bkp_folder = NULL;
-	struct fsal_obj_handle *file = NULL;
 	struct fsal_export *exp = op_ctx->fsal_export;
 	fsal_status_t status = {0};
+	struct glist_head file_list = {0}, *node, *tmp;
+	struct txnfs_file_entry *ent;
 	char name[BKP_FN_LEN] = {'\0'};
+	bool eof;
+
+	glist_init(&file_list);
 
 	get_txn_root(&txn_root, NULL);
 	assert(txn_root);
@@ -424,20 +447,25 @@ static void txnfs_cleanup_backup(void)
 		goto end;
 	}
 
-	for (uint32_t i = 0; i < op_ctx->op_args->argarray.argarray_len; i++) {
-		snprintf(name, BKP_FN_LEN, "%u.bkp", i);
-		status = fsal_lookup(bkp_folder, name, &file, NULL);
-		/* if we can find the backup item, remove it */
-		if (status.major == 0) {
-			status =
-			    bkp_folder->obj_ops->unlink(bkp_folder, file, name);
-			assert(status.major == 0);
-		}
-	}
+	/* Use readdir to retrieve the list of files contained in bkp folder */
+	status = bkp_folder->obj_ops->readdir(bkp_folder, NULL, &file_list,
+					      record_dirent, 0, &eof);
+	assert(FSAL_IS_SUCCESS(status));
+
+	glist_for_each_safe(node, tmp, &file_list) {
+		ent = glist_entry(node, struct txnfs_file_entry, glist);
+		status = bkp_folder->obj_ops->unlink(bkp_folder, ent->obj,
+						     ent->name);
+		assert(FSAL_IS_SUCCESS(status));
+		gsh_free(ent->name);
+		glist_del(node);
+		gsh_free(ent);
+	};
+
 	/* remove the backup folder */
 	snprintf(name, BKP_FN_LEN, "%lu", op_ctx->txnid);
 	status = bkp_root->obj_ops->unlink(bkp_root, bkp_folder, name);
-	if (status.major != 0) {
+	if (!FSAL_IS_SUCCESS(status)) {
 		LogWarn(COMPONENT_FSAL, "cannot remove backup dir: %d",
 			status.major);
 	}
