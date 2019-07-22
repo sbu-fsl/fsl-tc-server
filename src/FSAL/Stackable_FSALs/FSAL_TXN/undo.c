@@ -87,8 +87,9 @@ static inline void restore_cfh(struct fsal_obj_handle **current,
 static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 						struct attrlist *attrs)
 {
-	struct gsh_buffdesc buf = {.addr = (void *)fh->nfs_fh4_val,
-				   .len = fh->nfs_fh4_len};
+	file_handle_v4_t *file_handle = (file_handle_v4_t *)fh;
+	struct gsh_buffdesc buf = {.addr = file_handle->fsopaque,
+				   .len = fh->nfs_fh4_len - offsetof(file_handle_v4_t, fsopaque)};
 	struct fsal_obj_handle *handle = NULL;
 	struct attrlist _attrs = {0};
 	struct fsal_export *exp = op_ctx->fsal_export;
