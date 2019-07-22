@@ -135,7 +135,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	struct fsal_obj_handle *txn_handle = NULL;
 	struct attrlist attrs = {0};
 	uint64_t txnid = op_ctx->txnid;
-	char txnid_name[20] = {'\0'};
+	char txnid_name[BKP_FN_LEN] = {'\0'};
 	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 
 	/* get txnfs root directory handle */
@@ -214,7 +214,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	struct attrlist attrs_out = {0};
 	struct gsh_buffdesc sym_content = {NULL, 0};
 	loff_t src_offset = 0, dst_offset = 0;
-	char backup_name[20];
+	char backup_name[BKP_FN_LEN];
 
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
 	assert(FSAL_IS_SUCCESS(status));

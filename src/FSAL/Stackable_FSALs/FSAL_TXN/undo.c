@@ -306,7 +306,7 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 			int opidx, bool truncate_dest)
 {
-	char backup_name[20] = {'\0'};
+	char backup_name[BKP_FN_LEN] = {'\0'};
 	struct fsal_obj_handle *root, *backup_root, *backup_dir;
 	struct fsal_obj_handle *backup_file = NULL;
 	struct txnfs_fsal_export *exp =
@@ -483,7 +483,7 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 		       uint64_t txnid, int opidx)
 {
-	char backup_name[20] = {'\0'};
+	char backup_name[BKP_FN_LEN] = {'\0'};
 	char *real_name;
 	utf8string *str = &arg->nfs_argop4_u.opremove.target;
 	struct fsal_obj_handle *root, *backup_root, *backup_dir;
