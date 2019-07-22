@@ -267,12 +267,7 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 	struct txnfs_fsal_export *exp;
 	struct txnfs_fsal_obj_handle *txn_file;
 	struct fsal_obj_handle *sub_file;
-	struct fsal_module *fs = op_ctx->fsal_export->fsal;
-	struct txnfs_fsal_module *txnfs =
-	    container_of(fs, struct txnfs_fsal_module, module);
-	db_store_t *db = txnfs->db;
-	char *uuid_val = NULL, *err = NULL;
-	size_t len = 0;
+	uuid_t uuid_val;
 	bool ret;
 
 	/* switch context */
@@ -288,19 +283,9 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 	/* switch the context back */
 	op_ctx->fsal_export = &exp->export;
 
-	/* query the db: we don't use txnfs_db_get_uuid because that function
-	 * also looks up the cache. */
-	uuid_val = leveldb_get(db->db, db->r_options, fh_desc.addr, fh_desc.len,
-			       &len, &err);
+	ret = txnfs_db_get_uuid_nocache(&fh_desc, uuid_val);
 
-	if (err) {
-		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
-	}
-
-	ret = (uuid_val != NULL);
-	free(uuid_val);
-
-	return ret;
+	return (ret == 0);
 }
 
 static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,

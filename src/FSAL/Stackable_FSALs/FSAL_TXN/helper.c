@@ -298,23 +298,13 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	return ret;
 }
 
-int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
+/* @brief Query UUID with sub-FSAL host handle ONLY in levelDB */
+int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
-	UDBG;
-
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
 	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
-
-	// search txnfs compound cache
-	if (!glist_null(&op_ctx->txn_cache) &&
-	    txnfs_cache_get_uuid(hdl_desc, uuid) == 0) {
-		return 0;
-	}
-
-	LogDebug(COMPONENT_FSAL, "HandleAddr: %p HandleLen: %zu",
-		 hdl_desc->addr, hdl_desc->len);
 
 	char *hdl_key;
 	size_t hdl_key_len;
@@ -328,8 +318,7 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 			  &err);
 
 	if (err) {
-		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
-		leveldb_free(err);
+		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
 	}
 
 	gsh_free(hdl_key);
@@ -342,6 +331,29 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	uuid_copy(uuid, val);
 	free(val);
 	return 0;
+}
+
+/* @brief Query UUID with sub-FSAL host handle
+ * 
+ * Note that this function will look up BOTH cache and the levelDB
+ * 
+ * @param[in] hdl_desc	The buffer of the sub-FSAL's file handle
+ * @param[out] uuid	The UUID
+ * 
+ * @return 0 if successful, -1 if failed.
+ */
+int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
+{
+	// search txnfs compound cache first
+	if (!glist_null(&op_ctx->txn_cache) &&
+	    txnfs_cache_get_uuid(hdl_desc, uuid) == 0) {
+		return 0;
+	}
+
+	LogDebug(COMPONENT_FSAL, "HandleAddr: %p HandleLen: %zu",
+		 hdl_desc->addr, hdl_desc->len);
+
+	return txnfs_db_get_uuid_nocache(hdl_desc, uuid);
 }
 
 int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
