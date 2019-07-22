@@ -71,7 +71,12 @@ struct next_ops {
 	const struct fsal_up_vector *up_ops; /*< Upcall operations */
 };
 
+#ifndef NDEBUG
 #define UDBG LogDebug(COMPONENT_FSAL, "TXDEBUG")
+#else
+#define UDBG
+#endif
+
 /**
  * Structure used to store data for read_dirents callback.
  *
