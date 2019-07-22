@@ -566,7 +566,6 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 	struct txnfs_fsal_obj_handle *handle =
 	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
 
-	memset(fh_desc->addr, 0, fh_desc->len);
 	if (fh_desc->len >= TXN_UUID_LEN) {
 		uuid_copy(fh_desc->addr, handle->uuid);
 		fh_desc->len = sizeof(uuid_t);
