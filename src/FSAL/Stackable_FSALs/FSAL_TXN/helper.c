@@ -139,6 +139,20 @@ void txnfs_cache_init(void)
 	glist_init(&op_ctx->txn_cache);
 }
 
+static inline void combine_prefix(const char *prefix, const size_t prefix_len,
+				  const char *src, const size_t src_len,
+				  char **dest, size_t *length)
+{
+	*dest = NULL;
+	if (!src || !prefix) return;
+	char *key = gsh_malloc(prefix_len + src_len);
+
+	memcpy(key, prefix, prefix_len);
+	memcpy(key + prefix_len, src, src_len);
+	*dest = key;
+	*length = prefix_len + src_len;
+}
+
 // commit entries in `op_ctx->txn_cache` and remove txn log
 int txnfs_cache_commit(void)
 {
@@ -154,32 +168,44 @@ int txnfs_cache_commit(void)
 	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
 
+	char *uuid_key = NULL;
+	char *hdl_key = NULL;
+	size_t uuid_key_len, hdl_key_len;
+
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
 	glist_for_each(glist, &op_ctx->txn_cache)
 	{
 		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
 		uuid_unparse_lower(entry->uuid, uuid_str);
 
+		/* add prefix to keys */
+		combine_prefix(UUID_KEY_PREFIX, PREF_LEN, entry->uuid,
+			       sizeof(uuid_t), &uuid_key, &uuid_key_len);
+		combine_prefix(FH_KEY_PREFIX, PREF_LEN, entry->hdl_desc.addr,
+			       entry->hdl_desc.len, &hdl_key, &hdl_key_len);
+
 		if (entry->entry_type == txnfs_cache_entry_create) {
 			leveldb_writebatch_put(
-			    commit_batch, entry->uuid, TXN_UUID_LEN,
+			    commit_batch, uuid_key, uuid_key_len,
 			    entry->hdl_desc.addr, entry->hdl_desc.len);
 
-			leveldb_writebatch_put(
-			    commit_batch, entry->hdl_desc.addr,
-			    entry->hdl_desc.len, entry->uuid, TXN_UUID_LEN);
+			leveldb_writebatch_put(commit_batch, hdl_key,
+					       hdl_key_len, entry->uuid,
+					       TXN_UUID_LEN);
 
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
-			leveldb_writebatch_delete(commit_batch, entry->uuid,
-						  TXN_UUID_LEN);
+			leveldb_writebatch_delete(commit_batch, uuid_key,
+						  uuid_key_len);
 			if (entry->hdl_desc.addr)
-				leveldb_writebatch_delete(commit_batch,
-						  	  entry->hdl_desc.addr,
-						  	  entry->hdl_desc.len);
+				leveldb_writebatch_delete(commit_batch, hdl_key,
+							  hdl_key_len);
 
 			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
 		}
+
+		gsh_free(uuid_key);
+		gsh_free(hdl_key);
 	}
 
 	// TODO - add entry to remove txn log
@@ -232,6 +258,8 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	struct txnfs_fsal_module *txnfs =
 	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
+	char *uuid_key = NULL, *hdl_key = NULL;
+	size_t uuid_key_len, hdl_key_len;
 
 	UDBG;
 	uuid_generate(uuid);
@@ -243,12 +271,18 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 					  uuid);
 	}
 
+	/* let's add prefix first */
+	combine_prefix(UUID_KEY_PREFIX, PREF_LEN, uuid, sizeof(uuid_t),
+		       &uuid_key, &uuid_key_len);
+	combine_prefix(FH_KEY_PREFIX, PREF_LEN, hdl_desc->addr, hdl_desc->len,
+		       &hdl_key, &hdl_key_len);
+
 	/* write to database */
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
-	leveldb_writebatch_put(commit_batch, uuid, TXN_UUID_LEN, hdl_desc->addr,
-			       hdl_desc->len);
-	leveldb_writebatch_put(commit_batch, hdl_desc->addr, hdl_desc->len,
-			       uuid, TXN_UUID_LEN);
+	leveldb_writebatch_put(commit_batch, uuid_key, uuid_key_len,
+			       hdl_desc->addr, hdl_desc->len);
+	leveldb_writebatch_put(commit_batch, hdl_key, hdl_key_len, uuid,
+			       TXN_UUID_LEN);
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
 	if (err) {
@@ -258,6 +292,8 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	}
 
 	leveldb_writebatch_destroy(commit_batch);
+	gsh_free(hdl_key);
+	gsh_free(uuid_key);
 
 	return ret;
 }
@@ -280,16 +316,23 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	LogDebug(COMPONENT_FSAL, "HandleAddr: %p HandleLen: %zu",
 		 hdl_desc->addr, hdl_desc->len);
 
+	char *hdl_key;
+	size_t hdl_key_len;
+	combine_prefix(FH_KEY_PREFIX, PREF_LEN, hdl_desc->addr, hdl_desc->len,
+		       &hdl_key, &hdl_key_len);
+
 	char *val;
 	char *err = NULL;
 	size_t val_len;
-	val = leveldb_get(db->db, db->r_options, hdl_desc->addr,
-			  (size_t)hdl_desc->len, &val_len, &err);
+	val = leveldb_get(db->db, db->r_options, hdl_key, hdl_key_len, &val_len,
+			  &err);
 
 	if (err) {
 		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
 		leveldb_free(err);
 	}
+
+	gsh_free(hdl_key);
 
 	if (!val) {
 		return -1;
@@ -304,7 +347,7 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 {
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
-	struct txnfs_fsal_module *txnfs = 
+	struct txnfs_fsal_module *txnfs =
 	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
 
@@ -314,19 +357,24 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 		return 0;
 	}
 
+	char *uuid_key;
+	size_t uuid_key_len;
+	combine_prefix(UUID_KEY_PREFIX, PREF_LEN, uuid, sizeof(uuid_t),
+		       &uuid_key, &uuid_key_len);
+
 	char *val;
 	size_t length;
 	char *err = NULL;
 
-	val = leveldb_get(db->db, db->r_options, uuid, sizeof(uuid_t),
+	val = leveldb_get(db->db, db->r_options, uuid_key, uuid_key_len,
 			  &length, &err);
 
 	if (err) {
 		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
 	}
+	gsh_free(uuid_key);
 
-	if (!val)
-		return -1;
+	if (!val) return -1;
 
 	/* NOTE: Be sure to **free** hdl_desc->addr after use */
 	hdl_desc->len = length;
@@ -336,43 +384,49 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 
 int txnfs_db_delete_uuid(uuid_t uuid)
 {
-	UDBG;
-
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
 	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
+	int ret = 0;
 
 	if (!glist_null(&op_ctx->txn_cache)) {
 		return txnfs_cache_delete_uuid(uuid);
 	}
 
+	char *uuid_key;
+	size_t uuid_key_len;
+	combine_prefix(UUID_KEY_PREFIX, PREF_LEN, uuid, sizeof(uuid_t),
+		       &uuid_key, &uuid_key_len);
+
 	char *val;
 	char *err = NULL;
 	size_t val_len;
-	val = leveldb_get(db->db, db->r_options, uuid, TXN_UUID_LEN, &val_len,
-			  &err);
+	val = leveldb_get(db->db, db->r_options, uuid_key, uuid_key_len,
+			  &val_len, &err);
 	assert(val);
 
 	if (err) {
 		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
 		leveldb_free(err);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	char uuid_str[UUID_STR_LEN];
 	uuid_unparse_lower(uuid, uuid_str);
 	LogDebug(COMPONENT_FSAL, "delete uuid=%s\n", uuid_str);
 
-	leveldb_delete(db->db, db->w_options, uuid, TXN_UUID_LEN, &err);
+	leveldb_delete(db->db, db->w_options, uuid_key, uuid_key_len, &err);
 
 	if (err) {
 		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
 		leveldb_free(err);
-		return -1;
+		ret = -1;
 	}
-
-	return 0;
+end:
+	gsh_free(uuid_key);
+	return ret;
 }
 
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)

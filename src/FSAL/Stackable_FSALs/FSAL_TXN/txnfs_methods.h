@@ -29,6 +29,9 @@
 
 #define TXN_BKP_DIR ".txn"
 #define BKP_FN_LEN 20
+#define UUID_KEY_PREFIX "uuid-"
+#define FH_KEY_PREFIX "fhdl-"
+#define PREF_LEN 5
 
 enum txnfs_cache_entry_type {
 	txnfs_cache_entry_create = 0,
