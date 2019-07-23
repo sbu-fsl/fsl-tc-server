@@ -416,8 +416,6 @@ int txnfs_db_delete_uuid(uuid_t uuid)
 	size_t val_len;
 	val = leveldb_get(db->db, db->r_options, uuid_key, uuid_key_len,
 			  &val_len, &err);
-	assert(val);
-
 	if (err) {
 		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
 		leveldb_free(err);
@@ -428,6 +426,11 @@ int txnfs_db_delete_uuid(uuid_t uuid)
 	char uuid_str[UUID_STR_LEN];
 	uuid_unparse_lower(uuid, uuid_str);
 	LogDebug(COMPONENT_FSAL, "delete uuid=%s\n", uuid_str);
+	if (unlikely(!val)) {
+		LogDebug(COMPONENT_FSAL, "uuid {%s} not found", uuid_str);
+		ret = -1;
+		goto end;
+	}
 
 	leveldb_delete(db->db, db->w_options, uuid_key, uuid_key_len, &err);
 
