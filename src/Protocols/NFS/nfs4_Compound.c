@@ -44,6 +44,7 @@
 #include "nfs_creds.h"
 
 #ifdef USE_LTTNG
+#include "gsh_lttng/txnfs.h"
 #include "gsh_lttng/nfs_rpc.h"
 #endif
 
@@ -943,10 +944,15 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			   data.opname);
 #endif
 		// create backups for txnfs
-		if (txn_ready)
+		if (txn_ready) {
 			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
 				op_ctx->fsal_export, i, data.current_obj,
 				&argarray[i]);
+#ifdef USE_LTTNG
+			tracepoint(txnfs, end_backup, i, argarray[i].argop,
+				   data.opname);
+#endif
+		}
 		
 		status = (optabv4[opcode].funct) (&argarray[i],
 						  &data,
@@ -1025,8 +1031,15 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			txn_ready = false;
 
 		if (!start_compound_called && txn_ready) {
+#ifdef USE_LTTNG
+			tracepoint(txnfs, before_start_compound, argarray_len);
+#endif
 			op_ctx->fsal_export->exp_ops.start_compound(
 				op_ctx->fsal_export, &arg->arg_compound4);
+#ifdef USE_LTTNG
+			tracepoint(txnfs, after_start_compound, argarray_len,
+				   op_ctx->txnid);
+#endif
 			start_compound_called = true;
 		}
 
@@ -1039,9 +1052,16 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 */
 	res->res_compound4.status = status;
 	
-	if (txn_ready)
+	if (txn_ready) {
+#ifdef USE_LTTNG
+		tracepoint(txnfs, before_end_compound, op_ctx->txnid);
+#endif
 		op_ctx->fsal_export->exp_ops.end_compound(
 			op_ctx->fsal_export, &res->res_compound4);
+#ifdef USE_LTTNG
+		tracepoint(txnfs, after_end_compound, status, op_ctx->txnid);
+#endif
+	}
 
 	/* Manage session's DRC: keep NFS4.1 replay for later use, but don't
 	 * save a replayed result again.
