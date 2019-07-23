@@ -29,16 +29,27 @@
 
 #define TXN_BKP_DIR ".txn"
 #define BKP_FN_LEN 20
+#define UUID_KEY_PREFIX "uuid-"
+#define FH_KEY_PREFIX "fhdl-"
+#define PREF_LEN 5
 
 enum txnfs_cache_entry_type {
 	txnfs_cache_entry_create = 0,
 	txnfs_cache_entry_delete = 1
 };
 
+/* TODO: Use a more efficient data structure for txn cache */
 struct txnfs_cache_entry {
 	uuid_t uuid;
 	struct gsh_buffdesc hdl_desc;
 	enum txnfs_cache_entry_type entry_type;
+
+	struct glist_head glist;
+};
+
+struct txnfs_file_entry {
+	char *name;
+	struct fsal_obj_handle *obj;
 
 	struct glist_head glist;
 };
@@ -71,7 +82,12 @@ struct next_ops {
 	const struct fsal_up_vector *up_ops; /*< Upcall operations */
 };
 
+#ifndef NDEBUG
 #define UDBG LogDebug(COMPONENT_FSAL, "TXDEBUG")
+#else
+#define UDBG
+#endif
+
 /**
  * Structure used to store data for read_dirents callback.
  *
@@ -249,6 +265,8 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
+int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
+int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */

@@ -31,6 +31,7 @@
 #define VEC_INIT_SIZE 16
 
 struct op_desc {
+	uint32_t opidx;
 	nfs_opnum4 opcode;
 	struct nfs_argop4 *arg;
 	struct nfs_resop4 *res;
@@ -49,9 +50,9 @@ struct op_vector {
 };
 
 void opvec_init(struct op_vector *vec, uint64_t txnid);
-int opvec_push(struct op_vector *vec, nfs_opnum4 opcode, nfs_argop4 *arg,
-	       nfs_resop4 *res, struct fsal_obj_handle *current,
-	       struct fsal_obj_handle *saved);
+int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
+	       nfs_argop4 *arg, nfs_resop4 *res,
+	       struct fsal_obj_handle *current, struct fsal_obj_handle *saved);
 
 void opvec_destroy(struct op_vector *vec);
 

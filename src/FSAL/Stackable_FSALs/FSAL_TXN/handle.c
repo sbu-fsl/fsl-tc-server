@@ -565,9 +565,7 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 {
 	struct txnfs_fsal_obj_handle *handle =
 	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
-	UDBG;
-	/*LogDebug(COMPONENT_FSAL, "Creating digest for file id %s",
-	 * handle->uuid);*/
+
 	if (fh_desc->len >= TXN_UUID_LEN) {
 		uuid_copy(fh_desc->addr, handle->uuid);
 		fh_desc->len = sizeof(uuid_t);
@@ -741,7 +739,15 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
 /* create_handle
  * Does what original FSAL_ExpandHandle did (sort of)
  * returns a ref counted handle to be later used in cache_inode etc.
- * NOTE! you must release this thing when done with it!
+ *
+ * NOTE: If you want to call this method on your own, be sure to
+ * have `hdl_desc` contain ONLY `file_handle_v4_t.opaque` equivalent
+ * part of the raw file handle from PUTFH arg. Or rather, the first
+ * five bytes of the raw FH are used by NFS protocol layer and should
+ * not be passed into here.
+ *
+ * NOTE! you must release the output fsal_obj_handle when done with it!
+ *
  * BEWARE! Thanks to some holes in the *AT syscalls implementation,
  * we cannot get an fd on an AF_UNIX socket, nor reliably on block or
  * character special devices.  Sorry, it just doesn't...
@@ -760,21 +766,32 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	struct fsal_obj_handle *sub_handle; /*< New subfsal handle.*/
-	*handle = NULL;
-	UDBG;
-	/* call to subfsal lookup with the good context. */
+	struct gsh_buffdesc sub_fh;
 	fsal_status_t status;
+	uuid_t uuid = {0};
 
-	// handle should exist in the database
-	if (!txnfs_db_handle_exists(hdl_desc)) {
+	*handle = NULL;
+
+	LogDebug(COMPONENT_FSAL, "handle: %p, len: %lu", hdl_desc->addr,
+		 hdl_desc->len);
+
+	memcpy(uuid, hdl_desc->addr, sizeof(uuid_t));
+
+	if (txnfs_db_get_handle(uuid, &sub_fh) != 0) {
+		LogDebug(COMPONENT_FSAL, "handle %p is not in db",
+			 hdl_desc->addr);
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	op_ctx->fsal_export = export->export.sub_export;
 
 	status = export->export.sub_export->exp_ops.create_handle(
-	    export->export.sub_export, hdl_desc, &sub_handle, attrs_out);
+	    export->export.sub_export, &sub_fh, &sub_handle, attrs_out);
 
 	op_ctx->fsal_export = &export->export;
+
+	/* txnfs_db_get_handle returns a new buffer, so we have to free after
+	 * use. */
+	gsh_free(sub_fh.addr);
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
