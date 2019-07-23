@@ -7,7 +7,7 @@
 #define GANESHA_LTTNG_TXNFS_TP_H
 
 #include <lttng/tracepoint.h>
-#include <nfsv41.h>
+#include <stdint.h>
 
 /**
  * @brief Trace the exit of backup_nfs4_op function
@@ -24,10 +24,10 @@ TRACEPOINT_EVENT(
 	end_backup,
 	TP_ARGS(int, opidx,
 		int, opcode,
-		char *, opname),
+		const char *, opname),
 	TP_FIELDS(
-		ctf_integer(int, opidx, opidx),
-		ctf_integer(int, opcode, opcode),
+		ctf_integer(int, opidx, opidx)
+		ctf_integer(int, opcode, opcode)
 		ctf_string(opname, opname)
 	)
 )
@@ -72,7 +72,7 @@ TRACEPOINT_EVENT(
 		uint64_t, txnid
 	),
 	TP_FIELDS(
-		ctf_integer(int, opcnt, opcnt),
+		ctf_integer(int, opcnt, opcnt)
 		ctf_integer_hex(uint64_t, txnid, txnid)
 	)
 )
@@ -113,11 +113,11 @@ TRACEPOINT_EVENT(
 	txnfs,
 	after_end_compound,
 	TP_ARGS(
-		nfsstat4, res,
+		int, res,
 		uint64_t, txnid
 	),
 	TP_FIELDS(
-		ctf_integer(nfsstat4, res, res)
+		ctf_integer(int, res, res)
 		ctf_integer_hex(uint64_t, txnid, txnid)
 	)
 )
@@ -128,7 +128,7 @@ TRACEPOINT_LOGLEVEL(
 	TRACE_INFO
 )
 
-#endif /* GANESHA_LTTNG_NFS4_TP_H */
+#endif /* GANESHA_LTTNG_TXNFS_TP_H */
 
 #undef TRACEPOINT_INCLUDE
 #define TRACEPOINT_INCLUDE "gsh_lttng/txnfs.h"
