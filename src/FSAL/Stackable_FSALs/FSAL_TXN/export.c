@@ -45,6 +45,10 @@
 #include <string.h>
 #include <sys/types.h>
 
+#ifdef USE_LTTNG
+#include "gsh_lttng/txnfs.h"
+#endif
+
 /* helpers to/from other NULL objects
  */
 
@@ -372,15 +376,28 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
 		 args->argarray.argarray_len);
 
+#ifdef USE_LTTNG
+	tracepoint(txnfs, init_start_compound, args->argarray.argarray_len);
+#endif
+
 	// generate txnid and create transaction log
 	txn_context_t *context = new_txn_context(args->argarray.argarray_len,
 						 args->argarray.argarray_val);
-
+#ifdef USE_LTTNG
+	tracepoint(txnfs, create_txn_context, args->argarray.argarray_len,
+		   (void *)context);
+#endif
 	op_ctx->txnid = create_txn_log(fs->db, args, context);
 
+#ifdef USE_LTTNG
+	tracepoint(txnfs, create_txn_log, op_ctx->txnid);
+#endif
 	// initialize txn cache
 	txnfs_cache_init();
 
+#ifdef USE_LTTNG
+	tracepoint(txnfs, init_txn_cache, op_ctx->txnid);
+#endif
 	op_ctx->op_args = args;
 
 	struct txnfs_fsal_export *exp =
@@ -393,6 +410,10 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 		op_ctx->fsal_export = &exp->export;
 	}
 
+#ifdef USE_LTTNG
+	tracepoint(txnfs, called_subfsal_start_compound, op_ctx->txnid,
+		   exp->export.sub_export->fsal->name);
+#endif
 	return res;
 }
 
@@ -489,6 +510,10 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 		    exp->export.sub_export, data);
 		op_ctx->fsal_export = &exp->export;
 	}
+#ifdef USE_LTTNG
+	tracepoint(txnfs, called_subfsal_end_compound, op_ctx->txnid,
+		   exp->export.sub_export->fsal->name);
+#endif
 
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
@@ -498,21 +523,36 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	 * the following operations. */
 	if (!txn_context_valid()) return ret;
 
+#ifdef USE_LTTNG
+	tracepoint(txnfs, init_end_compound, res->status, op_ctx->txnid);
+#endif
 	if (res->status == NFS4_OK) {
 		// commit entries to leveldb and remove txnlog entry
 		txnfs_cache_commit();
+#ifdef USE_LTTNG
+		tracepoint(txnfs, committed_txn_cache, op_ctx->txnid);
+#endif
 	} else {
 		int err = txnfs_compound_restore(op_ctx->txnid, res);
 		if (err != 0) {
 			LogWarn(COMPONENT_FSAL, "compound_restore error: %d",
 				err);
 		}
+#ifdef USE_LTTNG
+		tracepoint(txnfs, restored_compound, op_ctx->txnid, err);
+#endif 
 		// remove txn log entry
 	}
 
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
+#ifdef USE_LTTNG
+	tracepoint(txnfs, cleaned_up_cache, op_ctx->txnid);
+#endif 
 	txnfs_cleanup_backup();
+#ifdef USE_LTTNG
+	tracepoint(txnfs, cleaned_up_backup, op_ctx->txnid);
+#endif
 
 	return ret;
 }
@@ -541,6 +581,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	    container_of(current, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	struct attrlist attrs = {0};
 	char *pathname = NULL;
 	nfsstat4 ret;
 
@@ -566,6 +607,11 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		 */
 		case NFS4_OP_OPEN:
 			// lookup first
+#ifdef USE_LTTNG
+			tracepoint(txnfs, backup_open, op_ctx->txnid,
+			    op->nfs_argop4_u.opopen.openhow.opentype &
+			    OPEN4_CREATE);
+#endif
 			if (op->nfs_argop4_u.opopen.openhow.opentype &
 			    OPEN4_CREATE) {
 				ret = get_open_filename(op, &pathname);
@@ -578,11 +624,18 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 				op_ctx->fsal_export = exp->export.sub_export;
 				status = cur_hdl->sub_handle->obj_ops->lookup(
 				    cur_hdl->sub_handle, pathname, &handle,
-				    NULL);
+				    &attrs);
 				op_ctx->fsal_export = &exp->export;
-
+#ifdef USE_LTTNG
+				tracepoint(txnfs, done_lookup, status.major,
+				    pathname, attrs.filesize);
+#endif
 				if (status.major == ERR_FSAL_NO_ERROR) {
 					txnfs_backup_file(opidx, handle);
+#ifdef USE_LTTNG
+					tracepoint(txnfs, done_backup_file,
+					    opidx, op->argop, "OPEN");
+#endif
 				} else if (status.major != ERR_FSAL_NOENT) {
 					assert(!"lookup failure!");
 				}
@@ -591,10 +644,22 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 
 		case NFS4_OP_WRITE:
 			// TODO: check handle in db
+#ifdef USE_LTTNG
+			tracepoint(txnfs, backup_write, op_ctx->txnid,
+			    op->nfs_argop4_u.opwrite.offset,
+			    op->nfs_argop4_u.opwrite.data.data_len);
+#endif
 			txnfs_backup_file(opidx, cur_hdl->sub_handle);
+#ifdef USE_LTTNG
+			tracepoint(txnfs, done_backup_file, opidx, op->argop,
+				   "WRITE");
+#endif
 			break;
 		case NFS4_OP_REMOVE:
 			// lookup first
+#ifdef USE_LTTNG
+			tracepoint(txnfs, backup_remove, op_ctx->txnid);
+#endif
 			ret = get_remove_filename(op, &pathname);
 			if (ret != NFS4_OK) {
 				LogFatal(COMPONENT_FSAL,
@@ -605,13 +670,20 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			}
 			op_ctx->fsal_export = exp->export.sub_export;
 			status = cur_hdl->sub_handle->obj_ops->lookup(
-			    cur_hdl->sub_handle, pathname, &handle, NULL);
+			    cur_hdl->sub_handle, pathname, &handle, &attrs);
 			op_ctx->fsal_export = &exp->export;
-
+#ifdef USE_LTTNG
+			tracepoint(txnfs, done_lookup, status.major, pathname,
+				   attrs.filesize);
+#endif
 			free(pathname);
 
 			if (status.major == ERR_FSAL_NO_ERROR) {
 				txnfs_backup_file(opidx, handle);
+#ifdef USE_LTTNG
+			tracepoint(txnfs, done_backup_file, opidx, op->argop,
+				   "REMOVE");
+#endif
 			} else if (status.major != ERR_FSAL_NOENT) {
 				assert(!"lookup failure!");
 			}
