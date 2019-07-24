@@ -949,8 +949,8 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				op_ctx->fsal_export, i, data.current_obj,
 				&argarray[i]);
 #ifdef USE_LTTNG
-			tracepoint(txnfs, end_backup, i, argarray[i].argop,
-				   data.opname);
+			tracepoint(txnfs, end_backup, op_ctx->txnid, i,
+				   argarray[i].argop, data.opname);
 #endif
 		}
 		
