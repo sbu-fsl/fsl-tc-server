@@ -8,6 +8,7 @@
 
 #include <lttng/tracepoint.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @brief Trace the exit of backup_nfs4_op function
@@ -46,7 +47,6 @@ TRACEPOINT_LOGLEVEL(
  * @brief Trace (before) backup OPEN operation
  * 
  * @param[in] txnid	Transaction ID
- * @param[in] name	Name of the file opened
  * @param[in] is_create	Is this creation?
  */
 TRACEPOINT_EVENT(
@@ -54,12 +54,10 @@ TRACEPOINT_EVENT(
 	backup_open,
 	TP_ARGS(
 		uint64_t, txnid,
-		char *, name,
 		bool, is_create
 	),
 	TP_FIELDS(
 		ctf_integer_hex(uint64_t, txnid, txnid)
-		ctf_string(name, name)
 		ctf_integer(bool, is_create, is_create)
 	)
 )
@@ -82,12 +80,12 @@ TRACEPOINT_EVENT(
 	TP_ARGS(
 		uint64_t, txnid,
 		size_t, offset,
-		size_t, size,
+		size_t, size
 	),
 	TP_FIELDS(
 		ctf_integer_hex(uint64_t, txnid, txnid)
-		ctf_integer(uint64_t, offset, offset)
-		ctf_integer(uint64_t, size, size)
+		ctf_integer(size_t, offset, offset)
+		ctf_integer(size_t, size, size)
 	)
 )
 
@@ -101,18 +99,15 @@ TRACEPOINT_LOGLEVEL(
  * @brief Trace (before) backup REMOVE operation
  * 
  * @param[in] txnid	Transaction ID
- * @param[in] target	Name of the file to be removed
  */
 TRACEPOINT_EVENT(
 	txnfs,
 	backup_remove,
 	TP_ARGS(
-		uint64_t, txnid,
-		char *, target
+		uint64_t, txnid
 	),
 	TP_FIELDS(
 		ctf_integer_hex(uint64_t, txnid, txnid)
-		ctf_string(target, target)
 	)
 )
 
@@ -138,8 +133,8 @@ TRACEPOINT_EVENT(
 		size_t, size
 	),
 	TP_FIELDS(
-		ctf_integer(int, status, status),
-		ctf_string(name, name),
+		ctf_integer(int, status, status)
+		ctf_string(name, name)
 		ctf_integer(size_t, size, size)
 	)
 )
@@ -254,7 +249,7 @@ TRACEPOINT_EVENT(
 	create_txn_log,
 	TP_ARGS(uint64_t, txnid),
 	TP_FIELDS(
-		ctf_integer_hex(uint64_t, txnid)
+		ctf_integer_hex(uint64_t, txnid, txnid)
 	)
 )
 
@@ -274,7 +269,7 @@ TRACEPOINT_EVENT(
 	init_txn_cache,
 	TP_ARGS(uint64_t, txnid),
 	TP_FIELDS(
-		ctf_integer_hex(uint64_t, txnid)
+		ctf_integer_hex(uint64_t, txnid, txnid)
 	)
 )
 
