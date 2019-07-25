@@ -149,21 +149,24 @@ TRACEPOINT_LOGLEVEL(
  * @brief Trace finishing backing up the file
  * 
  * @param[in] opidx	Operation index
- * @param[in] opcode	Operation code
- * @param[in] opname	Text name of the operation
+ * @param[in] filetype	File type
+ * @param[in] typename	Name of the file type
+ * @param[in] filesize	Size of the file
  */
 TRACEPOINT_EVENT(
 	txnfs,
 	done_backup_file,
 	TP_ARGS(
 		int, opidx,
-		int, opcode,
-		char *, opname
+		int, filetype,
+		const char *, typename,
+		size_t, filesize
 	),
 	TP_FIELDS(
 		ctf_integer(int, opidx, opidx)
-		ctf_integer(int, opcode, opcode)
-		ctf_string(opname, opname)
+		ctf_integer(int, filetype, filetype)
+		ctf_string(typename, typename)
+		ctf_integer(size_t, filesize, filesize)
 	)
 )
 

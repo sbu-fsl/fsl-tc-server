@@ -203,6 +203,9 @@ int txnfs_cache_commit(void)
 					       TXN_UUID_LEN);
 
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
+#ifdef USE_LTTNG
+			n_put ++;
+#endif
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
 			leveldb_writebatch_delete(commit_batch, uuid_key,
 						  uuid_key_len);
@@ -211,6 +214,9 @@ int txnfs_cache_commit(void)
 							  hdl_key_len);
 
 			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
+#ifdef USE_LTTNG
+			n_del ++;
+#endif
 		}
 
 		gsh_free(uuid_key);

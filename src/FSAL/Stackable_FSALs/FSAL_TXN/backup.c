@@ -23,6 +23,10 @@
 #include "txnfs_methods.h"
 #include <assert.h>
 
+#ifdef USE_LTTNG
+#include "gsh_lttng/txnfs.h"
+#include <fsal_convert.h>
+#endif
 /**
  * @brief Find the global backup directory
  *
@@ -269,6 +273,10 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 		}
 	}
 	op_ctx->fsal_export = &exp->export;
+#ifdef USE_LTTNG
+	tracepoint(txnfs, done_backup_file, opidx, src_hdl->type,
+		   object_file_type_to_str(src_hdl->type), attrs_out.filesize);
+#endif
 	return status;
 }
 

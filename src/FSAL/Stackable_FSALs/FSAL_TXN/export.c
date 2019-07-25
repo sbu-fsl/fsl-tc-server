@@ -632,10 +632,6 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 #endif
 				if (status.major == ERR_FSAL_NO_ERROR) {
 					txnfs_backup_file(opidx, handle);
-#ifdef USE_LTTNG
-					tracepoint(txnfs, done_backup_file,
-					    opidx, op->argop, "OPEN");
-#endif
 				} else if (status.major != ERR_FSAL_NOENT) {
 					assert(!"lookup failure!");
 				}
@@ -650,10 +646,6 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			    op->nfs_argop4_u.opwrite.data.data_len);
 #endif
 			txnfs_backup_file(opidx, cur_hdl->sub_handle);
-#ifdef USE_LTTNG
-			tracepoint(txnfs, done_backup_file, opidx, op->argop,
-				   "WRITE");
-#endif
 			break;
 		case NFS4_OP_REMOVE:
 			// lookup first
@@ -680,10 +672,6 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 
 			if (status.major == ERR_FSAL_NO_ERROR) {
 				txnfs_backup_file(opidx, handle);
-#ifdef USE_LTTNG
-			tracepoint(txnfs, done_backup_file, opidx, op->argop,
-				   "REMOVE");
-#endif
 			} else if (status.major != ERR_FSAL_NOENT) {
 				assert(!"lookup failure!");
 			}
