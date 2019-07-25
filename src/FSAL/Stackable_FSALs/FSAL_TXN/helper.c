@@ -22,6 +22,10 @@
 #include "txnfs_methods.h"
 #include <assert.h>
 
+#ifdef USE_LTTNG
+#include "gsh_lttng/txnfs.h"
+#endif
+
 int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 		       struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
@@ -172,6 +176,11 @@ int txnfs_cache_commit(void)
 	char *hdl_key = NULL;
 	size_t uuid_key_len, hdl_key_len;
 
+#ifdef USE_LTTNG
+	uint64_t txnid = op_ctx->txnid;
+	int n_put = 0, n_del = 0;
+#endif
+
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
 	glist_for_each(glist, &op_ctx->txn_cache)
 	{
@@ -207,7 +216,9 @@ int txnfs_cache_commit(void)
 		gsh_free(uuid_key);
 		gsh_free(hdl_key);
 	}
-
+#ifdef USE_LTTNG
+	tracepoint(txnfs, collected_cache_entries, txnid, n_put, n_del);
+#endif
 	// TODO - add entry to remove txn log
 	/*char txnkey[20];
 	strcpy(txnkey, "txn-", 4);
@@ -221,6 +232,10 @@ int txnfs_cache_commit(void)
 		leveldb_free(err);
 		ret = -1;
 	}
+
+#ifdef USE_LTTNG
+	tracepoint(txnfs, committed_cache_to_db, txnid, err != NULL);
+#endif
 
 	leveldb_writebatch_destroy(commit_batch);
 
