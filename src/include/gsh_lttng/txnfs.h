@@ -422,6 +422,59 @@ TRACEPOINT_LOGLEVEL(
 )
 
 /**
+ * @brief Trace collecting cache items to writebatch
+ * 
+ * @param[in] txnid	Transaction ID
+ * @param[in] nput	Number of put operations
+ * @param[in] ndel	Number of delete operations
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	collected_cache_entries,
+	TP_ARGS(
+		uint64_t, txnid,
+		int, nput,
+		int, ndel
+	),
+	TP_FIELDS(
+		ctf_integer_hex(uint64_t, txnid, txnid)
+		ctf_integer(int, nput, nput)
+		ctf_integer(int, ndel, ndel)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	collected_cache_entries,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace writing into the leveldb
+ * 
+ * @param[in] txnid	Transaction ID
+ * @param[in] haserr	Has db error?
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	committed_cache_to_db,
+	TP_ARGS(
+		uint64_t, txnid,
+		bool, haserr
+	),
+	TP_FIELDS(
+		ctf_integer_hex(uint64_t, txnid, txnid)
+		ctf_integer(bool, haserr, haserr)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	committed_cache_to_db,
+	TRACE_INFO
+)
+
+/**
  * @brief Trace restoring the compound
  * 
  * @param[in] txnid	Transaction ID
