@@ -945,7 +945,8 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		// create backups for txnfs
 		if (txn_ready)
 			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
-				op_ctx->fsal_export, i, &data, &argarray[i]);
+				op_ctx->fsal_export, i, data.current_obj,
+				&argarray[i]);
 		
 		status = (optabv4[opcode].funct) (&argarray[i],
 						  &data,
@@ -1143,6 +1144,10 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		op_ctx->ctx_export = NULL;
 		op_ctx->fsal_export = NULL;
 	}
+
+	/* release TXN-related context data */
+	op_ctx->op_args = NULL;
+	op_ctx->txnid = 0;
 
 	return NFS_REQ_OK;
 }				/* nfs4_Compound */

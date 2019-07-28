@@ -56,7 +56,7 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 	ret = fsal_lookup(txn_root_entry->sub_handle, TXN_BKP_DIR,
 			  &txn_backup_root, NULL);
 
-	if (ret.major == 0)
+	if (FSAL_IS_SUCCESS(ret))
 		return txn_backup_root;
 	else if (ret.major == ERR_FSAL_NOENT)
 		return NULL;
@@ -98,7 +98,7 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 
 	ret = fsal_lookup(backup_root, dir_name, &backup_dir, NULL);
 
-	if (ret.major == 0)
+	if (FSAL_IS_SUCCESS(ret))
 		return backup_dir;
 	else if (ret.major == ERR_FSAL_NOENT)
 		return NULL;
@@ -135,8 +135,8 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	struct fsal_obj_handle *txn_handle = NULL;
 	struct attrlist attrs = {0};
 	uint64_t txnid = op_ctx->txnid;
-	char txnid_name[20] = {'\0'};
-	fsal_status_t status;
+	char txnid_name[BKP_FN_LEN] = {'\0'};
+	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 
 	/* get txnfs root directory handle */
 	get_txn_root(&root_entry, &attrs);
@@ -150,7 +150,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 	/* Config attributes if we need to create something */
 	FSAL_CLEAR_MASK(attrs.valid_mask);
 	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-	attrs.mode = 0666;
+	attrs.mode = 0777;
 	attrs.owner = 0;
 	attrs.group = 0;
 
@@ -168,7 +168,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 		status =
 		    fsal_create(txn_root_handle->sub_handle, TXN_BKP_DIR,
 				DIRECTORY, &attrs, NULL, &txn_handle, NULL);
-		assert(status.major == 0);
+		assert(FSAL_IS_SUCCESS(status));
 		assert(txn_handle);
 	}
 
@@ -181,7 +181,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 		snprintf(txnid_name, BKP_FN_LEN, "%lu", txnid);
 		status = fsal_create(txn_handle, txnid_name, DIRECTORY, &attrs,
 				     NULL, bkp_handle, NULL);
-		assert(status.major == 0);
+		assert(FSAL_IS_SUCCESS(status));
 		assert(*bkp_handle);
 	}
 
@@ -198,6 +198,9 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
  * @params[in] opidx	Operation index. This is used to compose the file name.
  * @params[in] src_hdl	The @c fsal_obj_handle of the source file
  *
+ * NOTE: We assume that @c src_hdl is a sub-handle but the current FSAL export
+ * should NOT be switched and should be TXNFS's export.
+ *
  * @return FSAL status code
  */
 fsal_status_t txnfs_backup_file(unsigned int opidx,
@@ -205,19 +208,16 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 {
 	UDBG;
 	struct fsal_obj_handle *dst_hdl = NULL;
-	struct fsal_obj_handle *root_entry = NULL;
+	struct fsal_obj_handle *bkp_folder = NULL;
 	uint64_t copied = 0;
 	struct attrlist attrs = {0};
 	struct attrlist attrs_out = {0};
-	char backup_name[20];
+	struct gsh_buffdesc sym_content = {NULL, 0};
+	loff_t src_offset = 0, dst_offset = 0;
+	char backup_name[BKP_FN_LEN];
 
-	struct txnfs_fsal_obj_handle *txn_src_hdl =
-	    container_of(src_hdl, struct txnfs_fsal_obj_handle, obj_handle);
-
-	assert(txn_src_hdl);
-
-	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&root_entry);
-	assert(status.major == 0);
+	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
+	assert(FSAL_IS_SUCCESS(status));
 
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
@@ -226,27 +226,47 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 
 	/* get file size */
 	attrs_out.request_mask = ATTR_SIZE;
-	status = get_optional_attrs(txn_src_hdl->sub_handle, &attrs_out);
-	assert(status.major == 0);
+	status = get_optional_attrs(src_hdl, &attrs_out);
+	assert(FSAL_IS_SUCCESS(status));
 
 	/* copy src to backup dir */
 	/* TODO: currently we are copying the whole file, but we plan to
 	 * implement copy_range where we copy only the parts changed by the
 	 * compound operation. */
-	if (attrs_out.filesize > 0) {
-		/* create dst_handle */
-		snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
-		FSAL_CLEAR_MASK(attrs.valid_mask);
-		FSAL_SET_MASK(attrs.valid_mask,
-			      ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
-		attrs.mode = 0666;
-		attrs.owner = 0;
-		assert(status.major == 0);
-		status = fsal_copy(txn_src_hdl->sub_handle, 0 /* src_offset */,
-				   dst_hdl, 0 /* dst_offset */,
-				   attrs_out.filesize, &copied);
+	/* create dst_handle */
+	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
+	FSAL_CLEAR_MASK(attrs.valid_mask);
+	FSAL_SET_MASK(attrs.valid_mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+	attrs.mode = 0666;
+	attrs.owner = 0;
+	/* we should handle symlinks differently */
+	if (src_hdl->type == SYMBOLIC_LINK) {
+		sym_content.addr = gsh_malloc(attrs_out.filesize + 1);
+		sym_content.len = attrs_out.filesize + 1;
+		memset(sym_content.addr, 0, sym_content.len);
 
-		assert(status.major == 0);
+		status = fsal_readlink(src_hdl, &sym_content);
+		assert(FSAL_IS_SUCCESS(status));
+	}
+	status = fsal_create(bkp_folder, backup_name, src_hdl->type, &attrs,
+			     sym_content.addr, &dst_hdl, NULL);
+	assert(FSAL_IS_SUCCESS(status));
+	/* let's copy ONLY when source is a regular file */
+	if (src_hdl->type == REGULAR_FILE && attrs_out.filesize > 0) {
+		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
+						  &dst_offset,
+						  attrs_out.filesize, 0);
+		if (!FSAL_IS_SUCCESS(status)) {
+			LogDebug(COMPONENT_FSAL,
+				 "clone failed (%d, %d), try copy",
+				 status.major, status.minor);
+			src_offset = 0;
+			dst_offset = 0;
+			status =
+			    fsal_copy(src_hdl, src_offset, dst_hdl, dst_offset,
+				      attrs_out.filesize, &copied);
+			assert(FSAL_IS_SUCCESS(status));
+		}
 	}
 	op_ctx->fsal_export = &exp->export;
 	return status;

@@ -38,6 +38,7 @@
 #include "txnfs_methods.h"
 #include <dlfcn.h>
 #include <libgen.h> /* used for 'dirname' */
+#include <nfs_proto_tools.h>
 #include <os/mntent.h>
 #include <os/quota.h>
 #include <pthread.h>
@@ -352,20 +353,30 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
+/**
+ * Sometimes txn_cache is not initialized before calling txnfs_end_compound
+ * because the start_compound method of PSEUDOFS is called. This function is
+ * intended to check if the txn-related context data has been properly
+ * initialized. If not, we should not perform any txn-related operations.
+ */
+static inline bool txn_context_valid(void) { return (op_ctx->op_args != NULL); }
+
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+	struct txnfs_fsal_module *fs =
+	    container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
 
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
 		 args->argarray.argarray_len);
 
 	// generate txnid and create transaction log
-	/*txn_context_t *context = new_txn_context(args->argarray.argarray_len,
-	args->argarray.argarray_val);
+	txn_context_t *context = new_txn_context(args->argarray.argarray_len,
+						 args->argarray.argarray_val);
 
-	op_ctx->txnid = create_txn_log(db, args, context);*/
+	op_ctx->txnid = create_txn_log(fs->db, args, context);
 
 	// initialize txn cache
 	txnfs_cache_init();
@@ -383,6 +394,85 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	}
 
 	return res;
+}
+
+static enum fsal_dir_result record_dirent(const char *name,
+					  struct fsal_obj_handle *obj,
+					  struct attrlist *attrs,
+					  void *dir_state,
+					  fsal_cookie_t cookie)
+{
+	struct glist_head *flist = (struct glist_head *)dir_state;
+	struct txnfs_file_entry *entry = gsh_malloc(sizeof(*entry));
+	size_t name_len = strnlen(name, NAME_MAX) + 1;
+
+	entry->name = gsh_malloc(name_len);
+	entry->name[name_len - 1] = 0;
+	strncpy(entry->name, name, name_len);
+	entry->obj = obj;
+	glist_add(flist, &entry->glist);
+
+	return DIR_CONTINUE;
+}
+
+/* TODO: Make backup cleaning an asynchronous operation */
+static void txnfs_cleanup_backup(void)
+{
+	struct fsal_obj_handle *txn_root = NULL;
+	struct fsal_obj_handle *bkp_root = NULL;
+	struct fsal_obj_handle *bkp_folder = NULL;
+	struct fsal_export *exp = op_ctx->fsal_export;
+	fsal_status_t status = {0};
+	struct glist_head file_list = {0}, *node, *tmp;
+	struct txnfs_file_entry *ent;
+	char name[BKP_FN_LEN] = {'\0'};
+	bool eof;
+
+	glist_init(&file_list);
+
+	get_txn_root(&txn_root, NULL);
+	assert(txn_root);
+
+	/* ---- switch export ---- */
+	op_ctx->fsal_export = exp->sub_export;
+
+	bkp_root = query_backup_root(txn_root);
+	if (!bkp_root) {
+		LogDebug(COMPONENT_FSAL, "backup root not created");
+		goto end;
+	}
+
+	bkp_folder = query_txn_backup(bkp_root, op_ctx->txnid);
+	if (!bkp_folder) {
+		LogDebug(COMPONENT_FSAL, "bkp folder not created");
+		goto end;
+	}
+
+	/* Use readdir to retrieve the list of files contained in bkp folder */
+	status = bkp_folder->obj_ops->readdir(bkp_folder, NULL, &file_list,
+					      record_dirent, 0, &eof);
+	assert(FSAL_IS_SUCCESS(status));
+
+	glist_for_each_safe(node, tmp, &file_list) {
+		ent = glist_entry(node, struct txnfs_file_entry, glist);
+		status = bkp_folder->obj_ops->unlink(bkp_folder, ent->obj,
+						     ent->name);
+		assert(FSAL_IS_SUCCESS(status));
+		gsh_free(ent->name);
+		glist_del(node);
+		gsh_free(ent);
+	};
+
+	/* remove the backup folder */
+	snprintf(name, BKP_FN_LEN, "%lu", op_ctx->txnid);
+	status = bkp_root->obj_ops->unlink(bkp_root, bkp_folder, name);
+	if (!FSAL_IS_SUCCESS(status)) {
+		LogWarn(COMPONENT_FSAL, "cannot remove backup dir: %d",
+			status.major);
+	}
+end:
+	/* ---- restore export ---- */
+	op_ctx->fsal_export = exp;
 }
 
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
@@ -404,52 +494,91 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
 		 res->status, res->resarray.resarray_len);
 
+	/* If txn-related data has neven been properly initialized, don't do
+	 * the following operations. */
+	if (!txn_context_valid()) return ret;
+
 	if (res->status == NFS4_OK) {
 		// commit entries to leveldb and remove txnlog entry
 		txnfs_cache_commit();
 	} else {
-		// TODO: restore backups
-		assert(txnfs_compound_restore(op_ctx->txnid, res) == 0);
+		int err = txnfs_compound_restore(op_ctx->txnid, res);
+		if (err != 0) {
+			LogWarn(COMPONENT_FSAL, "compound_restore error: %d",
+				err);
+		}
 		// remove txn log entry
 	}
 
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
+	txnfs_cleanup_backup();
 
 	return ret;
 }
 
+static inline int get_open_filename(struct nfs_argop4 *op, char **out)
+{
+	return nfs4_utf8string2dynamic(
+	    &op->nfs_argop4_u.opopen.claim.open_claim4_u.file, UTF8_SCAN_ALL,
+	    out);
+}
+
+static inline int get_remove_filename(struct nfs_argop4 *op, char **out)
+{
+	return nfs4_utf8string2dynamic(&op->nfs_argop4_u.opremove.target,
+				       UTF8_SCAN_ALL, out);
+}
+
 fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
-				   unsigned int opidx, void *compound_data,
+				   unsigned int opidx,
+				   struct fsal_obj_handle *current,
 				   struct nfs_argop4 *op)
 {
-	compound_data_t *data = compound_data;
 	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 	struct fsal_obj_handle *handle = NULL;
-	struct txnfs_fsal_obj_handle *cur_hdl = container_of(
-	    data->current_obj, struct txnfs_fsal_obj_handle, obj_handle);
+	struct txnfs_fsal_obj_handle *cur_hdl =
+	    container_of(current, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	char *pathname = NULL;
+	nfsstat4 ret;
 
 	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
 		op_ctx->fsal_export = exp->export.sub_export;
 		status = exp->export.sub_export->exp_ops.backup_nfs4_op(
-		    exp->export.sub_export, opidx, data, op);
+		    exp->export.sub_export, opidx, cur_hdl->sub_handle, op);
 		op_ctx->fsal_export = &exp->export;
 	}
 
+	/* Do not backup if txn-related data has not been initialized. */
+	if (!txn_context_valid()) return status;
+
 	switch (op->argop) {
+		/**
+		 * Do we really need to backup on OPEN operation?
+		 * If a new file is created, then it would NOT exist before
+		 * anyway.
+		 *
+		 * >> We do need this since OPEN_CREATE may truncate the
+		 * existing file if createattrs->filesize is 0. However let's
+		 * narrow down the condition in the next PR.
+		 */
 		case NFS4_OP_OPEN:
 			// lookup first
 			if (op->nfs_argop4_u.opopen.openhow.opentype &
 			    OPEN4_CREATE) {
+				ret = get_open_filename(op, &pathname);
+				if (ret != NFS4_OK) {
+					LogFatal(COMPONENT_FSAL,
+						 "utf8 conversion failed. "
+						 "state=%d",
+						 ret);
+				}
 				op_ctx->fsal_export = exp->export.sub_export;
 				status = cur_hdl->sub_handle->obj_ops->lookup(
-				    cur_hdl->sub_handle,
-				    op->nfs_argop4_u.opopen.claim.open_claim4_u
-					.file.utf8string_val,
-				    &handle, NULL);
-
+				    cur_hdl->sub_handle, pathname, &handle,
+				    NULL);
 				op_ctx->fsal_export = &exp->export;
 
 				if (status.major == ERR_FSAL_NO_ERROR) {
@@ -466,13 +595,20 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			break;
 		case NFS4_OP_REMOVE:
 			// lookup first
+			ret = get_remove_filename(op, &pathname);
+			if (ret != NFS4_OK) {
+				LogFatal(COMPONENT_FSAL,
+					 "utf8 conversion failed. "
+					 "status=%d",
+					 ret);
+				break;
+			}
 			op_ctx->fsal_export = exp->export.sub_export;
 			status = cur_hdl->sub_handle->obj_ops->lookup(
-			    cur_hdl->sub_handle,
-			    op->nfs_argop4_u.opremove.target.utf8string_val,
-			    &handle, NULL);
-
+			    cur_hdl->sub_handle, pathname, &handle, NULL);
 			op_ctx->fsal_export = &exp->export;
+
+			free(pathname);
 
 			if (status.major == ERR_FSAL_NO_ERROR) {
 				txnfs_backup_file(opidx, handle);
