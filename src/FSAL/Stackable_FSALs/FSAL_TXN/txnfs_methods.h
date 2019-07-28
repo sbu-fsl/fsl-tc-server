@@ -27,6 +27,10 @@
 #include "txn_context.h"
 #include <uuid/uuid.h>
 
+#ifdef USE_LTTNG
+#include "gsh_lttng/txnfs.h"
+#endif
+
 #define TXN_BKP_DIR ".txn"
 #define BKP_FN_LEN 20
 #define UUID_KEY_PREFIX "uuid-"
@@ -86,6 +90,20 @@ struct next_ops {
 #define UDBG LogDebug(COMPONENT_FSAL, "TXDEBUG")
 #else
 #define UDBG
+#endif
+
+/**
+ * @brief @c txnfs_tracepoint(event_name, ...args) Add a tracepoint of `txnfs`
+ * 		  component if -DUSE_LTTNG is ON.
+ * @brief @c txnfs_trace_prep(expression) Execute a expression (e.g. variable
+ * 		  assignment) only when USE_LTTNG is turned on
+ */
+#ifdef USE_LTTNG
+#define txnfs_tracepoint(event, ...) tracepoint(txnfs, event, ##__VA_ARGS__)
+#define txnfs_trace_prep(expr) expr
+#else
+#define txnfs_tracepoint(event, ...)
+#define txnfs_trace_prep(expr)
 #endif
 
 /**
