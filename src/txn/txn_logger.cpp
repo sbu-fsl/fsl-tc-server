@@ -81,8 +81,8 @@ FSObjectType get_file_type(proto::FileType newType) {
  */
 char *bytes_to_hex(const char *uuid_str) {
   uint k;
-  char *hex_uuid = (char *)calloc(2 * TXN_UUID_LEN + 1, sizeof(char));
-  for (k = 0; k < TXN_UUID_LEN; k++) {
+  char *hex_uuid = (char *)calloc(2 * sizeof(uuid_t) + 1, sizeof(char));
+  for (k = 0; k < sizeof(uuid_t); k++) {
     sprintf(&hex_uuid[2 * k], "%02X", (unsigned int)uuid_str[k]);
   }
   return hex_uuid;
@@ -101,14 +101,14 @@ void serialize_create_txn(struct TxnLog *txn_log,
     struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_uuid(txnobj->base_id.id, TXN_UUID_LEN);
+    object->mutable_base()->set_uuid(txnobj->base_id.id, sizeof(uuid_t));
     // set FileType
     object->mutable_base()->set_type(
         get_file_type_txn(txnobj->base_id.file_type));
 
     // set FileId
     object->mutable_allocated_id()->set_uuid(txnobj->allocated_id.id,
-                                             TXN_UUID_LEN);
+                                             sizeof(uuid_t));
 
     // set FileType
     object->mutable_allocated_id()->set_type(
@@ -131,7 +131,7 @@ void serialize_mkdir_txn(struct TxnLog *txn_log,
     struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_uuid(txnobj->base_id.id, TXN_UUID_LEN);
+    object->mutable_base()->set_uuid(txnobj->base_id.id, sizeof(uuid_t));
 
     // set FileType
     object->mutable_base()->set_type(
@@ -139,7 +139,7 @@ void serialize_mkdir_txn(struct TxnLog *txn_log,
 
     // set FileId
     object->mutable_allocated_id()->set_uuid(txnobj->allocated_id.id,
-                                             TXN_UUID_LEN);
+                                             sizeof(uuid_t));
 
     // set FileType
     object->mutable_allocated_id()->set_type(
@@ -163,14 +163,14 @@ void serialize_write_txn(struct TxnLog *txn_log,
     struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
     // set FileId
-    object->mutable_base()->set_uuid(txnobj->base_id.id, TXN_UUID_LEN);
+    object->mutable_base()->set_uuid(txnobj->base_id.id, sizeof(uuid_t));
     // set FileType
     object->mutable_base()->set_type(
         get_file_type_txn(txnobj->base_id.file_type));
 
     // set FileId
     object->mutable_allocated_id()->set_uuid(txnobj->allocated_id.id,
-                                             TXN_UUID_LEN);
+                                             sizeof(uuid_t));
 
     // set FileType
     object->mutable_allocated_id()->set_type(
@@ -195,7 +195,7 @@ void serialize_unlink_txn(struct TxnLog *txn_log,
 
     // set FileId
     unlink_obj->mutable_parent_id()->set_uuid(txnobj->parent_id.id,
-                                              TXN_UUID_LEN);
+                                              sizeof(uuid_t));
 
     // set FileType
     unlink_obj->mutable_parent_id()->set_type(
@@ -220,7 +220,7 @@ void serialize_symlink_txn(struct TxnLog *txn_log,
     // set destination
     // set FileId
     symlink_obj->mutable_parent_id()->set_uuid(txnobj->parent_id.id,
-                                               TXN_UUID_LEN);
+                                               sizeof(uuid_t));
 
     // set FileType
     symlink_obj->mutable_parent_id()->set_type(
@@ -272,12 +272,12 @@ void deserialize_create_txn(proto::TransactionLog *txn_log_obj,
       struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
       // copy base
-      memcpy(txnobj->base_id.id, object.base().uuid().c_str(), TXN_UUID_LEN);
+      memcpy(txnobj->base_id.id, object.base().uuid().c_str(), sizeof(uuid_t));
       txnobj->base_id.file_type = get_file_type(object.base().type());
 
       // copy allocated_id
       memcpy(txnobj->allocated_id.id, object.allocated_id().uuid().c_str(),
-             TXN_UUID_LEN);
+             sizeof(uuid_t));
       txnobj->allocated_id.file_type =
           get_file_type(object.allocated_id().type());
 
@@ -307,12 +307,12 @@ void deserialize_mkdir_txn(proto::TransactionLog *txn_log_obj,
       struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
       // copy base
-      memcpy(txnobj->base_id.id, object.base().uuid().c_str(), TXN_UUID_LEN);
+      memcpy(txnobj->base_id.id, object.base().uuid().c_str(), sizeof(uuid_t));
       txnobj->base_id.file_type = get_file_type(object.base().type());
 
       // copy allocated_id
       memcpy(txnobj->allocated_id.id, object.allocated_id().uuid().c_str(),
-             TXN_UUID_LEN);
+             sizeof(uuid_t));
       txnobj->allocated_id.file_type =
           get_file_type(object.allocated_id().type());
 
@@ -343,12 +343,12 @@ void deserialize_write_txn(proto::TransactionLog *txn_log_obj,
       struct CreatedObject *txnobj = &txn_log->created_file_ids[i];
 
       // copy base
-      memcpy(txnobj->base_id.id, object.base().uuid().c_str(), TXN_UUID_LEN);
+      memcpy(txnobj->base_id.id, object.base().uuid().c_str(), sizeof(uuid_t));
       txnobj->base_id.file_type = get_file_type(object.base().type());
 
       // copy allocated_id
       memcpy(txnobj->allocated_id.id, object.allocated_id().uuid().c_str(),
-             TXN_UUID_LEN);
+             sizeof(uuid_t));
       txnobj->allocated_id.file_type =
           get_file_type(object.allocated_id().type());
 
@@ -380,7 +380,7 @@ void deserialize_unlink_txn(proto::TransactionLog *txn_log_obj,
 
       // copy parent
       memcpy(txnobj->parent_id.id, object.parent_id().uuid().c_str(),
-             TXN_UUID_LEN);
+             sizeof(uuid_t));
       txnobj->parent_id.file_type = get_file_type(object.parent_id().type());
 
       // copy name
@@ -412,7 +412,7 @@ void deserialize_symlink_txn(proto::TransactionLog *txn_log_obj,
 
       // copy parent
       memcpy(txnobj->parent_id.id, object.parent_id().uuid().c_str(),
-             TXN_UUID_LEN);
+             sizeof(uuid_t));
       txnobj->parent_id.file_type = get_file_type(object.parent_id().type());
 
       // copy name
@@ -561,7 +561,8 @@ CompoundType get_txn_type(const COMPOUND4args *arg) {
   // it was generated by the vNFS client.
   CompoundType txn_type = txn_VNone;
   for (int i = 0; i < ops_len; ++i) {
-    if (ops[i].argop == NFS4_OP_CREATE) {
+    if (ops[i].argop == NFS4_OP_CREATE &&
+        ops[i].nfs_argop4_u.opcreate.objtype.type == NF4DIR) {
       txn_type = txn_VCreate;
       break;
     } else if (ops[i].argop == NFS4_OP_WRITE) {
@@ -573,7 +574,8 @@ CompoundType get_txn_type(const COMPOUND4args *arg) {
     } else if (ops[i].argop == NFS4_OP_REMOVE) {
       txn_type = txn_VUnlink;
       break;
-    } else if (ops[i].argop == NFS4_OP_LINK) {
+    } else if (ops[i].argop == NFS4_OP_CREATE &&
+               ops[i].nfs_argop4_u.opcreate.objtype.type == NF4LNK) {
       txn_type = txn_VSymlink;
       break;
     }
