@@ -22,10 +22,6 @@
 #include "txnfs_methods.h"
 #include <assert.h>
 
-#ifdef USE_LTTNG
-#include "gsh_lttng/txnfs.h"
-#endif
-
 int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 		       struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
@@ -203,9 +199,8 @@ int txnfs_cache_commit(void)
 					       TXN_UUID_LEN);
 
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
-#ifdef USE_LTTNG
-			n_put ++;
-#endif
+
+			txnfs_trace_prep(n_put++);
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
 			leveldb_writebatch_delete(commit_batch, uuid_key,
 						  uuid_key_len);
@@ -214,17 +209,14 @@ int txnfs_cache_commit(void)
 							  hdl_key_len);
 
 			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
-#ifdef USE_LTTNG
-			n_del ++;
-#endif
+
+			txnfs_trace_prep(n_del++);
 		}
 
 		gsh_free(uuid_key);
 		gsh_free(hdl_key);
 	}
-#ifdef USE_LTTNG
-	tracepoint(txnfs, collected_cache_entries, txnid, n_put, n_del);
-#endif
+	txnfs_tracepoint(collected_cache_entries, txnid, n_put, n_del);
 	// TODO - add entry to remove txn log
 	/*char txnkey[20];
 	strcpy(txnkey, "txn-", 4);
@@ -239,9 +231,7 @@ int txnfs_cache_commit(void)
 		ret = -1;
 	}
 
-#ifdef USE_LTTNG
-	tracepoint(txnfs, committed_cache_to_db, txnid, err != NULL);
-#endif
+	txnfs_tracepoint(committed_cache_to_db, txnid, err != NULL);
 
 	leveldb_writebatch_destroy(commit_batch);
 
@@ -355,12 +345,12 @@ int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 }
 
 /* @brief Query UUID with sub-FSAL host handle
- * 
+ *
  * Note that this function will look up BOTH cache and the levelDB
- * 
+ *
  * @param[in] hdl_desc	The buffer of the sub-FSAL's file handle
  * @param[out] uuid	The UUID
- * 
+ *
  * @return 0 if successful, -1 if failed.
  */
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
