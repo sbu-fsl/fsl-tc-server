@@ -196,7 +196,7 @@ int txnfs_cache_commit(void)
 
 			leveldb_writebatch_put(commit_batch, hdl_key,
 					       hdl_key_len, entry->uuid,
-					       TXN_UUID_LEN);
+					       sizeof(uuid_t));
 
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
 
@@ -221,7 +221,7 @@ int txnfs_cache_commit(void)
 	/*char txnkey[20];
 	strcpy(txnkey, "txn-", 4);
 	uuid_copy(txnkey + 4, op_ctx->uuid);
-	leveldb_writebatch_delete(commit_batch, txnkey, TXN_UUID_LEN + 4);*/
+	leveldb_writebatch_delete(commit_batch, txnkey, sizeof(uuid_t) + 4);*/
 
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
@@ -293,7 +293,7 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	leveldb_writebatch_put(commit_batch, uuid_key, uuid_key_len,
 			       hdl_desc->addr, hdl_desc->len);
 	leveldb_writebatch_put(commit_batch, hdl_key, hdl_key_len, uuid,
-			       TXN_UUID_LEN);
+			       sizeof(uuid_t));
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
 	if (err) {
@@ -338,7 +338,7 @@ int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 		return -1;
 	}
 
-	assert(val_len == TXN_UUID_LEN);
+	assert(val_len == sizeof(uuid_t));
 	uuid_copy(uuid, val);
 	free(val);
 	return 0;

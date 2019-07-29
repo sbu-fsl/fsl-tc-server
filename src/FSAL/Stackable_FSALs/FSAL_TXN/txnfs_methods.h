@@ -24,7 +24,6 @@
 #include "fsal_api.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
-#include "txn_context.h"
 #include <uuid/uuid.h>
 
 #ifdef USE_LTTNG
