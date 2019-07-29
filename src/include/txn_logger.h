@@ -85,8 +85,7 @@ struct TxnLog {
 };
 
 typedef struct TxnLog TxnLog;
-uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
-			txn_context_t *context);
+uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg);
 
 #ifdef __cplusplus
 }

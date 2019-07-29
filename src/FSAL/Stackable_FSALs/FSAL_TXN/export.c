@@ -374,14 +374,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_start_compound, args->argarray.argarray_len);
 
-	// generate txnid and create transaction log
-	txn_context_t *context = new_txn_context(args->argarray.argarray_len,
-						 args->argarray.argarray_val);
-
-	txnfs_tracepoint(create_txn_context, args->argarray.argarray_len,
-			 (void *)context);
-
-	op_ctx->txnid = create_txn_log(fs->db, args, context);
+	op_ctx->txnid = create_txn_log(fs->db, args);
 
 	txnfs_tracepoint(create_txn_log, op_ctx->txnid);
 
