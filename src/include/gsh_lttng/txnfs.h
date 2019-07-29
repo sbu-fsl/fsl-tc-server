@@ -218,31 +218,6 @@ TRACEPOINT_LOGLEVEL(
 )
 
 /**
- * @brief Trace creation of txn_context
- * 
- * @param[in] opcnt	Number of operations in this compound
- * @param[in] context	Address of created txn_context
- */
-TRACEPOINT_EVENT(
-	txnfs,
-	create_txn_context,
-	TP_ARGS(
-		int, opcnt,
-		void *, txn_context
-	),
-	TP_FIELDS(
-		ctf_integer(int, opcnt, opcnt)
-		ctf_integer_hex(void *, txn_context, txn_context)
-	)
-)
-
-TRACEPOINT_LOGLEVEL(
-	txnfs,
-	create_txn_context,
-	TRACE_INFO
-)
-
-/**
  * @brief Trace creation of txn log
  * 
  * @param[in] txnid	Transaction ID
