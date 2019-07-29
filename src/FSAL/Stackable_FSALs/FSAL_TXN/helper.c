@@ -171,11 +171,7 @@ int txnfs_cache_commit(void)
 	char *uuid_key = NULL;
 	char *hdl_key = NULL;
 	size_t uuid_key_len, hdl_key_len;
-
-#ifdef USE_LTTNG
-	uint64_t txnid = op_ctx->txnid;
 	int n_put = 0, n_del = 0;
-#endif
 
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
 	glist_for_each(glist, &op_ctx->txn_cache)
@@ -200,7 +196,7 @@ int txnfs_cache_commit(void)
 
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
 
-			txnfs_trace_prep(n_put++);
+			n_put++;
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
 			leveldb_writebatch_delete(commit_batch, uuid_key,
 						  uuid_key_len);
@@ -210,28 +206,30 @@ int txnfs_cache_commit(void)
 
 			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
 
-			txnfs_trace_prep(n_del++);
+			n_del++;
 		}
 
 		gsh_free(uuid_key);
 		gsh_free(hdl_key);
 	}
-	txnfs_tracepoint(collected_cache_entries, txnid, n_put, n_del);
+	txnfs_tracepoint(collected_cache_entries, op_ctx->txnid, n_put, n_del);
 	// TODO - add entry to remove txn log
 	/*char txnkey[20];
 	strcpy(txnkey, "txn-", 4);
 	uuid_copy(txnkey + 4, op_ctx->uuid);
 	leveldb_writebatch_delete(commit_batch, txnkey, sizeof(uuid_t) + 4);*/
 
-	leveldb_write(db->db, db->w_options, commit_batch, &err);
+	if (n_put + n_del > 0) {
+		leveldb_write(db->db, db->w_options, commit_batch, &err);
 
-	if (err) {
-		LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
-		leveldb_free(err);
-		ret = -1;
+		if (err) {
+			LogDebug(COMPONENT_FSAL, "leveldb error: %s", err);
+			leveldb_free(err);
+			ret = -1;
+		}
+
+		txnfs_tracepoint(committed_cache_to_db, op_ctx->txnid, err != NULL);
 	}
-
-	txnfs_tracepoint(committed_cache_to_db, txnid, err != NULL);
 
 	leveldb_writebatch_destroy(commit_batch);
 
