@@ -9,6 +9,7 @@ enum TransactionType {
 	VRENAME = 4;
 	VUNLINK = 5;
 	VSYMLINK = 6;
+	VOPEN = 7;
 }
 
 enum FileType {
