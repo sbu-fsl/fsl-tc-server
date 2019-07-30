@@ -580,6 +580,11 @@ proto::TransactionType get_txn_type(const COMPOUND4args *arg) {
     } else if (ops[i].argop == NFS4_OP_LINK) {
       txn_type = proto::TransactionType::VSYMLINK;
       break;
+    } else if (ops[i].argop == NFS4_OP_OPEN) {
+      if (ops[i].nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE) {
+        txn_type = proto::TransactionType::VOPEN;
+        break;
+      }
     }
   }
   return txn_type;
