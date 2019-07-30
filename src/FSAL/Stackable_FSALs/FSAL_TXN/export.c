@@ -606,7 +606,9 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			if (status.major == ERR_FSAL_NO_ERROR) {
 				txnfs_backup_file(opidx, handle);
 			} else if (status.major != ERR_FSAL_NOENT) {
-				assert(!"lookup failure!");
+				LogFatal(COMPONENT_FSAL,
+					 "lookup failed: (%d, %d)",
+					 status.major, status.minor);
 			}
 			break;
 
