@@ -563,10 +563,9 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		op_ctx->fsal_export = &exp->export;
 	}
 
-	/* Do not backup if txn-related data has not been initialized or 
+	/* Do not backup if txn-related data has not been initialized or
 	 * this compound is not eligible for transaction */
-	if (!txn_context_valid() || op_ctx->txnid == 0)
-		return status;
+	if (!txn_context_valid() || op_ctx->txnid == 0) return status;
 
 	switch (op->argop) {
 		/**
@@ -584,27 +583,30 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			    backup_open, op_ctx->txnid,
 			    op->nfs_argop4_u.opopen.openhow.opentype &
 				OPEN4_CREATE);
-			if (op->nfs_argop4_u.opopen.openhow.opentype &
-			    OPEN4_CREATE) {
-				ret = get_open_filename(op, &pathname);
-				if (ret != NFS4_OK) {
-					LogFatal(COMPONENT_FSAL,
-						 "utf8 conversion failed. "
-						 "state=%d",
-						 ret);
-				}
-				op_ctx->fsal_export = exp->export.sub_export;
-				status = cur_hdl->sub_handle->obj_ops->lookup(
-				    cur_hdl->sub_handle, pathname, &handle,
-				    &attrs);
-				op_ctx->fsal_export = &exp->export;
-				txnfs_tracepoint(done_lookup, status.major,
-						 pathname, attrs.filesize);
-				if (status.major == ERR_FSAL_NO_ERROR) {
-					txnfs_backup_file(opidx, handle);
-				} else if (status.major != ERR_FSAL_NOENT) {
-					assert(!"lookup failure!");
-				}
+
+			/* We don't need to check opopen.openhow because
+			 * create_txn_log has already done so. If OPEN is not
+			 * accompanied with creation or truncation, txnid
+			 * will be zero and the program will not reach here */
+			ret = get_open_filename(op, &pathname);
+			if (ret != NFS4_OK) {
+				LogFatal(COMPONENT_FSAL,
+					 "utf8 conversion failed. "
+					 "state=%d",
+					 ret);
+			}
+			op_ctx->fsal_export = exp->export.sub_export;
+			status = cur_hdl->sub_handle->obj_ops->lookup(
+			    cur_hdl->sub_handle, pathname, &handle, &attrs);
+			op_ctx->fsal_export = &exp->export;
+
+			txnfs_tracepoint(done_lookup, status.major, pathname,
+					 attrs.filesize);
+
+			if (status.major == ERR_FSAL_NO_ERROR) {
+				txnfs_backup_file(opidx, handle);
+			} else if (status.major != ERR_FSAL_NOENT) {
+				assert(!"lookup failure!");
 			}
 			break;
 
