@@ -693,8 +693,15 @@ int build_vwrite_txn(const COMPOUND4args *arg, proto::VWriteTxn *write_txn) {
 
 uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg) {
   proto::TransactionLog txn_log;
-  txn_log.set_id(internal::get_txn_id());
+
   txn_log.set_type(internal::get_txn_type(arg));
+  if (txn_log.type() == proto::TransactionType::NONE) {
+    /* If the compound is read-only or ineligible for transaction,
+     * return immediately without doing expensive leveldb_write */
+    return kInvalidTxnId;
+  }
+
+  txn_log.set_id(internal::get_txn_id());
   if (txn_log.type() == proto::TransactionType::VCREATE) {
     // internal::build_vcreate_txn(arg, txn_log.mutable_creates(), context);
   } else if (txn_log.type() == proto::TransactionType::VWRITE) {
