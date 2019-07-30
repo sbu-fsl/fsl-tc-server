@@ -509,7 +509,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 		// commit entries to leveldb and remove txnlog entry
 		txnfs_cache_commit();
 		txnfs_tracepoint(committed_txn_cache, op_ctx->txnid);
-	} else {
+	} else if (res->status != NFS4_OK && op_ctx->txnid > 0) {
 		int err = txnfs_compound_restore(op_ctx->txnid, res);
 		if (err != 0) {
 			LogWarn(COMPONENT_FSAL, "compound_restore error: %d",
@@ -563,8 +563,10 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		op_ctx->fsal_export = &exp->export;
 	}
 
-	/* Do not backup if txn-related data has not been initialized. */
-	if (!txn_context_valid()) return status;
+	/* Do not backup if txn-related data has not been initialized or 
+	 * this compound is not eligible for transaction */
+	if (!txn_context_valid() || op_ctx->txnid == 0)
+		return status;
 
 	switch (op->argop) {
 		/**
