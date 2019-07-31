@@ -150,6 +150,14 @@ protected:
   }
 };
 
+class NfsOpTest : public ::testing::Test {
+protected:
+  TxnLog txnlog;
+  virtual void SetUp() {}
+
+  virtual void TearDown() { txn_log_free(&txnlog); }
+};
+
 TEST_F(TxnTest, SimpleTest) {
   proto::TransactionLog txnpb;
   txn_log.txn_id = 9990;
@@ -218,10 +226,8 @@ TEST_F(TxnTest, RenameTest) {
   txn_log_from_pb(&txnpb, &deserialized_txn_log);
   EXPECT_EQ(0, compare(&txn_log, &deserialized_txn_log));
 }
-/*
-TEST_F(TxnTest, CreateTxnLogTest) {
-  db_store_t *db = init_db_store("test_db", true);
 
+TEST_F(NfsOpTest, CreateTxnLogTest) {
   char filename[] = "foo";
   nfs_argop4 nfs4ops[2];
   nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
@@ -235,24 +241,51 @@ TEST_F(TxnTest, CreateTxnLogTest) {
   args.argarray.argarray_len = 2;
   args.argarray.argarray_val = nfs4ops;
 
-  txn_context_t *context = new_txn_context(2, nfs4ops);
+  int result = nfs_vcreate_to_txnlog(&args, &txnlog);
+  EXPECT_EQ(result, 0);
+  EXPECT_EQ(txnlog.num_files, 1);
+  EXPECT_STREQ(txnlog.created_file_ids[0].path, filename);
+}
 
-  uint64_t txn_id = create_txn_log(db, &args, context);
-  EXPECT_TRUE(context->op_contexts[1].is_new);
-  EXPECT_FALSE(uuid_is_null(context->op_contexts[1].id));
-  EXPECT_EQ(txn_id, context->txn_id);
+TEST_F(NfsOpTest, WriteTxnLogTest) {
+  char filename[] = "foo";
+  nfs_argop4 nfs4ops[2];
+  nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
+  nfs4ops[1].argop = NFS4_OP_OPEN;
+  nfs4ops[1].nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_val =
+      filename;
+  nfs4ops[1].nfs_argop4_u.opopen.claim.open_claim4_u.file.utf8string_len =
+      strlen(filename);
 
-  size_t value_len = 0;
-  char *err = nullptr;
-  string key = absl::StrCat("txn-", txn_id);
-  char *value = leveldb_get(db->db, db->r_options, key.data(), key.size(),
-                            &value_len, &err);
-  EXPECT_GT(value_len, 0);
-  EXPECT_NE(value, nullptr);
+  COMPOUND4args args;
+  args.minorversion = 1;
+  args.argarray.argarray_len = 2;
+  args.argarray.argarray_val = nfs4ops;
 
-  del_txn_context(context);
-  destroy_db_store(db);
-}*/
+  int result = nfs_vwrite_to_txnlog(&args, &txnlog);
+  EXPECT_EQ(result, 0);
+  EXPECT_EQ(txnlog.num_files, 1);
+  EXPECT_STREQ(txnlog.created_file_ids[0].path, filename);
+}
+
+TEST_F(NfsOpTest, RemoveTxnLogTest) {
+  char filename[] = "foo";
+  nfs_argop4 nfs4ops[2];
+  nfs4ops[0].argop = NFS4_OP_PUTROOTFH;
+  nfs4ops[1].argop = NFS4_OP_REMOVE;
+  nfs4ops[1].nfs_argop4_u.opremove.target.utf8string_val = filename;
+  nfs4ops[1].nfs_argop4_u.opremove.target.utf8string_len = strlen(filename);
+
+  COMPOUND4args args;
+  args.minorversion = 1;
+  args.argarray.argarray_len = 2;
+  args.argarray.argarray_val = nfs4ops;
+
+  int result = nfs_vunlink_to_txnlog(&args, &txnlog);
+  EXPECT_EQ(result, 0);
+  EXPECT_EQ(txnlog.num_files, 1);
+  EXPECT_STREQ(txnlog.created_unlink_ids[0].name, filename);
+}
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

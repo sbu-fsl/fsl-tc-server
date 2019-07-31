@@ -565,14 +565,13 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 {
 	struct txnfs_fsal_obj_handle *handle =
 	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
-
-	if (fh_desc->len >= TXN_UUID_LEN) {
+	if (fh_desc->len >= sizeof(uuid_t)) {
 		uuid_copy(fh_desc->addr, handle->uuid);
 		fh_desc->len = sizeof(uuid_t);
 	} else {
 		LogMajor(COMPONENT_FSAL,
 			 "Space too small for handle.  need %zu, have %zu",
-			 TXN_UUID_LEN, fh_desc->len);
+			 sizeof(uuid_t), fh_desc->len);
 		return fsalstat(ERR_FSAL_TOOSMALL, 0);
 	}
 
@@ -596,7 +595,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 	uuid_t *uuid = malloc(sizeof(uuid_t));
 	uuid_copy(*uuid, handle->uuid);
 	fh_desc->addr = uuid;
-	fh_desc->len = TXN_UUID_LEN;
+	fh_desc->len = sizeof(uuid_t);
 }
 
 /*

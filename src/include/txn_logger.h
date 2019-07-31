@@ -83,10 +83,18 @@ struct TxnLog {
 	enum CompoundType compound_type;
 	const char *backup_dir_path;
 };
-
 typedef struct TxnLog TxnLog;
-uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
-			txn_context_t *context);
+
+// convert nfs4 compounds to txnlog objects
+int nfs_vcreate_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog);
+
+int nfs_vwrite_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog);
+
+int nfs_vunlink_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog);
+
+int nfs_vrename_to_txnlog(const COMPOUND4args *arg, struct TxnLog *txnlog);
+
+uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg);
 
 #ifdef __cplusplus
 }
