@@ -479,6 +479,44 @@ end:
 	op_ctx->fsal_export = exp;
 }
 
+static void *backup_cleaner(void *arg)
+{
+	op_ctx = arg;
+	txnfs_cleanup_backup();
+	gsh_free(op_ctx->creds->caller_garray);
+	gsh_free(op_ctx->creds);
+	gsh_free(arg);
+	return NULL;
+}
+
+static void do_cleanup_backup(void)
+{
+	struct req_op_context *new_ctx;
+	pthread_t tid;
+	int err;
+
+	if (op_ctx->txnid == 0) return;
+
+	int n_callers = op_ctx->creds->caller_glen;
+	new_ctx = gsh_malloc(sizeof(*new_ctx));
+	memcpy(new_ctx, op_ctx, sizeof(*new_ctx));
+	new_ctx->creds = gsh_malloc(sizeof(*op_ctx->creds));
+	memcpy(new_ctx->creds, op_ctx->creds, sizeof(*op_ctx->creds));
+	new_ctx->creds->caller_garray = gsh_calloc(n_callers, sizeof(gid_t));
+	memcpy(new_ctx->creds->caller_garray, op_ctx->creds->caller_garray,
+	       n_callers * sizeof(gid_t));
+
+	err = pthread_create(&tid, NULL, backup_cleaner, new_ctx);
+	if (err != 0) {
+		LogWarn(
+		    COMPONENT_FSAL,
+		    "async backup cleanup failed (%d), fallback to sync call",
+		    err);
+		txnfs_cleanup_backup();
+		gsh_free(new_ctx);
+	}
+}
+
 fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4res *res = data;
@@ -522,7 +560,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
 	txnfs_tracepoint(cleaned_up_cache, op_ctx->txnid);
-	txnfs_cleanup_backup();
+	do_cleanup_backup();
 	txnfs_tracepoint(cleaned_up_backup, op_ctx->txnid);
 
 	return ret;
@@ -775,6 +813,8 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	 * keep myself locked until done with creating myself.
 	 */
 	op_ctx->fsal_export = &myself->export;
+
+	get_txn_root(&myself->root, NULL);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
