@@ -126,6 +126,10 @@ void txnfs_handle_ops_init(struct fsal_obj_ops *ops);
 struct txnfs_fsal_export {
 	struct fsal_export export;
 	/* Other private export data goes here */
+	/* The handle of root dir (TXNFS handle) */
+	struct fsal_obj_handle *root;
+	/* The handle of backup root (Sub-FSAL handle) */
+	struct fsal_obj_handle *bkproot;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,

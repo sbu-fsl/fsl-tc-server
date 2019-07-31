@@ -768,6 +768,8 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 #endif /* EXPORT_OPS_INIT */
 	myself->export.up_ops = up_ops;
 	myself->export.fsal = fsal_hdl;
+	myself->root = NULL;
+	myself->bkproot = NULL;
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
