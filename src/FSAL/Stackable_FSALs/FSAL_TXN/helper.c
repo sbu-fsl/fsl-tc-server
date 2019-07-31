@@ -471,7 +471,10 @@ void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs)
 {
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
-	if (exp->root) *root_handle = exp->root;
+	if (exp->root) {
+		*root_handle = exp->root;
+		return;
+	}
 
 	struct fsal_obj_handle *root_entry = NULL;
 	fsal_status_t ret = op_ctx->fsal_export->exp_ops.lookup_path(
