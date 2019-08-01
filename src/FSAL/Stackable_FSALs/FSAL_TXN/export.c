@@ -561,7 +561,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
 	txnfs_tracepoint(cleaned_up_cache, op_ctx->txnid);
-	do_cleanup_backup();
+	submit_cleanup_task(op_ctx->txnid);
 	txnfs_tracepoint(cleaned_up_backup, op_ctx->txnid);
 
 	return ret;
