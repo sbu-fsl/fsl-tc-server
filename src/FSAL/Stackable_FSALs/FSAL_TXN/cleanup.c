@@ -150,3 +150,187 @@ void cleanup_queue_destroy(struct cleanup_queue *q)
 	q->capacity = 0;
 	gsh_free(q);
 }
+
+static enum fsal_dir_result record_dirent(const char *name,
+					  struct fsal_obj_handle *obj,
+					  struct attrlist *attrs,
+					  void *dir_state, fsal_cookie_t cookie)
+{
+	struct glist_head *flist = (struct glist_head *)dir_state;
+	struct txnfs_file_entry *entry = gsh_malloc(sizeof(*entry));
+	size_t name_len = strnlen(name, NAME_MAX) + 1;
+
+	entry->name = gsh_malloc(name_len);
+	entry->name[name_len - 1] = 0;
+	strncpy(entry->name, name, name_len);
+	entry->obj = obj;
+	glist_add(flist, &entry->glist);
+
+	return DIR_CONTINUE;
+}
+
+/**
+ * @brief the actual payload code to cleanup backup files
+ */
+static void txnfs_cleanup_backup(uint64_t txnid)
+{
+	struct fsal_obj_handle *txn_root = NULL;
+	struct fsal_obj_handle *bkp_root = NULL;
+	struct fsal_obj_handle *bkp_folder = NULL;
+	struct fsal_export *exp = op_ctx->fsal_export;
+	fsal_status_t status = {0};
+	struct glist_head file_list = {0}, *node, *tmp;
+	struct txnfs_file_entry *ent;
+	char name[BKP_FN_LEN] = {'\0'};
+	bool eof;
+
+	glist_init(&file_list);
+
+	get_txn_root(&txn_root, NULL);
+	assert(txn_root);
+
+	/* ---- switch export ---- */
+	op_ctx->fsal_export = exp->sub_export;
+
+	bkp_root = query_backup_root(txn_root);
+	if (!bkp_root) {
+		LogDebug(COMPONENT_FSAL, "backup root not created");
+		goto end;
+	}
+
+	bkp_folder = query_txn_backup(bkp_root, txnid);
+	if (!bkp_folder) {
+		LogDebug(COMPONENT_FSAL, "bkp folder not created");
+		goto end;
+	}
+
+	/* Use readdir to retrieve the list of files contained in bkp folder */
+	status = bkp_folder->obj_ops->readdir(bkp_folder, NULL, &file_list,
+					      record_dirent, 0, &eof);
+	assert(FSAL_IS_SUCCESS(status));
+
+	glist_for_each_safe(node, tmp, &file_list)
+	{
+		ent = glist_entry(node, struct txnfs_file_entry, glist);
+		status = bkp_folder->obj_ops->unlink(bkp_folder, ent->obj,
+						     ent->name);
+		assert(FSAL_IS_SUCCESS(status));
+		gsh_free(ent->name);
+		glist_del(node);
+		gsh_free(ent);
+	};
+
+	/* remove the backup folder */
+	snprintf(name, BKP_FN_LEN, "%lu", txnid);
+	status = bkp_root->obj_ops->unlink(bkp_root, bkp_folder, name);
+	if (!FSAL_IS_SUCCESS(status)) {
+		LogWarn(COMPONENT_FSAL, "cannot remove backup dir: %d",
+			status.major);
+	}
+end:
+	/* ---- restore export ---- */
+	op_ctx->fsal_export = exp;
+}
+
+struct worker_arg {
+	struct req_op_context *context;
+	struct cleanup_queue *queue;
+};
+
+static void *backup_worker(void *ptr)
+{
+	struct worker_arg *args = ptr;
+	struct cleanup_queue *queue = args->queue;
+	/* n = the max num of txnids to pop from queue */
+	const size_t n = 1024;
+	/* it's ok to put this array on stack because it's userland */
+	uint64_t ids[n];
+	op_ctx = args->context;
+	while (true) {
+		ssize_t count = cleanup_pop_many(queue, n, ids);
+		if (count < 0) {
+			LogFatal(COMPONENT_FSAL, "deadlock? (%ld)", count);
+		}
+		for (int i = 0; i < count; ++i) {
+			txnfs_cleanup_backup(ids[i]);
+		}
+		sleep(1);
+	}
+	return NULL;
+}
+
+int init_backup_worker(void)
+{
+	struct req_op_context *new_ctx;
+	struct worker_arg *args;
+	int err = 0;
+	int n_callers = op_ctx->creds->caller_glen;
+
+	/* initialize task queue */
+	err = cleanup_queue_init(&cqueue, CLEANUP_QUEUE_LEN);
+	if (err) {
+		LogWarn(COMPONENT_FSAL, "can't init cleanup task queue: %d",
+			err);
+		return err;
+	}
+
+	/* assemble a copy of op_ctx */
+	new_ctx = gsh_malloc(sizeof(*new_ctx));
+	memcpy(new_ctx, op_ctx, sizeof(*new_ctx));
+	new_ctx->creds = gsh_malloc(sizeof(*op_ctx->creds));
+	memcpy(new_ctx->creds, op_ctx->creds, sizeof(*op_ctx->creds));
+	new_ctx->creds->caller_garray = gsh_calloc(n_callers, sizeof(gid_t));
+	memcpy(new_ctx->creds->caller_garray, op_ctx->creds->caller_garray,
+	       n_callers * sizeof(gid_t));
+
+	/* assemble args for the worker thread */
+	args = gsh_malloc(sizeof(*args));
+	args->context = new_ctx;
+	args->queue = &cqueue;
+
+	/* spawn the thread */
+	err = pthread_create(&worker_tid, NULL, backup_worker, args);
+
+	if (err) {
+		LogWarn(COMPONENT_FSAL, "backup worker thread failed: %d",
+			err);
+		gsh_free(args);
+		gsh_free(new_ctx->creds->caller_garray);
+		gsh_free(new_ctx->creds);
+		gsh_free(new_ctx);
+		cleanup_queue_destroy(&cqueue);
+	}
+	return err;
+}
+
+/**
+ * Submit a backup cleanup request
+ * 
+ * @param[in] txnid	Transaction ID
+ * 
+ * @return 0 if the task is submitted successfully and the cleanup will be
+ * 	   performed asynchronously. Otherwise there might be some error and
+ * 	   the cleanup has been done by synchronous call.
+ */
+int submit_cleanup_task(uint64_t txnid)
+{
+	int err = 0;
+	if (txnid == 0) {
+		return 0;
+	}
+	if (worker_tid == 0) {
+		LogWarnOnce(COMPONENT_FSAL, "backup worker thread is not up. "
+			    "Fallback to sync call.");
+		err = ENAVAIL;
+		goto sync;
+	}
+	err = cleanup_push_txnid(&cqueue, txnid);
+	if (err != 0) {
+		LogWarn(COMPONENT_FSAL, "can't add txnid to queue: %d", err);
+		goto sync;
+	}
+	return 0;
+sync:
+	txnfs_cleanup_backup(txnid);
+	return err;
+}
