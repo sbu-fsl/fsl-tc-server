@@ -18,6 +18,7 @@ SET(fsaltxn_LIB_SRCS
    backup.c
    undo.c
    opvec.c
+   cleanup.c
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
