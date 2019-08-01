@@ -35,6 +35,7 @@
 #include "nfs_exports.h"
 #include "nfs_proto_data.h"
 #include "txn_logger.h"
+#include "cleanup.h"
 #include "txnfs_methods.h"
 #include <dlfcn.h>
 #include <libgen.h> /* used for 'dirname' */
@@ -815,6 +816,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	op_ctx->fsal_export = &myself->export;
 
 	get_txn_root(&myself->root, NULL);
+	init_backup_worker();
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
