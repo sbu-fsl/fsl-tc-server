@@ -39,6 +39,7 @@ struct cleanup_queue {
 	size_t capacity;
 	pthread_spinlock_t lock;
 };
+struct txnfs_fsal_export;
 
 int cleanup_queue_init(struct cleanup_queue *q, size_t capacity);
 int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid);
@@ -47,7 +48,7 @@ ssize_t cleanup_pop_many(struct cleanup_queue *q, size_t num, uint64_t *buf);
 void cleanup_queue_destroy(struct cleanup_queue *q);
 
 /* the worker */
-int init_backup_worker(void);
-int submit_cleanup_task(uint64_t txnid);
+int init_backup_worker(struct txnfs_fsal_export *);
+int submit_cleanup_task(struct txnfs_fsal_export *exp, uint64_t txnid);
 
 #endif // _CLEANUP_H_

@@ -20,12 +20,6 @@
  */
 
 #include "txnfs_methods.h"
-#include "cleanup.h"
-
-/* the global queue data */
-struct cleanup_queue cqueue;
-
-pthread_t worker_tid;
 
 /**
  * @brief Initialize the circular queue for cleanup tasks
@@ -259,15 +253,16 @@ static void *backup_worker(void *ptr)
 	return NULL;
 }
 
-int init_backup_worker(void)
+int init_backup_worker(struct txnfs_fsal_export *myself)
 {
 	struct req_op_context *new_ctx;
 	struct worker_arg *args;
+	pthread_t tid;
 	int err = 0;
 	int n_callers = op_ctx->creds->caller_glen;
 
 	/* initialize task queue */
-	err = cleanup_queue_init(&cqueue, CLEANUP_QUEUE_LEN);
+	err = cleanup_queue_init(&myself->cqueue, CLEANUP_QUEUE_LEN);
 	if (err) {
 		LogWarn(COMPONENT_FSAL, "can't init cleanup task queue: %d",
 			err);
@@ -286,10 +281,10 @@ int init_backup_worker(void)
 	/* assemble args for the worker thread */
 	args = gsh_malloc(sizeof(*args));
 	args->context = new_ctx;
-	args->queue = &cqueue;
+	args->queue = &myself->cqueue;
 
 	/* spawn the thread */
-	err = pthread_create(&worker_tid, NULL, backup_worker, args);
+	err = pthread_create(&tid, NULL, backup_worker, args);
 
 	if (err) {
 		LogWarn(COMPONENT_FSAL, "backup worker thread failed: %d",
@@ -298,7 +293,10 @@ int init_backup_worker(void)
 		gsh_free(new_ctx->creds->caller_garray);
 		gsh_free(new_ctx->creds);
 		gsh_free(new_ctx);
-		cleanup_queue_destroy(&cqueue);
+		cleanup_queue_destroy(&myself->cqueue);
+	} else {
+		myself->cleanup_worker_tid = tid;
+		myself->cleaner_ctx = new_ctx;
 	}
 	return err;
 }
@@ -306,25 +304,27 @@ int init_backup_worker(void)
 /**
  * Submit a backup cleanup request
  * 
+ * @param[in] exp	TXNFS's export structure
  * @param[in] txnid	Transaction ID
  * 
  * @return 0 if the task is submitted successfully and the cleanup will be
  * 	   performed asynchronously. Otherwise there might be some error and
  * 	   the cleanup has been done by synchronous call.
  */
-int submit_cleanup_task(uint64_t txnid)
+int submit_cleanup_task(struct txnfs_fsal_export *exp, uint64_t txnid)
 {
 	int err = 0;
+
 	if (txnid == 0) {
 		return 0;
 	}
-	if (worker_tid == 0) {
+	if (exp->cleanup_worker_tid == 0) {
 		LogWarnOnce(COMPONENT_FSAL, "backup worker thread is not up. "
 			    "Fallback to sync call.");
 		err = ENAVAIL;
 		goto sync;
 	}
-	err = cleanup_push_txnid(&cqueue, txnid);
+	err = cleanup_push_txnid(&exp->cqueue, txnid);
 	if (err != 0) {
 		LogWarn(COMPONENT_FSAL, "can't add txnid to queue: %d", err);
 		goto sync;

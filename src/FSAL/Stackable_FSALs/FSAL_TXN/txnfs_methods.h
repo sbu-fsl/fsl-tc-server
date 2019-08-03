@@ -24,6 +24,7 @@
 #include "fsal_api.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
+#include "cleanup.h"
 #include <uuid/uuid.h>
 
 #ifdef USE_LTTNG
@@ -130,6 +131,12 @@ struct txnfs_fsal_export {
 	struct fsal_obj_handle *root;
 	/* The handle of backup root (Sub-FSAL handle) */
 	struct fsal_obj_handle *bkproot;
+	/* Cleaner thread ID */
+	pthread_t cleanup_worker_tid;
+	/* Cleanup task queue */
+	struct cleanup_queue cqueue;
+	/* A op_ctx dedicated for cleanup thread */
+	struct req_op_context *cleaner_ctx;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,

@@ -35,7 +35,6 @@
 #include "nfs_exports.h"
 #include "nfs_proto_data.h"
 #include "txn_logger.h"
-#include "cleanup.h"
 #include "txnfs_methods.h"
 #include <dlfcn.h>
 #include <libgen.h> /* used for 'dirname' */
@@ -444,7 +443,7 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
 	txnfs_tracepoint(cleaned_up_cache, op_ctx->txnid);
-	submit_cleanup_task(op_ctx->txnid);
+	submit_cleanup_task(exp, op_ctx->txnid);
 	txnfs_tracepoint(cleaned_up_backup, op_ctx->txnid);
 
 	return ret;
@@ -699,7 +698,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	op_ctx->fsal_export = &myself->export;
 
 	get_txn_root(&myself->root, NULL);
-	init_backup_worker();
+	init_backup_worker(myself);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
