@@ -152,11 +152,8 @@ static enum fsal_dir_result record_dirent(const char *name,
 {
 	struct glist_head *flist = (struct glist_head *)dir_state;
 	struct txnfs_file_entry *entry = gsh_malloc(sizeof(*entry));
-	size_t name_len = strnlen(name, NAME_MAX) + 1;
 
-	entry->name = gsh_malloc(name_len);
-	entry->name[name_len - 1] = 0;
-	strncpy(entry->name, name, name_len);
+	entry->name = strndup(name, NAME_MAX);
 	entry->obj = obj;
 	glist_add(flist, &entry->glist);
 
