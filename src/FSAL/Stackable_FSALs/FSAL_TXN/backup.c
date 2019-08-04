@@ -44,7 +44,12 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 {
 	struct fsal_obj_handle *txn_backup_root;
 	struct txnfs_fsal_obj_handle *txn_root_entry;
+	struct txnfs_fsal_export *exp;
 	fsal_status_t ret;
+
+	exp = container_of(op_ctx->fsal_export->super_export,
+			   struct txnfs_fsal_export, export);
+	if (exp->bkproot) return exp->bkproot;
 
 	txn_root_entry =
 	    container_of(txn_root, struct txnfs_fsal_obj_handle, obj_handle);
@@ -57,9 +62,10 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root)
 	ret = fsal_lookup(txn_root_entry->sub_handle, TXN_BKP_DIR,
 			  &txn_backup_root, NULL);
 
-	if (FSAL_IS_SUCCESS(ret))
+	if (FSAL_IS_SUCCESS(ret)) {
+		exp->bkproot = txn_backup_root;
 		return txn_backup_root;
-	else if (ret.major == ERR_FSAL_NOENT)
+	} else if (ret.major == ERR_FSAL_NOENT)
 		return NULL;
 	else {
 		/* This is bad, so we should panic */

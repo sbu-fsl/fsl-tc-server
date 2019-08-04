@@ -228,7 +228,8 @@ int txnfs_cache_commit(void)
 			ret = -1;
 		}
 
-		txnfs_tracepoint(committed_cache_to_db, op_ctx->txnid, err != NULL);
+		txnfs_tracepoint(committed_cache_to_db, op_ctx->txnid,
+				 err != NULL);
 	}
 
 	leveldb_writebatch_destroy(commit_batch);
@@ -466,14 +467,20 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
 	return txnfs_db_get_uuid(hdl_desc, uuid) == 0;
 }
 
-/* TODO: we should consider storing @c fsal_obj_handle of the TXNFS root dir
- * in our private FSAL data structure to avoid always having to look up. */
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs)
 {
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	if (exp->root) {
+		*root_handle = exp->root;
+		return;
+	}
+
 	struct fsal_obj_handle *root_entry = NULL;
 	fsal_status_t ret = op_ctx->fsal_export->exp_ops.lookup_path(
 	    op_ctx->fsal_export, op_ctx->ctx_export->fullpath, &root_entry,
 	    attrs);
 	assert(FSAL_IS_SUCCESS(ret));
 	*root_handle = root_entry;
+	exp->root = root_entry;
 }
