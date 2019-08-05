@@ -419,6 +419,7 @@ struct req_op_context {
 	struct glist_head txn_cache;
 	uint64_t txnid;
 	COMPOUND4args *op_args;
+	struct fsal_obj_handle *txn_bkp_folder;
 };
 
 /**

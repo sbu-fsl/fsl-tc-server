@@ -20,35 +20,45 @@
  */
 
 #include <abstract_mem.h>
+#include <errno.h>
 #include <fsal_types.h>
 #include <log.h>
 #include <pthread.h>
-#include <errno.h>
 
 #ifndef _CLEANUP_H_
 #define _CLEANUP_H_
 
 /* message queue data structure */
-#define CLEANUP_QUEUE_LEN	131072
+#define CLEANUP_QUEUE_LEN 131072
+
+struct fsal_obj_handle;
+struct txnfs_fsal_export;
+
+struct cleanup_arg {
+	uint64_t txnid;
+	struct fsal_obj_handle *bkp_folder;
+};
 
 struct cleanup_queue {
-	uint64_t *txnid_vec;
+	struct cleanup_arg *vec;
 	size_t head;
 	size_t tail;
 	size_t size;
 	size_t capacity;
 	pthread_spinlock_t lock;
 };
-struct txnfs_fsal_export;
 
 int cleanup_queue_init(struct cleanup_queue *q, size_t capacity);
-int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid);
-int cleanup_pop_txnid(struct cleanup_queue *q, uint64_t *txnid);
-ssize_t cleanup_pop_many(struct cleanup_queue *q, size_t num, uint64_t *buf);
+int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid,
+		       struct fsal_obj_handle *bkp_folder);
+int cleanup_pop_txnid(struct cleanup_queue *q, struct cleanup_arg *arg);
+ssize_t cleanup_pop_many(struct cleanup_queue *q, size_t num,
+			 struct cleanup_arg *buf);
 void cleanup_queue_destroy(struct cleanup_queue *q);
 
 /* the worker */
 int init_backup_worker(struct txnfs_fsal_export *);
-int submit_cleanup_task(struct txnfs_fsal_export *exp, uint64_t txnid);
+int submit_cleanup_task(struct txnfs_fsal_export *exp, uint64_t txnid,
+			struct fsal_obj_handle *bkp_folder);
 
-#endif // _CLEANUP_H_
+#endif  // _CLEANUP_H_

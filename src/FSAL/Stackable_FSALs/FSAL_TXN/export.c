@@ -443,7 +443,9 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
 	txnfs_tracepoint(cleaned_up_cache, op_ctx->txnid);
-	submit_cleanup_task(exp, op_ctx->txnid);
+	submit_cleanup_task(exp, op_ctx->txnid, op_ctx->txn_bkp_folder);
+	/* backup folder is per transaction, so we should clear this */
+	op_ctx->txn_bkp_folder = NULL;
 	txnfs_tracepoint(cleaned_up_backup, op_ctx->txnid);
 
 	return ret;
@@ -691,6 +693,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	myself->export.fsal = fsal_hdl;
 	myself->root = NULL;
 	myself->bkproot = NULL;
+	op_ctx->txn_bkp_folder = NULL;
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
