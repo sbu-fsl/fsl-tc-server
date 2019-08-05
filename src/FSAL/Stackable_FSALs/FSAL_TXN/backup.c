@@ -280,6 +280,8 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			assert(FSAL_IS_SUCCESS(status));
 		}
 	}
+	/* Release the created fsal_obj_handle to prevent leak */
+	dst_hdl->obj_ops->release(dst_hdl);
 	op_ctx->fsal_export = &exp->export;
 	txnfs_tracepoint(done_backup_file, opidx, src_hdl->type,
 			 object_file_type_to_str(src_hdl->type),
