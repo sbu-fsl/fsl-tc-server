@@ -45,6 +45,7 @@
 #include "config_parsing.h"
 #include "fsal_pnfs.h"
 #include "fsal_types.h"
+#include "hashtable.h"
 #include "sal_shared.h"
 
 /**
@@ -420,6 +421,8 @@ struct req_op_context {
 	uint64_t txnid;
 	COMPOUND4args *op_args;
 	struct fsal_obj_handle *txn_bkp_folder;
+	/* a set of obj handles used by undo executor for release after use */
+	struct hash_table *txn_hdl_set;
 };
 
 /**
