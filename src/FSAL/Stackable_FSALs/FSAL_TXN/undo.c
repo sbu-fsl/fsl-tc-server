@@ -440,13 +440,9 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	ret = status.major;
 
 end:
-	backup_root->obj_ops->put_ref(backup_root);
-	backup_dir->obj_ops->put_ref(backup_dir);
-	if (backup_file) backup_file->obj_ops->put_ref(backup_file);
 	/* switch context back */
 	op_ctx->fsal_export = &exp->export;
 
-	root->obj_ops->put_ref(root);
 	return ret;
 }
 
@@ -593,13 +589,10 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 					  sub_cur, real_name);
 
 	gsh_free(real_name);
-	backup_root->obj_ops->put_ref(backup_root);
-	backup_dir->obj_ops->put_ref(backup_dir);
 
 	/* switch the context back */
 	op_ctx->fsal_export = &exp->export;
 
-	root->obj_ops->put_ref(root);
 	return status.major;
 }
 
@@ -735,7 +728,6 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 
 	/* let's start from ROOT */
 	get_txn_root(&root, &cur_attr);
-	root->obj_ops->get_ref(root);
 	exchange_cfh(&current, root);
 
 	for (i = 0; i < res->resarray.resarray_len; i++) {
