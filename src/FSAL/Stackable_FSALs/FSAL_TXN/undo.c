@@ -26,7 +26,7 @@
 #include <fsal_api.h>
 #include <nfs_proto_tools.h>
 
-static void truncate_file(struct fsal_obj_handle *f);
+static void truncate_file(struct fsal_obj_handle *f, size_t new_size);
 static uint64_t get_file_size(struct fsal_obj_handle *f);
 
 /**
@@ -328,7 +328,7 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
 
 	/* truncate the source file if requested */
-	if (truncate_dest) truncate_file(sub_cur);
+	if (truncate_dest) truncate_file(sub_cur, 0);
 
 	size = get_file_size(backup_file);
 	/* overwrite the source file. CFH is the file being written */
@@ -529,19 +529,25 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 }
 
 /**
- * @brief Truncate a file by setting its size to 0.
+ * @brief Truncate a file
+ * 
+ * @param[in] f		The object handle pointed to the target file
+ * @param[in] new_size	The size we want to truncate into
  *
  * The lower-level FSAL_VFS will finally take care of this by calling
  * @c ftruncate().
  */
-static inline void truncate_file(struct fsal_obj_handle *f)
+static inline void truncate_file(struct fsal_obj_handle *f, size_t new_size)
 {
 	fsal_status_t ret;
-	struct fsal_obj_handle *new_hdl;
-	ret = fsal_open2(f, NULL, FSAL_O_TRUNC, FSAL_NO_CREATE, NULL, NULL,
-			 NULL, &new_hdl, NULL);
+	struct attrlist attrs = {0};
+
+	attrs.filesize = new_size;
+	FSAL_SET_MASK(attrs.valid_mask, ATTR_SIZE);
+	/* bypass = true, state = NULL */
+	ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
 	if (FSAL_IS_ERROR(ret)) {
-		LogWarn(COMPONENT_FSAL, "can't open file: %d", ret.major);
+		LogWarn(COMPONENT_FSAL, "can't do setattr2: %d", ret.major);
 	}
 	fsal_close(f);
 }
