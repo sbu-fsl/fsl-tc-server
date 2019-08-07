@@ -269,11 +269,11 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			     sym_content.addr, &dst_hdl, NULL);
 	assert(FSAL_IS_SUCCESS(status));
 	/* let's copy ONLY when source is a regular file */
-	if (src_hdl->type == REGULAR_FILE && offset < attrs.filesize) {
+	if (src_hdl->type == REGULAR_FILE && offset < attrs_out.filesize) {
 		src_offset = offset;
-		sz = (offset + length <= attrs.filesize)
+		sz = (offset + length <= attrs_out.filesize)
 			 ? length
-			 : attrs.filesize - offset;
+			 : attrs_out.filesize - offset;
 		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
 						  &dst_offset, sz, 0);
 		if (!FSAL_IS_SUCCESS(status)) {
