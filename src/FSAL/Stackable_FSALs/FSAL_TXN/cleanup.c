@@ -206,6 +206,7 @@ static void txnfs_cleanup_backup(uint64_t txnid,
 						     ent->name);
 		assert(FSAL_IS_SUCCESS(status));
 		gsh_free(ent->name);
+		ent->obj->obj_ops->release(ent->obj);
 		glist_del(node);
 		gsh_free(ent);
 	};
