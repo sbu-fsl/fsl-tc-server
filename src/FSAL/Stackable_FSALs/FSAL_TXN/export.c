@@ -534,6 +534,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 					 "lookup failed: (%d, %d)",
 					 status.major, status.minor);
 			}
+			free(pathname);
 			break;
 
 		case NFS4_OP_WRITE:
