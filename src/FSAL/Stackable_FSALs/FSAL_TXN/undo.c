@@ -378,7 +378,7 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	struct fsal_obj_handle *backup_file = NULL;
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
-	struct attrlist attrs;
+	struct attrlist attrs = {0};
 	int ret = 0;
 	fsal_status_t status;
 	loff_t in = 0, out = 0;
@@ -395,7 +395,7 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
 	assert(backup_dir);
-	status = my_lookup(backup_dir, backup_name, &backup_file, NULL);
+	status = my_lookup(backup_dir, backup_name, &backup_file, &attrs);
 	if (FSAL_IS_ERROR(status)) {
 		ret = status.major;
 		LogWarn(COMPONENT_FSAL,
