@@ -24,10 +24,73 @@
 #include "txnfs_methods.h"
 #include <assert.h>
 #include <fsal_api.h>
+#include <hashtable.h>
 #include <nfs_proto_tools.h>
 
 static void truncate_file(struct fsal_obj_handle *f, size_t new_size);
 static uint64_t get_file_size(struct fsal_obj_handle *f);
+
+static uint32_t undoer_hdlset_indexfxn(struct hash_param *param,
+				       struct gsh_buffdesc *key)
+{
+	return (uint64_t)key->addr % param->index_size;
+}
+
+static uint64_t undoer_hdlset_hashfxn(struct hash_param *param,
+				      struct gsh_buffdesc *key)
+{
+	return (uint64_t)key->addr;
+}
+
+static int undoer_hdl_compare(struct gsh_buffdesc *key1,
+			      struct gsh_buffdesc *key2)
+{
+	return (uint64_t)key1->addr - (uint64_t)key2->addr;
+}
+
+static hash_parameter_t undoer_hdl_set_param = {
+	.index_size = 17,
+	.hash_func_key = undoer_hdlset_indexfxn,
+	.hash_func_rbt = undoer_hdlset_hashfxn,
+	.compare_key = undoer_hdl_compare,
+	.flags = HT_FLAG_NONE
+};
+
+static inline void insert_handle(struct fsal_obj_handle *hdl)
+{
+	if (op_ctx->txn_hdl_set == NULL) return;
+
+	struct gsh_buffdesc element;
+	element.addr = hdl;
+	element.len = sizeof(*hdl);
+	/* ignore HASHTABLE_KEY_ARELEADY_EXISTS */
+	HashTable_Set(op_ctx->txn_hdl_set, &element, &element);
+}
+
+static int hdlset_free_func(struct gsh_buffdesc key, struct gsh_buffdesc val)
+{
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	struct fsal_obj_handle *hdl = key.addr;
+	if (hdl == NULL || hdl == exp->root || hdl == exp->bkproot ||
+	    hdl == op_ctx->txn_bkp_folder)
+		return 0;
+	hdl->obj_ops->release(hdl);
+	return 0;
+}
+
+/**
+ * @brief Release all newly allocated fsal object handles used by the undoer.
+ *
+ * This will call ->release to all @c fsal_obj_handles in the hash set, and then
+ * destroy the hash set. This is to be called after the undo executor finishes
+ * its jobs.
+ */
+static inline void release_all_handles(void)
+{
+	hashtable_destroy(op_ctx->txn_hdl_set, hdlset_free_func);
+	op_ctx->txn_hdl_set = NULL;
+}
 
 /**
  * @page Compound transaction undo executor payloads
@@ -45,17 +108,22 @@ static inline COMPOUND4args *get_compound_args() { return op_ctx->op_args; }
  * @brief Exchange current file handle with a new one / Save current fh
  * / Restore saved fh to current
  *
- * These wrappers are here because we need to take care of ref count.
- * NOTE: We are assuming that the @c new object already has ref count
- * incremented (e.g. @c fsal_obj_handle objects created by @c lookup or
- * @c txnfs_create_handle methods are already ref counted), so here we don't
- * call @c new->obj_ops->get method.
+ * These wrappers are here because we need to take care of reference issue,
+ * otherwise the object handles created inside the undo executor (via
+ * create_handle and lookup) will never get released and will leak.
+ *
+ * Note that obj_ops->get_ref and obj_ops->put_ref will not work here because
+ * they are not implemented by most FSALs, assuming that ref counting will be
+ * managed by FSAL_MDCACHE. However we are UNDER MDCACHE layer, so it cannot
+ * have any sense of what is happening here. To address this issue, we will put
+ * every used object handle in a hash set, and release them all after the undo
+ * executor finishing its job.
  */
 static inline void exchange_cfh(struct fsal_obj_handle **current,
 				struct fsal_obj_handle *new)
 {
 	if (!new) return;
-	if (*current) (*current)->obj_ops->put_ref(*current);
+	if (*current) insert_handle(*current);
 	*current = new;
 }
 
@@ -63,18 +131,31 @@ static inline void save_cfh(struct fsal_obj_handle **saved,
 			    struct fsal_obj_handle *current)
 {
 	if (!current) return;
-	if (*saved) (*saved)->obj_ops->put_ref(*saved);
+	if (*saved) insert_handle(*saved);
 	*saved = current;
-	current->obj_ops->get_ref(current);
 }
 
 static inline void restore_cfh(struct fsal_obj_handle **current,
 			       struct fsal_obj_handle *saved)
 {
 	if (!saved) return;
-	if (*current) (*current)->obj_ops->put_ref(*current);
-	saved->obj_ops->get_ref(saved);
+	if (*current) insert_handle(*current);
 	*current = saved;
+}
+
+/**
+ * @brief Call the lookup method of @c parent and insert output object handle
+ * into the hash set.
+ */
+static inline fsal_status_t my_lookup(struct fsal_obj_handle *parent,
+				      const char *name,
+				      struct fsal_obj_handle **output,
+				      struct attrlist *attrs)
+{
+	fsal_status_t res;
+	res = parent->obj_ops->lookup(parent, name, output, attrs);
+	if (FSAL_IS_SUCCESS(res)) insert_handle(*output);
+	return res;
 }
 
 /**
@@ -101,6 +182,7 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 	ret = exp->exp_ops.create_handle(exp, &buf, &handle, &_attrs);
 	if (FSAL_IS_SUCCESS(ret)) {
 		if (attrs) *attrs = _attrs;
+		insert_handle(handle);
 		return handle;
 	} else {
 		LogWarn(COMPONENT_FSAL, "can't get obj handle from fh: %d",
@@ -142,8 +224,7 @@ static inline int replay_lookup(struct nfs_argop4 *arg,
 	fsal_status_t status;
 
 	nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &name);
-	status = (*current)->obj_ops->lookup(*current, name, &queried,
-					     &queried_attrs);
+	status = my_lookup(*current, name, &queried, &queried_attrs);
 
 	/* cleanup *name after use */
 	gsh_free(name);
@@ -192,7 +273,7 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 	fsal_status_t status;
 	struct fsal_obj_handle *created;
 
-	status = cur->obj_ops->lookup(cur, name, &created, NULL);
+	status = my_lookup(cur, name, &created, NULL);
 	assert(FSAL_IS_SUCCESS(status));
 	status = cur->obj_ops->unlink(cur, created, name);
 
@@ -314,8 +395,7 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
 	assert(backup_dir);
-	status = backup_dir->obj_ops->lookup(backup_dir, backup_name,
-					     &backup_file, &attrs);
+	status = my_lookup(backup_dir, backup_name, &backup_file, NULL);
 	if (FSAL_IS_ERROR(status)) {
 		ret = status.major;
 		LogWarn(COMPONENT_FSAL,
@@ -356,13 +436,9 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	ret = status.major;
 
 end:
-	backup_root->obj_ops->put_ref(backup_root);
-	backup_dir->obj_ops->put_ref(backup_dir);
-	if (backup_file) backup_file->obj_ops->put_ref(backup_file);
 	/* switch context back */
 	op_ctx->fsal_export = &exp->export;
 
-	root->obj_ops->put_ref(root);
 	return ret;
 }
 
@@ -396,7 +472,7 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur,
 
 	/* retrieve the file handle being opened */
 	if (name) {
-		status = (*cur)->obj_ops->lookup(*cur, name, &target, &attrs);
+		status = my_lookup(*cur, name, &target, &attrs);
 	} else {
 		/* if name is NULL then CURRENT is what is to be opened */
 		target = *cur;
@@ -449,7 +525,7 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 	fsal_status_t status;
 
 	nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &name);
-	status = cur->obj_ops->lookup(cur, name, &created, NULL);
+	status = my_lookup(cur, name, &created, NULL);
 	assert(FSAL_IS_SUCCESS(status));
 	status = cur->obj_ops->unlink(cur, created, name);
 	if (FSAL_IS_ERROR(status)) {
@@ -509,13 +585,10 @@ static int undo_remove(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 					  sub_cur, real_name);
 
 	gsh_free(real_name);
-	backup_root->obj_ops->put_ref(backup_root);
-	backup_dir->obj_ops->put_ref(backup_dir);
 
 	/* switch the context back */
 	op_ctx->fsal_export = &exp->export;
 
-	root->obj_ops->put_ref(root);
 	return status.major;
 }
 
@@ -655,9 +728,11 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 	/* initialize op vector */
 	opvec_init(&vector, txnid);
 
+	/* initialize handle hash set */
+	op_ctx->txn_hdl_set = hashtable_init(&undoer_hdl_set_param);
+
 	/* let's start from ROOT */
 	get_txn_root(&root, &cur_attr);
-	root->obj_ops->get_ref(root);
 	exchange_cfh(&current, root);
 
 	for (i = 0; i < res->resarray.resarray_len; i++) {
@@ -712,8 +787,8 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 
 			case NFS4_OP_LOOKUPP:
 				/* update current fh to its parent */
-				status = current->obj_ops->lookup(
-				    current, "..", &temp, &cur_attr);
+				status =
+				    my_lookup(current, "..", &temp, &cur_attr);
 				ret = status.major;
 				exchange_cfh(&current, temp);
 				break;
@@ -770,6 +845,7 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 				ret);
 	}
 
+	release_all_handles();
 	opvec_destroy(&vector);
 	return ret;
 }
