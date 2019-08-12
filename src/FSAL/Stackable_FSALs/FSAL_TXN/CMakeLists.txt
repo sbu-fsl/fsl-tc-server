@@ -22,6 +22,7 @@ SET(fsaltxn_LIB_SRCS
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
+add_sanitizers(fsaltxnfs)
 
 link_directories(${PROJECT_SOURCE_DIR}/leveldb/out-static/)
 include_directories(${PROJECT_SOURCE_DIR}/leveldb/include/)

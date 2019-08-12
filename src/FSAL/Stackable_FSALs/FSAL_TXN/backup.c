@@ -100,16 +100,19 @@ struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 	fsal_status_t ret;
 	char dir_name[BKP_FN_LEN];
 
+	if (op_ctx->txn_bkp_folder) return op_ctx->txn_bkp_folder;
+
 	/* construct backup folder name */
 	snprintf(dir_name, BKP_FN_LEN, "%lu", txnid);
 
 	ret = fsal_lookup(backup_root, dir_name, &backup_dir, NULL);
 
-	if (FSAL_IS_SUCCESS(ret))
+	if (FSAL_IS_SUCCESS(ret)) {
+		op_ctx->txn_bkp_folder = backup_dir;
 		return backup_dir;
-	else if (ret.major == ERR_FSAL_NOENT)
+	} else if (ret.major == ERR_FSAL_NOENT) {
 		return NULL;
-	else {
+	} else {
 		LogFatal(COMPONENT_FSAL, "query_txn_backup failed: %d",
 			 ret.major);
 	}
@@ -177,6 +180,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 				DIRECTORY, &attrs, NULL, &txn_handle, NULL);
 		assert(FSAL_IS_SUCCESS(status));
 		assert(txn_handle);
+		exp->bkproot = txn_handle;
 	}
 
 	*bkp_handle = query_txn_backup(txn_handle, txnid);
@@ -190,6 +194,7 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 				     NULL, bkp_handle, NULL);
 		assert(FSAL_IS_SUCCESS(status));
 		assert(*bkp_handle);
+		op_ctx->txn_bkp_folder = *bkp_handle;
 	}
 
 	op_ctx->fsal_export = &exp->export;
@@ -275,6 +280,8 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			assert(FSAL_IS_SUCCESS(status));
 		}
 	}
+	/* Release the created fsal_obj_handle to prevent leak */
+	dst_hdl->obj_ops->release(dst_hdl);
 	op_ctx->fsal_export = &exp->export;
 	txnfs_tracepoint(done_backup_file, opidx, src_hdl->type,
 			 object_file_type_to_str(src_hdl->type),

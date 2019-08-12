@@ -20,6 +20,7 @@
  */
 
 #include "txnfs_methods.h"
+#include <signal.h>
 
 /**
  * @brief Initialize the circular queue for cleanup tasks
@@ -27,38 +28,39 @@
  * @param[in] q     	The pointer to the queue struct to initialize
  * @param[in] capacity	The capacity of the queue. If 0 is used, it will
  * 			use CLEANUP_QUEUE_LEN as default value.
- * 
+ *
  * @return 0 for success, otherwise error is indicated
  */
 int cleanup_queue_init(struct cleanup_queue *q, size_t capacity)
 {
 	/* If this fails, the whole system will terminate */
-	q->txnid_vec = gsh_calloc(capacity, sizeof(uint64_t));
+	q->vec = gsh_calloc(capacity, sizeof(*q->vec));
 	q->head = 0;
 	q->tail = 0;
 	q->size = 0;
 	q->capacity = capacity;
-	
+
 	int err = pthread_spin_init(&q->lock, PTHREAD_PROCESS_SHARED);
-	if (err)
-		goto fail;
+	if (err) goto fail;
 	return 0;
 
 fail:
-	gsh_free(q->txnid_vec);
+	gsh_free(q->vec);
 	q->capacity = 0;
 	return err;
 }
 
 /**
  * @brief Push txnid to the cleanup task queue
- * 
+ *
  * @param[in] q		The pointer to the task queue
  * @param[in] txnid	The transaction ID
- * 
+ * @param[in] bkp_folder The fsal_obj_handle of backup folder
+ *
  * @return 0 for success, ENOSPC if the queue is full
  */
-int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid)
+int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid,
+		       struct fsal_obj_handle *bkp_folder)
 {
 	int err = 0;
 	err = pthread_spin_lock(&q->lock);
@@ -70,7 +72,8 @@ int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid)
 		pthread_spin_unlock(&q->lock);
 		return ENOSPC;
 	}
-	q->txnid_vec[q->head] = txnid;
+	q->vec[q->head].txnid = txnid;
+	q->vec[q->head].bkp_folder = bkp_folder;
 	q->head = (q->head + 1) % q->capacity;
 	q->size += 1;
 	pthread_spin_unlock(&q->lock);
@@ -79,25 +82,24 @@ int cleanup_push_txnid(struct cleanup_queue *q, uint64_t txnid)
 
 /**
  * @brief Pop an txnid from the cleanup task queue
- * 
+ *
  * @param[in] q		The pointer to the task queue
- * @param[out] txnid	The pointer to the output variable
- * 
+ * @param[out] arg	The pointer to the output variable
+ *
  * @return 0 for success, otherwise for error (ENODATA if the queue is empty)
  */
-int cleanup_pop_txnid(struct cleanup_queue *q, uint64_t *txnid)
+int cleanup_pop_txnid(struct cleanup_queue *q, struct cleanup_arg *arg)
 {
 	int err = 0;
 	err = pthread_spin_lock(&q->lock);
-	if (err)
-		return err;
+	if (err) return err;
 
 	if (q->size == 0) {
 		pthread_spin_unlock(&q->lock);
 		return ENODATA;
 	}
 
-	*txnid = q->txnid_vec[q->tail];
+	*arg = q->vec[q->tail];
 	q->tail += (q->tail + 1) % q->capacity;
 	q->size -= 1;
 	pthread_spin_unlock(&q->lock);
@@ -106,24 +108,24 @@ int cleanup_pop_txnid(struct cleanup_queue *q, uint64_t *txnid)
 
 /**
  * @brief Pop a number of txnids from the cleanup task queue
- * 
+ *
  * @param[in] q		The pointer to the task queue
  * @param[in] num	Number of txnids to get
  * @param[out] buf	The buffer to output the txnids
- * 
+ *
  * @return A positive number indicates the actual number of txnids
  * 	retrieved; 0 indicates that the queue is empty; negative number
  * 	indicates error.
  */
-ssize_t cleanup_pop_many(struct cleanup_queue *q, size_t num, uint64_t *buf)
+ssize_t cleanup_pop_many(struct cleanup_queue *q, size_t num,
+			 struct cleanup_arg *buf)
 {
 	ssize_t ret = 0;
 	ret = pthread_spin_lock(&q->lock);
-	if (ret)
-		return -ret;
+	if (ret) return -ret;
 	size_t remaining = num;
 	while (remaining > 0 && q->size > 0) {
-		buf[num - remaining] = q->txnid_vec[q->tail];
+		buf[num - remaining] = q->vec[q->tail];
 		q->tail = (q->tail + 1) % q->capacity;
 		q->size -= 1;
 		remaining -= 1;
@@ -134,13 +136,16 @@ ssize_t cleanup_pop_many(struct cleanup_queue *q, size_t num, uint64_t *buf)
 
 /**
  * @brief Destroy the queue
- * 
+ *
  * @param[in] q		The pointer to the task queue
+ *
+ * Be aware: This function does NOT call release for leftover
+ * object handles pointed to backup folders!
  */
 void cleanup_queue_destroy(struct cleanup_queue *q)
 {
 	pthread_spin_destroy(&q->lock);
-	gsh_free(q->txnid_vec);
+	gsh_free(q->vec);
 	q->capacity = 0;
 	gsh_free(q);
 }
@@ -163,11 +168,11 @@ static enum fsal_dir_result record_dirent(const char *name,
 /**
  * @brief the actual payload code to cleanup backup files
  */
-static void txnfs_cleanup_backup(uint64_t txnid)
+static void txnfs_cleanup_backup(uint64_t txnid,
+				 struct fsal_obj_handle *bkp_folder)
 {
 	struct fsal_obj_handle *txn_root = NULL;
 	struct fsal_obj_handle *bkp_root = NULL;
-	struct fsal_obj_handle *bkp_folder = NULL;
 	struct fsal_export *exp = op_ctx->fsal_export;
 	fsal_status_t status = {0};
 	struct glist_head file_list = {0}, *node, *tmp;
@@ -189,12 +194,6 @@ static void txnfs_cleanup_backup(uint64_t txnid)
 		goto end;
 	}
 
-	bkp_folder = query_txn_backup(bkp_root, txnid);
-	if (!bkp_folder) {
-		LogDebug(COMPONENT_FSAL, "bkp folder not created");
-		goto end;
-	}
-
 	/* Use readdir to retrieve the list of files contained in bkp folder */
 	status = bkp_folder->obj_ops->readdir(bkp_folder, NULL, &file_list,
 					      record_dirent, 0, &eof);
@@ -207,6 +206,7 @@ static void txnfs_cleanup_backup(uint64_t txnid)
 						     ent->name);
 		assert(FSAL_IS_SUCCESS(status));
 		gsh_free(ent->name);
+		ent->obj->obj_ops->release(ent->obj);
 		glist_del(node);
 		gsh_free(ent);
 	};
@@ -218,6 +218,9 @@ static void txnfs_cleanup_backup(uint64_t txnid)
 		LogWarn(COMPONENT_FSAL, "cannot remove backup dir: %d",
 			status.major);
 	}
+	/* Now we should release bkp_folder to prevent mem leak
+	 * MDCACHE won't take care of this because we are operating under it */
+	bkp_folder->obj_ops->release(bkp_folder);
 end:
 	/* ---- restore export ---- */
 	op_ctx->fsal_export = exp;
@@ -235,7 +238,7 @@ static void *backup_worker(void *ptr)
 	/* n = the max num of txnids to pop from queue */
 	const size_t n = 1024;
 	/* it's ok to put this array on stack because it's userland */
-	uint64_t ids[n];
+	struct cleanup_arg ids[n];
 	op_ctx = args->context;
 	while (true) {
 		ssize_t count = cleanup_pop_many(queue, n, ids);
@@ -243,7 +246,7 @@ static void *backup_worker(void *ptr)
 			LogFatal(COMPONENT_FSAL, "deadlock? (%ld)", count);
 		}
 		for (int i = 0; i < count; ++i) {
-			txnfs_cleanup_backup(ids[i]);
+			txnfs_cleanup_backup(ids[i].txnid, ids[i].bkp_folder);
 		}
 		sleep(1);
 	}
@@ -284,8 +287,7 @@ int init_backup_worker(struct txnfs_fsal_export *myself)
 	err = pthread_create(&tid, NULL, backup_worker, args);
 
 	if (err) {
-		LogWarn(COMPONENT_FSAL, "backup worker thread failed: %d",
-			err);
+		LogWarn(COMPONENT_FSAL, "backup worker thread failed: %d", err);
 		gsh_free(args);
 		gsh_free(new_ctx->creds->caller_garray);
 		gsh_free(new_ctx->creds);
@@ -299,35 +301,43 @@ int init_backup_worker(struct txnfs_fsal_export *myself)
 }
 
 /**
- * Submit a backup cleanup request
- * 
+ * @brief Submit a backup cleanup request
+ *
  * @param[in] exp	TXNFS's export structure
  * @param[in] txnid	Transaction ID
- * 
+ * @param[in] bkp_folder The obj handle pointed to the backup folder
+ *
  * @return 0 if the task is submitted successfully and the cleanup will be
  * 	   performed asynchronously. Otherwise there might be some error and
  * 	   the cleanup has been done by synchronous call.
  */
-int submit_cleanup_task(struct txnfs_fsal_export *exp, uint64_t txnid)
+int submit_cleanup_task(struct txnfs_fsal_export *exp, uint64_t txnid,
+			struct fsal_obj_handle *bkp_folder)
 {
 	int err = 0;
 
 	if (txnid == 0) {
 		return 0;
 	}
+	if (!bkp_folder) {
+		LogDebug(COMPONENT_FSAL, "Empty bkp_folder for txnid=%#lx",
+			 txnid);
+		return EINVAL;
+	}
 	if (exp->cleanup_worker_tid == 0) {
-		LogWarnOnce(COMPONENT_FSAL, "backup worker thread is not up. "
+		LogWarnOnce(COMPONENT_FSAL,
+			    "backup worker thread is not up. "
 			    "Fallback to sync call.");
 		err = ENAVAIL;
 		goto sync;
 	}
-	err = cleanup_push_txnid(&exp->cqueue, txnid);
+	err = cleanup_push_txnid(&exp->cqueue, txnid, bkp_folder);
 	if (err != 0) {
 		LogWarn(COMPONENT_FSAL, "can't add txnid to queue: %d", err);
 		goto sync;
 	}
 	return 0;
 sync:
-	txnfs_cleanup_backup(txnid);
+	txnfs_cleanup_backup(txnid, bkp_folder);
 	return err;
 }
