@@ -48,24 +48,11 @@ static int undoer_hdl_compare(struct gsh_buffdesc *key1,
 	return (uint64_t)key1->addr - (uint64_t)key2->addr;
 }
 
-static int undoer_key_to_str(struct gsh_buffdesc *key, char *output)
-{
-	return snprintf(output, HASHTABLE_DISPLAY_STRLEN, "%p", key->addr);
-}
-
-static int undoer_val_to_str(struct gsh_buffdesc *val, char *output)
-{
-	struct fsal_obj_handle *hdl = val->addr;
-	return snprintf(output, HASHTABLE_DISPLAY_STRLEN, "%ld", hdl->fileid);
-}
-
 static hash_parameter_t undoer_hdl_set_param = {
 	.index_size = 17,
 	.hash_func_key = undoer_hdlset_indexfxn,
 	.hash_func_rbt = undoer_hdlset_hashfxn,
 	.compare_key = undoer_hdl_compare,
-	.key_to_str = undoer_key_to_str,
-	.val_to_str = undoer_val_to_str,
 	.flags = HT_FLAG_NONE
 };
 
