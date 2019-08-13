@@ -273,6 +273,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			     sym_content.addr, &dst_hdl, NULL);
 	assert(FSAL_IS_SUCCESS(status));
 	/* let's copy ONLY when source is a regular file */
+	/* TODO: when offset > filesize */
 	if (src_hdl->type == REGULAR_FILE && offset < attrs_out.filesize) {
 		src_offset = offset;
 		sz = (offset + length <= attrs_out.filesize)
