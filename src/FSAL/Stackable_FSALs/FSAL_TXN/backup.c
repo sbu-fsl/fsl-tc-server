@@ -263,9 +263,8 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	attrs.owner = 0;
 	/* we should handle symlinks differently */
 	if (src_hdl->type == SYMBOLIC_LINK) {
-		sym_content.addr = gsh_malloc(attrs_out.filesize + 1);
+		sym_content.addr = gsh_calloc(1, attrs_out.filesize + 1);
 		sz = sym_content.len = attrs_out.filesize + 1;
-		memset(sym_content.addr, 0, sym_content.len);
 
 		status = fsal_readlink(src_hdl, &sym_content);
 		assert(FSAL_IS_SUCCESS(status));
