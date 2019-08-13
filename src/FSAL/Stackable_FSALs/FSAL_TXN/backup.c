@@ -209,14 +209,21 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
  *
  * @params[in] opidx	Operation index. This is used to compose the file name.
  * @params[in] src_hdl	The @c fsal_obj_handle of the source file
+ * @params[in] offset	The offset beginning to backup.
+ * @params[in] length	The size of data to backup.
  *
  * NOTE: We assume that @c src_hdl is a sub-handle but the current FSAL export
  * should NOT be switched and should be TXNFS's export.
  *
+ * NOTE: offset and length are recognized only if source file is a regular file.
+ * If offset + length exceeds the file size, the actual bytes of data cloned
+ * will be max(0, filesize - offset).
+ *
  * @return FSAL status code
  */
 fsal_status_t txnfs_backup_file(unsigned int opidx,
-				struct fsal_obj_handle *src_hdl)
+				struct fsal_obj_handle *src_hdl, loff_t offset,
+				size_t length)
 {
 	UDBG;
 	struct fsal_obj_handle *dst_hdl = NULL;
@@ -225,7 +232,10 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	struct attrlist attrs = {0};
 	struct attrlist attrs_out = {0};
 	struct gsh_buffdesc sym_content = {NULL, 0};
+	/* src and dest offset, passed as ref in ->clone */
 	loff_t src_offset = 0, dst_offset = 0;
+	/* size to be cloned/copied */
+	size_t sz = 0;
 	char backup_name[BKP_FN_LEN];
 
 	fsal_status_t status = txnfs_create_or_lookup_backup_dir(&bkp_folder);
@@ -253,9 +263,8 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	attrs.owner = 0;
 	/* we should handle symlinks differently */
 	if (src_hdl->type == SYMBOLIC_LINK) {
-		sym_content.addr = gsh_malloc(attrs_out.filesize + 1);
-		sym_content.len = attrs_out.filesize + 1;
-		memset(sym_content.addr, 0, sym_content.len);
+		sym_content.addr = gsh_calloc(1, attrs_out.filesize + 1);
+		sz = sym_content.len = attrs_out.filesize + 1;
 
 		status = fsal_readlink(src_hdl, &sym_content);
 		assert(FSAL_IS_SUCCESS(status));
@@ -264,19 +273,22 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 			     sym_content.addr, &dst_hdl, NULL);
 	assert(FSAL_IS_SUCCESS(status));
 	/* let's copy ONLY when source is a regular file */
-	if (src_hdl->type == REGULAR_FILE && attrs_out.filesize > 0) {
+	/* TODO: when offset > filesize */
+	if (src_hdl->type == REGULAR_FILE && offset < attrs_out.filesize) {
+		src_offset = offset;
+		sz = (offset + length <= attrs_out.filesize)
+			 ? length
+			 : attrs_out.filesize - offset;
 		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
-						  &dst_offset,
-						  attrs_out.filesize, 0);
+						  &dst_offset, sz, 0);
 		if (!FSAL_IS_SUCCESS(status)) {
 			LogDebug(COMPONENT_FSAL,
 				 "clone failed (%d, %d), try copy",
 				 status.major, status.minor);
-			src_offset = 0;
+			src_offset = offset;
 			dst_offset = 0;
-			status =
-			    fsal_copy(src_hdl, src_offset, dst_hdl, dst_offset,
-				      attrs_out.filesize, &copied);
+			status = fsal_copy(src_hdl, src_offset, dst_hdl,
+					   dst_offset, sz, &copied);
 			assert(FSAL_IS_SUCCESS(status));
 		}
 	}
@@ -284,8 +296,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	dst_hdl->obj_ops->release(dst_hdl);
 	op_ctx->fsal_export = &exp->export;
 	txnfs_tracepoint(done_backup_file, opidx, src_hdl->type,
-			 object_file_type_to_str(src_hdl->type),
-			 attrs_out.filesize);
+			 object_file_type_to_str(src_hdl->type), sz);
 	return status;
 }
 

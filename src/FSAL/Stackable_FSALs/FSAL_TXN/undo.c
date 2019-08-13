@@ -27,7 +27,7 @@
 #include <hashtable.h>
 #include <nfs_proto_tools.h>
 
-static void truncate_file(struct fsal_obj_handle *f);
+static void truncate_file(struct fsal_obj_handle *f, size_t new_size);
 static uint64_t get_file_size(struct fsal_obj_handle *f);
 
 static uint32_t undoer_hdlset_indexfxn(struct hash_param *param,
@@ -370,17 +370,19 @@ static bool file_has_uuid(struct fsal_obj_handle *file)
 }
 
 static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
-			int opidx, bool truncate_dest)
+			int opidx, bool truncate_dest, loff_t wr_offset,
+			size_t wr_len)
 {
 	char backup_name[BKP_FN_LEN] = {'\0'};
 	struct fsal_obj_handle *root, *backup_root, *backup_dir;
 	struct fsal_obj_handle *backup_file = NULL;
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	struct attrlist attrs = {0};
 	int ret = 0;
 	fsal_status_t status;
-	uint64_t in = 0, out = 0;
-	uint64_t size = 0, copied = 0;
+	loff_t in = 0, out = 0;
+	size_t size = 0, copied = 0;
 
 	/* construct names */
 	snprintf(backup_name, BKP_FN_LEN, "%d.bkp", opidx);
@@ -393,7 +395,7 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
 	assert(backup_dir);
-	status = my_lookup(backup_dir, backup_name, &backup_file, NULL);
+	status = my_lookup(backup_dir, backup_name, &backup_file, &attrs);
 	if (FSAL_IS_ERROR(status)) {
 		ret = status.major;
 		LogWarn(COMPONENT_FSAL,
@@ -407,11 +409,17 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	    container_of(target, struct txnfs_fsal_obj_handle, obj_handle);
 	struct fsal_obj_handle *sub_cur = txn_cur->sub_handle;
 
-	/* truncate the source file if requested */
-	if (truncate_dest) truncate_file(sub_cur);
+	/* truncate the source file if requested and the file has been
+	 * expanded by WRITE operation */
+	if (truncate_dest && wr_len > attrs.filesize)
+		truncate_file(sub_cur, wr_offset + attrs.filesize);
 
-	size = get_file_size(backup_file);
+	/* if the backup file is empty, there is no point restoring data */
+	if (attrs.filesize == 0) goto end;
+
 	/* overwrite the source file. CFH is the file being written */
+	size = MIN(wr_len, attrs.filesize);
+	out = wr_offset;
 	status = backup_file->obj_ops->clone2(backup_file, &in, sub_cur, &out,
 					      size, 0);
 	/* ->clone2 uses FICLONERANGE ioctl which depends on CoW support
@@ -420,6 +428,7 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	if (FSAL_IS_ERROR(status)) {
 		LogWarn(COMPONENT_FSAL, "clone failed (%d, %d), try copy",
 			status.major, status.minor);
+		out = wr_offset;
 		status = backup_file->obj_ops->copy(backup_file, in, sub_cur,
 						    out, size, &copied);
 		LogDebug(COMPONENT_FSAL, "%lu bytes copied", copied);
@@ -490,7 +499,7 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur,
 	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE &&
 		   attrs.filesize == 0) {
 		/* In this case the file might have been truncated when open */
-		ret = restore_data(target, txnid, opidx, false);
+		ret = restore_data(target, txnid, opidx, false, 0, SIZE_MAX);
 	}
 
 	exchange_cfh(cur, target);
@@ -602,19 +611,25 @@ static inline uint64_t get_file_size(struct fsal_obj_handle *f)
 }
 
 /**
- * @brief Truncate a file by setting its size to 0.
+ * @brief Truncate a file
+ *
+ * @param[in] f		The object handle pointed to the target file
+ * @param[in] new_size	The size we want to truncate into
  *
  * The lower-level FSAL_VFS will finally take care of this by calling
  * @c ftruncate().
  */
-static inline void truncate_file(struct fsal_obj_handle *f)
+static inline void truncate_file(struct fsal_obj_handle *f, size_t new_size)
 {
 	fsal_status_t ret;
-	struct fsal_obj_handle *new_hdl;
-	ret = fsal_open2(f, NULL, FSAL_O_TRUNC, FSAL_NO_CREATE, NULL, NULL,
-			 NULL, &new_hdl, NULL);
+	struct attrlist attrs = {0};
+
+	attrs.filesize = new_size;
+	FSAL_SET_MASK(attrs.valid_mask, ATTR_SIZE);
+	/* bypass = true, state = NULL */
+	ret = f->obj_ops->setattr2(f, true, NULL, &attrs);
 	if (FSAL_IS_ERROR(ret)) {
-		LogWarn(COMPONENT_FSAL, "can't open file: %d", ret.major);
+		LogWarn(COMPONENT_FSAL, "can't do setattr2: %d", ret.major);
 	}
 	fsal_close(f);
 }
@@ -627,9 +642,12 @@ static inline void truncate_file(struct fsal_obj_handle *f)
  *
  * Basically this will rewrite the file with the backup.
  */
-static int undo_write(struct fsal_obj_handle *cur, uint64_t txnid, int opidx)
+static int undo_write(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
+		      uint64_t txnid, int opidx)
 {
-	return restore_data(cur, txnid, opidx, true);
+	loff_t offset = arg->nfs_argop4_u.opwrite.offset;
+	size_t len = arg->nfs_argop4_u.opwrite.data.data_len;
+	return restore_data(cur, txnid, opidx, true, offset, len);
 }
 
 static int dispatch_undoer(struct op_vector *vec)
@@ -659,8 +677,8 @@ static int dispatch_undoer(struct op_vector *vec)
 			case NFS4_OP_WRITE:
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				ret =
-				    undo_write(el->cwh, vec->txnid, el->opidx);
+				ret = undo_write(el->arg, el->cwh, vec->txnid,
+						 el->opidx);
 				break;
 
 			default:
