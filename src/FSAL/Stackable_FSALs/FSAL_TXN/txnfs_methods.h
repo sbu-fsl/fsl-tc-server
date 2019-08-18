@@ -38,9 +38,6 @@
 #define FH_KEY_PREFIX "fhdl-"
 #define PREF_LEN 5
 
-/* As we tested the length of sub-FSAL FH is 30 bytes */
-#define FH_LEN	32
-
 enum txnfs_cache_entry_type {
 	txnfs_cache_entry_create = 0,
 	txnfs_cache_entry_delete = 1

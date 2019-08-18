@@ -1,5 +1,8 @@
 /* TXNFS data structures that needs to be exported */
 
+/* As we tested the length of sub-FSAL FH is 30 bytes */
+#define FH_LEN	32
+
 struct txnfs_cache {
 	uint32_t size;
 	uint32_t capacity;
