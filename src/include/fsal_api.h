@@ -47,6 +47,7 @@
 #include "fsal_types.h"
 #include "hashtable.h"
 #include "sal_shared.h"
+#include "txnfs.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -417,7 +418,7 @@ struct req_op_context {
 	struct fsal_module *fsal_module;   /*< current fsal module */
 	struct fsal_pnfs_ds *fsal_pnfs_ds; /*< current pNFS DS */
 	/* add new context members here */
-	struct glist_head txn_cache;
+	struct txnfs_cache *txn_cache;
 	uint64_t txnid;
 	COMPOUND4args *op_args;
 	struct fsal_obj_handle *txn_bkp_folder;

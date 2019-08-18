@@ -21,6 +21,7 @@
 
 /* TXNFS methods for handles
  */
+#include "txnfs.h"
 #include "fsal_api.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
@@ -37,18 +38,12 @@
 #define FH_KEY_PREFIX "fhdl-"
 #define PREF_LEN 5
 
+/* As we tested the length of sub-FSAL FH is 30 bytes */
+#define FH_LEN	32
+
 enum txnfs_cache_entry_type {
 	txnfs_cache_entry_create = 0,
 	txnfs_cache_entry_delete = 1
-};
-
-/* TODO: Use a more efficient data structure for txn cache */
-struct txnfs_cache_entry {
-	uuid_t uuid;
-	struct gsh_buffdesc hdl_desc;
-	enum txnfs_cache_entry_type entry_type;
-
-	struct glist_head glist;
 };
 
 struct txnfs_file_entry {
