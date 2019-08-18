@@ -38,11 +38,6 @@
 #define FH_KEY_PREFIX "fhdl-"
 #define PREF_LEN 5
 
-enum txnfs_cache_entry_type {
-	txnfs_cache_entry_create = 0,
-	txnfs_cache_entry_delete = 1
-};
-
 struct txnfs_file_entry {
 	char *name;
 	struct fsal_obj_handle *obj;
