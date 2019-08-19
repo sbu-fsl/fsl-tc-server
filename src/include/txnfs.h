@@ -4,7 +4,7 @@
 #define FH_LEN 32
 
 /* Default vector capacity */
-#define CACHE_CAP 256
+#define TXN_CACHE_CAP 256
 
 struct txnfs_cache {
 	uint32_t size;
@@ -28,3 +28,11 @@ struct txnfs_cache_entry {
 	} fh;
 };
 
+/**
+ * @brief Iterate through the TXNFS cache entries
+ * 
+ * @param[in] it	A pointer of struct txnfs_cache_entry for iteration
+ * @param[in] cache	The pointer to the txnfs_cache struct to be iterated.
+ */
+#define txnfs_cache_foreach(it, cache) \
+	for (it = cache->entries; it < cache->entries + cache->size; ++it)
