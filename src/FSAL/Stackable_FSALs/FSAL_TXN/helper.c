@@ -132,11 +132,15 @@ int txnfs_cache_delete_uuid(uuid_t uuid)
 	return txnfs_cache_insert(txnfs_cache_entry_delete, NULL, uuid);
 }
 
-void txnfs_cache_init(void)
+void txnfs_cache_init(uint32_t compound_size)
 {
-	UDBG;
-	assert(glist_null(&op_ctx->txn_cache) == 1);
-	glist_init(&op_ctx->txn_cache);
+	if (op_ctx->txn_cache)
+		LogFatal(COMPONENT_FSAL,
+			 "txnfs cache has already been initialized");
+	op_ctx->txn_cache = gsh_malloc(sizeof(*op_ctx->txn_cache));
+	op_ctx->txn_cache->entries =
+	    gsh_calloc(MIN(compound_size, TXN_CACHE_CAP),
+		       sizeof(struct txnfs_cache_entry));
 }
 
 static inline void combine_prefix(const char *prefix, const size_t prefix_len,
@@ -240,22 +244,11 @@ int txnfs_cache_commit(void)
 // cleanup txn entries
 void txnfs_cache_cleanup(void)
 {
-	UDBG;
-	assert(glist_null(&op_ctx->txn_cache) == 0);
-
-	struct txnfs_cache_entry *entry;
-	struct glist_head *glist, *glistn;
-
-	glist_for_each_safe(glist, glistn, &op_ctx->txn_cache)
-	{
-		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
-
-		/* Remove this entry from list */
-		glist_del(&entry->glist);
-
-		/* And free it */
-		gsh_free(entry);
-	}
+	if (!op_ctx->txn_cache)
+		LogFatal(COMPONENT_FSAL, "attempt to destroy null cache");
+	gsh_free(op_ctx->txn_cache->entries);
+	op_ctx->txn_cache->capacity = 0;
+	gsh_free(op_ctx->txn_cache);
 }
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)

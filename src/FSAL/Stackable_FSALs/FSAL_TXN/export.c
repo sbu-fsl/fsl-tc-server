@@ -379,7 +379,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	txnfs_tracepoint(create_txn_log, op_ctx->txnid);
 
 	// initialize txn cache
-	txnfs_cache_init();
+	txnfs_cache_init(args->argarray.argarray_len);
 
 	txnfs_tracepoint(init_txn_cache, op_ctx->txnid);
 

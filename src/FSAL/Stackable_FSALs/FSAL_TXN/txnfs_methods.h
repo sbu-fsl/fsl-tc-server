@@ -285,7 +285,7 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */
-void txnfs_cache_init(void);
+void txnfs_cache_init(uint32_t compound_size);
 int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
