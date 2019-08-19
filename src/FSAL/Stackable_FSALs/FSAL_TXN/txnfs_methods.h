@@ -291,6 +291,8 @@ void txnfs_cache_cleanup(void);
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
 
 /* txn backup and restore */
+fsal_status_t txnfs_create_or_lookup_backup_dir(
+    struct fsal_obj_handle **bkp_handle);
 struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root);
 struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 					 uint64_t txnid);

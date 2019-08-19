@@ -525,6 +525,17 @@ static fsal_status_t txnfs_setattr2(struct fsal_obj_handle *obj_hdl,
 	return status;
 }
 
+static enum fsal_dir_result mark_nonempty(const char *name,
+					  struct fsal_obj_handle *obj,
+					  struct attrlist *attrs,
+					  void *dir_state, fsal_cookie_t cookie)
+{
+	bool *dir_is_empty = dir_state;
+	*dir_is_empty = false;
+	obj->obj_ops->release(obj);
+	return DIR_TERMINATE;
+}
+
 /* file_unlink
  * unlink the named file in the directory
  */
@@ -540,14 +551,48 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 	    container_of(obj_hdl, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	struct fsal_obj_handle *bkp_folder = NULL;
+	fsal_status_t status = {0};
+
+	if (op_ctx->txnid > 0) {
+		/* this shouldn't cost too much because they are cached after
+		 * the first query / creation */
+		txnfs_create_or_lookup_backup_dir(&bkp_folder);
+	}
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	fsal_status_t status = txnfs_dir->sub_handle->obj_ops->unlink(
-	    txnfs_dir->sub_handle, txnfs_obj->sub_handle, name);
-	op_ctx->fsal_export = &export->export;
+	/* If transaction is eligible, let's rename the target into the
+	 * backup folder. This does both backup and removal. */
+	if (op_ctx->txnid > 0) {
+		bool dir_empty = true, eof;
+		char dst_name[BKP_FN_LEN] = {'\0'};
 
-	txnfs_db_delete_uuid(txnfs_obj->uuid);
+		/* if target is a directory, it should be empty */
+		if (obj_hdl->type == DIRECTORY) {
+			status = txnfs_obj->sub_handle->obj_ops->readdir(
+			    txnfs_obj->sub_handle, NULL, &dir_empty,
+			    mark_nonempty, 0, &eof);
+			assert(FSAL_IS_SUCCESS(status));
+			if (dir_empty == false) {
+				status = fsalstat(ERR_FSAL_NOTEMPTY, 0);
+				goto end;
+			}
+		}
+
+		assert(bkp_folder);
+		snprintf(dst_name, BKP_FN_LEN, "%d.bkp", op_ctx->opidx);
+		status = txnfs_dir->sub_handle->obj_ops->rename(
+		    txnfs_dir->sub_handle, txnfs_dir->sub_handle, name,
+		    bkp_folder, dst_name);
+	} else {
+		status = txnfs_dir->sub_handle->obj_ops->unlink(
+		    txnfs_dir->sub_handle, txnfs_obj->sub_handle, name);
+	}
+
+end:
+	op_ctx->fsal_export = &export->export;
+	if (FSAL_IS_SUCCESS(status)) txnfs_db_delete_uuid(txnfs_obj->uuid);
 
 	return status;
 }
