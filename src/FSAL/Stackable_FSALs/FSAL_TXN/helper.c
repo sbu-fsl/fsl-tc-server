@@ -78,6 +78,7 @@ int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 			memcpy(entry->fh.addr, hdl_desc->addr, hdl_desc->len);
 		}
 	}
+	op_ctx->txn_cache->size++;
 
 	return 0;
 }
