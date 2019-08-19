@@ -1,4 +1,9 @@
+#include <gsh_types.h>
+#include <uuid/uuid.h>
 /* TXNFS data structures that needs to be exported */
+
+#ifndef _TXNFS_H_
+#define _TXNFS_H_
 
 /* As we tested the length of sub-FSAL FH is 30 bytes */
 #define FH_LEN 32
@@ -28,11 +33,16 @@ struct txnfs_cache_entry {
 	} fh;
 };
 
+#define TXNCACHE_FH(entry) \
+	(likely(entry->hdl_size <= FH_LEN) ? entry->fh.data : entry->fh.addr)
+
 /**
  * @brief Iterate through the TXNFS cache entries
- * 
+ *
  * @param[in] it	A pointer of struct txnfs_cache_entry for iteration
  * @param[in] cache	The pointer to the txnfs_cache struct to be iterated.
  */
 #define txnfs_cache_foreach(it, cache) \
 	for (it = cache->entries; it < cache->entries + cache->size; ++it)
+
+#endif
