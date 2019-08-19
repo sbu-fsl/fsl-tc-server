@@ -548,34 +548,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			txnfs_backup_file(opidx, cur_hdl->sub_handle, wr_offset,
 					  wr_len);
 			break;
-		case NFS4_OP_REMOVE:
-			// lookup first
-			txnfs_tracepoint(backup_remove, op_ctx->txnid);
-			ret = get_remove_filename(op, &pathname);
-			if (ret != NFS4_OK) {
-				LogFatal(COMPONENT_FSAL,
-					 "utf8 conversion failed. "
-					 "status=%d",
-					 ret);
-				break;
-			}
-			op_ctx->fsal_export = exp->export.sub_export;
-			status = cur_hdl->sub_handle->obj_ops->lookup(
-			    cur_hdl->sub_handle, pathname, &handle, &attrs);
-			op_ctx->fsal_export = &exp->export;
-			txnfs_tracepoint(done_lookup, status.major, pathname,
-					 attrs.filesize);
-			free(pathname);
 
-			if (status.major == ERR_FSAL_NO_ERROR) {
-				txnfs_backup_file(opidx, handle, 0,
-						  attrs.filesize);
-				handle->obj_ops->release(handle);
-			} else if (status.major != ERR_FSAL_NOENT) {
-				LogFatal(COMPONENT_FSAL,
-					 "lookup failure (%d, %d)",
-					 status.major, status.minor);
-			}
 		default:
 			return status;
 	}
