@@ -21,11 +21,11 @@
 
 /* TXNFS methods for handles
  */
-#include "txnfs.h"
+#include "cleanup.h"
 #include "fsal_api.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
-#include "cleanup.h"
+#include "txnfs.h"
 #include <uuid/uuid.h>
 
 #ifdef USE_LTTNG
@@ -295,6 +295,7 @@ struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root);
 struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 					 uint64_t txnid);
 fsal_status_t txnfs_backup_file(unsigned int opidx,
-				struct fsal_obj_handle *src_hdl);
+				struct fsal_obj_handle *src_hdl, loff_t offset,
+				size_t length);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
 int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);

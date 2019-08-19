@@ -1,4 +1,3 @@
-#include <gsh_types.h>
 #include <uuid/uuid.h>
 /* TXNFS data structures that needs to be exported */
 

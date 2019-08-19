@@ -476,6 +476,8 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct attrlist attrs = {0};
+	loff_t wr_offset = 0;
+	size_t wr_len = 0;
 	char *pathname = NULL;
 	nfsstat4 ret;
 
@@ -497,8 +499,7 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 		 * anyway.
 		 *
 		 * >> We do need this since OPEN_CREATE may truncate the
-		 * existing file if createattrs->filesize is 0. However let's
-		 * narrow down the condition in the next PR.
+		 * existing file if createattrs->filesize is 0.
 		 */
 		case NFS4_OP_OPEN:
 			// lookup first
@@ -527,7 +528,8 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 					 attrs.filesize);
 
 			if (status.major == ERR_FSAL_NO_ERROR) {
-				txnfs_backup_file(opidx, handle);
+				txnfs_backup_file(opidx, handle, 0,
+						  attrs.filesize);
 				handle->obj_ops->release(handle);
 			} else if (status.major != ERR_FSAL_NOENT) {
 				LogFatal(COMPONENT_FSAL,
@@ -539,11 +541,12 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 
 		case NFS4_OP_WRITE:
 			// TODO: check handle in db
-			txnfs_tracepoint(
-			    backup_write, op_ctx->txnid,
-			    op->nfs_argop4_u.opwrite.offset,
-			    op->nfs_argop4_u.opwrite.data.data_len);
-			txnfs_backup_file(opidx, cur_hdl->sub_handle);
+			wr_offset = op->nfs_argop4_u.opwrite.offset;
+			wr_len = op->nfs_argop4_u.opwrite.data.data_len;
+			txnfs_tracepoint(backup_write, op_ctx->txnid, wr_offset,
+					 wr_len);
+			txnfs_backup_file(opidx, cur_hdl->sub_handle, wr_offset,
+					  wr_len);
 			break;
 		case NFS4_OP_REMOVE:
 			// lookup first
@@ -565,10 +568,13 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			free(pathname);
 
 			if (status.major == ERR_FSAL_NO_ERROR) {
-				txnfs_backup_file(opidx, handle);
+				txnfs_backup_file(opidx, handle, 0,
+						  attrs.filesize);
 				handle->obj_ops->release(handle);
 			} else if (status.major != ERR_FSAL_NOENT) {
-				assert(!"lookup failure!");
+				LogFatal(COMPONENT_FSAL,
+					 "lookup failure (%d, %d)",
+					 status.major, status.minor);
 			}
 		default:
 			return status;
