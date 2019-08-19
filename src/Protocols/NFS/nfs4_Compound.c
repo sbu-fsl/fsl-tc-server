@@ -945,6 +945,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 #endif
 		// create backups for txnfs
 		if (txn_ready) {
+			op_ctx->opidx = i;
 			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
 				op_ctx->fsal_export, i, data.current_obj,
 				&argarray[i]);

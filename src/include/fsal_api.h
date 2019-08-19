@@ -420,6 +420,7 @@ struct req_op_context {
 	/* add new context members here */
 	struct txnfs_cache *txn_cache;
 	uint64_t txnid;
+	int opidx;
 	COMPOUND4args *op_args;
 	struct fsal_obj_handle *txn_bkp_folder;
 	/* a set of obj handles used by undo executor for release after use */
