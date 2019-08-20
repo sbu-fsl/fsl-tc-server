@@ -1023,13 +1023,21 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 
 		/* Check if transactional compound operation is ready */
-		if (op_ctx->fsal_export
-			&& op_ctx->fsal_export->exp_ops.start_compound
-			&& op_ctx->fsal_export->exp_ops.end_compound
-			&& op_ctx->fsal_export->exp_ops.backup_nfs4_op)
-			txn_ready = true;
-		else
-			txn_ready = false;
+		if (!txn_ready && op_ctx->fsal_export 
+		    && op_ctx->fsal_export->exp_ops.start_compound
+		    && op_ctx->fsal_export->exp_ops.end_compound
+		    && op_ctx->fsal_export->exp_ops.backup_nfs4_op) {
+			/* Make sure TXNFS is loaded */
+			struct fsal_export *exp = op_ctx->fsal_export;
+			while (exp) {
+				if (exp->exp_ops.fs_supports(exp,
+				    fso_transaction)) {
+					txn_ready = true;
+					break;
+				}
+				exp = exp->sub_export;
+			}
+		}
 
 		if (!start_compound_called && txn_ready) {
 #ifdef USE_LTTNG
