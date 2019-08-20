@@ -114,6 +114,7 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 	    verifier, &sub_handle, attrs_out, caller_perm_check);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "open");
 	if (sub_handle) {
 		bool is_creation = createmode != FSAL_NO_CREATE;
 		/* wrap the subfsal handle in a txnfs handle. */
