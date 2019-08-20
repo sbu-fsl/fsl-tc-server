@@ -97,6 +97,9 @@ static bool fs_supports(struct fsal_export *exp_hdl,
 	struct txnfs_fsal_export *exp =
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
+	if (option == fso_transaction)
+		return true;
+
 	op_ctx->fsal_export = exp->export.sub_export;
 	bool result = exp->export.sub_export->exp_ops.fs_supports(
 	    exp->export.sub_export, option);
