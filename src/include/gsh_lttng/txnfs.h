@@ -542,6 +542,179 @@ TRACEPOINT_LOGLEVEL(
 	TRACE_INFO
 )
 
+/**
+ * @brief Trace after sub-FSAL operation is finished
+ * 
+ * @param[in] ret	Major status code of subfsal call
+ * @param[in] opidx	Operation index
+ * @param[in] txnid	Transaction ID
+ * @param[in] opname	Name of the operation
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	subfsal_op_done,
+	TP_ARGS(
+		int, ret,
+		int, opidx,
+		uint64_t, txnid,
+		const char *, opname
+	),
+	TP_FIELDS(
+		ctf_integer(int, ret, ret)
+		ctf_integer(int, opidx, opidx)
+		ctf_integer_hex(uint64_t, txnid, txnid)
+		ctf_string(opname, opname)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	subfsal_op_done,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace when subfsal handle_to_key is done
+ * 
+ * @param[in] fileid	The file ID of the target obj hdl
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	sub_handle_to_key,
+	TP_ARGS(
+		uint64_t, fileid
+	),
+	TP_FIELDS(
+		ctf_integer(uint64_t, fileid, fileid)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	sub_handle_to_key,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace after trying to get UUID from txn cache
+ * 
+ * @param[in] addr	The address where the sub-fsal file handle is located
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	get_uuid_in_cache,
+	TP_ARGS(
+		void *, addr
+	),
+	TP_FIELDS(
+		ctf_integer_hex(void *, addr, addr)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	get_uuid_in_cache,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace after trying to get UUID from leveldb
+ * 
+ * @param[in] addr	The address where the sub-fsal file handle is located
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	get_uuid_in_db,
+	TP_ARGS(
+		void *, addr
+	),
+	TP_FIELDS(
+		ctf_integer_hex(void *, addr, addr)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	get_uuid_in_db,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace after inserting <uuid, fh> to txn-cache
+ * 
+ * @param[in] addr	The address where the sub-fsal file handle is located
+ * @param[in] type	Entry type
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	cache_insert_handle,
+	TP_ARGS(
+		void *, addr,
+		int, type
+	),
+	TP_FIELDS(
+		ctf_integer_hex(void *, addr, addr)
+		ctf_integer(int, type, type)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	cache_insert_handle,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace after allocation of a new TXNFS obj handle
+ * 
+ * @param[in] addr	The address of the new obj handle
+ * @param[in] fileid	File number (obtainable by ls -i)
+ * @param[in] type	Fle type
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	alloc_handle,
+	TP_ARGS(
+		void *, addr,
+		uint64_t, fileid,
+		int, type
+	),
+	TP_FIELDS(
+		ctf_integer_hex(void *, addr, addr)
+		ctf_integer(uint64_t, fileid, fileid)
+		ctf_integer(int, type, type)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	alloc_handle,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace when txnfs_delete_uuid is done
+ * 
+ * @param[in] fileid	The file number
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	delete_uuid,
+	TP_ARGS(
+		uint64_t, fileid
+	),
+	TP_FIELDS(
+		ctf_integer(uint64_t, fileid, fileid)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	delete_uuid,
+	TRACE_INFO
+)
+
+
 #endif /* GANESHA_LTTNG_TXNFS_TP_H */
 
 #undef TRACEPOINT_INCLUDE
