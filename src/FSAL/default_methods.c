@@ -732,7 +732,7 @@ fsal_status_t end_compound(struct fsal_export *exp_hdl, void *data)
  * @returns FSAL status code
  */
 fsal_status_t backup_nfs4_op(struct fsal_export *exp_hdl, unsigned int opidx,
-	struct fsal_obj_handle *current, struct nfs_argop4 *op)
+	struct fsal_obj_handle *current, struct nfs_argop4 *op, void *data)
 {
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
 	
