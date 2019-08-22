@@ -417,7 +417,13 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	backup_root = query_backup_root(root);
 	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
-	assert(backup_dir);
+	if (!backup_dir) {
+		/* If backup_dir is NULL, it is because the backup executor
+		 * did not actually make any backup for this compound. This
+		 * could be a rational reason, so let's just return */
+		ret = ERR_FSAL_NOENT;
+		goto end;
+	}
 	status = my_lookup(backup_dir, backup_name, &backup_file, &attrs);
 	if (FSAL_IS_ERROR(status)) {
 		ret = status.major;
@@ -519,10 +525,14 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur,
 	if (!file_has_uuid(target)) {
 		status = my_unlink(*cur, target, name);
 		ret = status.major;
-	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE &&
-		   attrs.filesize == 0) {
+	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE) {
 		/* In this case the file might have been truncated when open */
 		ret = restore_data(target, txnid, opidx, false, 0, SIZE_MAX);
+		/* If there is no backup file then it's because the backup
+		 * function decided that the operation was not a truncation and
+		 * did not create any backup. This is not to be considered an
+		 * error */
+		if (ret == ERR_FSAL_NOENT) ret = 0;
 	}
 
 	exchange_cfh(cur, target);

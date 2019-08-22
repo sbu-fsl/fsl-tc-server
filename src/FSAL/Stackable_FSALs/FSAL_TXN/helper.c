@@ -19,6 +19,7 @@
  * 02110-1301 USA
  */
 
+#include "nfs_proto_tools.h"
 #include "txnfs_methods.h"
 #include <assert.h>
 

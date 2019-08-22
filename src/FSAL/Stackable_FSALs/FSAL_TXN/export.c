@@ -97,8 +97,7 @@ static bool fs_supports(struct fsal_export *exp_hdl,
 	struct txnfs_fsal_export *exp =
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
-	if (option == fso_transaction)
-		return true;
+	if (option == fso_transaction) return true;
 
 	op_ctx->fsal_export = exp->export.sub_export;
 	bool result = exp->export.sub_export->exp_ops.fs_supports(
@@ -467,10 +466,33 @@ static inline int get_remove_filename(struct nfs_argop4 *op, char **out)
 				       UTF8_SCAN_ALL, out);
 }
 
+static bool open_is_truncate(OPEN4args *openarg, compound_data_t *data)
+{
+	createhow4 *createhow = &openarg->openhow.openflag4_u.how;
+	fattr4 *arg_attrs = &createhow->createhow4_u.createattrs;
+	struct attrlist attrs;
+	int ret = -1;
+
+	/* only UNCHECKED mode can truncate existing file */
+	if (createhow->mode != UNCHECKED4) return false;
+
+	/* convert attributes */
+	if (arg_attrs->attrmask.bitmap4_len != 0) {
+		ret = nfs4_Fattr_To_FSAL_attr(&attrs, arg_attrs, data);
+	}
+	/* if conversion successful */
+	if (ret == NFS4_OK) {
+		if (FSAL_TEST_MASK(attrs.valid_mask, ATTR_SIZE) &&
+		    attrs.filesize == 0)
+			return true;
+	}
+	return false;
+}
+
 fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 				   unsigned int opidx,
 				   struct fsal_obj_handle *current,
-				   struct nfs_argop4 *op)
+				   struct nfs_argop4 *op, void *data)
 {
 	fsal_status_t status = {ERR_FSAL_NO_ERROR, 0};
 	struct fsal_obj_handle *handle = NULL;
@@ -487,7 +509,8 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	if (exp->export.sub_export->exp_ops.backup_nfs4_op) {
 		op_ctx->fsal_export = exp->export.sub_export;
 		status = exp->export.sub_export->exp_ops.backup_nfs4_op(
-		    exp->export.sub_export, opidx, cur_hdl->sub_handle, op);
+		    exp->export.sub_export, opidx, cur_hdl->sub_handle, op,
+		    data);
 		op_ctx->fsal_export = &exp->export;
 	}
 
@@ -515,6 +538,13 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			 * create_txn_log has already done so. If OPEN is not
 			 * accompanied with creation or truncation, txnid
 			 * will be zero and the program will not reach here */
+
+			/* If open args indicates that this can't be a
+			 * truncation, just leave. */
+			if (!open_is_truncate(&op->nfs_argop4_u.opopen,
+					      (compound_data_t *)data))
+				break;
+
 			ret = get_open_filename(op, &pathname);
 			if (ret != NFS4_OK) {
 				LogFatal(COMPONENT_FSAL,
