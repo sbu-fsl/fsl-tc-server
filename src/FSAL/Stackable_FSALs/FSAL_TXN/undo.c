@@ -731,52 +731,44 @@ static int dispatch_undoer(struct op_vector *vec)
 }
 
 /**
- * @brief Execute the rollback task
- *
- * This function is called by txnfs_compound_restore and intended for rollback
- * partially done compound transaction. At this moment we have the following
- * assumptions:
- *
- * - The client should not assume that the current file handle won't change, so
- *   each compound is supposed to come with @c PUTFH or @c PUTROOTFH operations
- *   to explicitly set the file or directory the client wants to work on.
- *
- * - The client user uses vNFS or traditional POSIX api. That is to say, each
- *   compound should be homogeneous (i.e. does not contain multiple different
- *   "substantial" operations). Therefore we are not considering complex
- *   scenario such as creating, writing and removing a file in one compound.
- *   So, in this implementation we iterate the compound in forward order.
+ * @brief Build operation vectors consisting of individual arg and current or
+ * 	  saved object handles from COMPOUND args.
+ * 
+ * @param[out] vector	The vector object to use
+ * @param[in] args	NFS4 compound args array
+ * @param[in] res	NFS4 compound result.
+ * @param[in] check_res Stop building the vector when encountering failed
+ * 			operation. If this is false, res can be NULL
+ * @param[in] txnid
+ * 
+ * @return Status code
  */
-int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
+int txnfs_build_opvec(struct op_vector *vector, COMPOUND4args *args,
+		      COMPOUND4res *res, bool check_res, uint64_t txnid)
 {
-	COMPOUND4args *args = get_compound_args();
 	int i, ret = 0;
 	struct fsal_obj_handle *root = NULL;
 	struct fsal_obj_handle *current = NULL;
 	struct fsal_obj_handle *saved = NULL;
 	fsal_status_t status;
 	struct attrlist cur_attr = {0};
-	struct op_vector vector;
-
-	/* initialize op vector */
-	opvec_init(&vector, txnid);
-
-	/* initialize handle hash set */
-	op_ctx->txn_hdl_set = hashtable_init(&undoer_hdl_set_param);
 
 	/* let's start from ROOT */
 	get_txn_root(&root, &cur_attr);
 	exchange_cfh(&current, root);
 
-	for (i = 0; i < res->resarray.resarray_len; i++) {
-		struct nfs_resop4 *curop_res = &res->resarray.resarray_val[i];
+	for (i = 0; i < args->argarray.argarray_len; i++) {
+		struct nfs_resop4 *curop_res = NULL;
 		struct nfs_argop4 *curop_arg = &args->argarray.argarray_val[i];
 
-		/* if we encounter failed op, we can stop */
-		if (!is_op_ok(curop_res)) break;
+		/* for undoer, if we encounter failed op, we can stop */
+		if (check_res) {
+			curop_res = &res->resarray.resarray_val[i];
+			if (!is_op_ok(curop_res)) break;
+		}
 
 		/* real payload here */
-		int op = curop_res->resop;
+		int op = curop_arg->argop;
 		struct fsal_obj_handle *temp;
 		nfs_fh4 *fh = NULL;
 
@@ -847,7 +839,7 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 			case NFS4_OP_WRITE:
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				ret = opvec_push(&vector, i, op, curop_arg,
+				ret = opvec_push(vector, i, op, curop_arg,
 						 curop_res, current, saved);
 				break;
 
@@ -868,6 +860,39 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 			break;
 		}
 	}
+	return ret;
+}
+
+/**
+ * @brief Execute the rollback task
+ *
+ * This function is called by txnfs_compound_restore and intended for rollback
+ * partially done compound transaction. At this moment we have the following
+ * assumptions:
+ *
+ * - The client should not assume that the current file handle won't change, so
+ *   each compound is supposed to come with @c PUTFH or @c PUTROOTFH operations
+ *   to explicitly set the file or directory the client wants to work on.
+ *
+ * - The client user uses vNFS or traditional POSIX api. That is to say, each
+ *   compound should be homogeneous (i.e. does not contain multiple different
+ *   "substantial" operations). Therefore we are not considering complex
+ *   scenario such as creating, writing and removing a file in one compound.
+ *   So, in this implementation we iterate the compound in forward order.
+ */
+int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
+{
+	COMPOUND4args *args = get_compound_args();
+	int ret = 0;
+	struct op_vector vector;
+
+	/* initialize op vector */
+	opvec_init(&vector, txnid);
+
+	/* initialize handle hash set */
+	op_ctx->txn_hdl_set = hashtable_init(&undoer_hdl_set_param);
+
+	ret = txnfs_build_opvec(&vector, args, res, true, txnid);
 
 	if (!ret) {
 		ret = dispatch_undoer(&vector);

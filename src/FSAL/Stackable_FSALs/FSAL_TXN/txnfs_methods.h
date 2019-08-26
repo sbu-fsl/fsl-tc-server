@@ -300,4 +300,6 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 				struct fsal_obj_handle *src_hdl, loff_t offset,
 				size_t length);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
+int txnfs_build_opvec(struct op_vector *vector, COMPOUND4args *args,
+		      COMPOUND4res *res, bool check_res, uint64_t txnid);
 int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);
