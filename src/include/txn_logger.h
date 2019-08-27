@@ -5,6 +5,7 @@
 #include "lwrapper.h"
 #include "nfsv41.h"
 #include "txn_context.h"
+#include "txnfs.h"
 #include "uuid/uuid.h"
 
 #define ENABLE_NORMAL_TEXT_LOGGING 0
@@ -85,7 +86,8 @@ struct TxnLog {
 };
 
 typedef struct TxnLog TxnLog;
-uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg);
+uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
+			enum txnfs_txn_type *txn_type);
 
 #ifdef __cplusplus
 }

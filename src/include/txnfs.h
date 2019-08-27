@@ -10,6 +10,18 @@
 /* Default vector capacity */
 #define TXN_CACHE_CAP 256
 
+/* Note: make sure this is consistent with the definitions in txn/txn.proto */
+enum txnfs_txn_type {
+	NONE = 0,
+	VCREATE = 1,
+	VMKDIR = 2,
+	VWRITE = 3,
+	VRENAME = 4,
+	VUNLINK = 5,
+	VSYMLINK = 6,
+	VOPEN = 7
+};
+
 struct txnfs_cache {
 	uint32_t size;
 	uint32_t capacity;

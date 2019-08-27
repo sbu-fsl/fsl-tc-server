@@ -367,6 +367,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
+	enum txnfs_txn_type type;
 	struct txnfs_fsal_module *fs =
 	    container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
 
@@ -376,7 +377,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_start_compound, args->argarray.argarray_len);
 
-	op_ctx->txnid = create_txn_log(fs->db, args);
+	op_ctx->txnid = create_txn_log(fs->db, args, &type);
 
 	txnfs_tracepoint(create_txn_log, op_ctx->txnid);
 
