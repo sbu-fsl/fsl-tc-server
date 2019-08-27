@@ -382,6 +382,8 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	// initialize txn cache
 	txnfs_cache_init(args->argarray.argarray_len);
+	/* initialize obj-handle hash set */
+	txnfs_init_handle_set();
 
 	txnfs_tracepoint(init_txn_cache, op_ctx->txnid);
 
@@ -444,6 +446,8 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
+	/* release all handles in the hash set */
+	txnfs_release_all_handles();
 	txnfs_tracepoint(cleaned_up_cache, op_ctx->txnid);
 	submit_cleanup_task(exp, op_ctx->txnid, op_ctx->txn_bkp_folder);
 	/* backup folder is per transaction, so we should clear this */

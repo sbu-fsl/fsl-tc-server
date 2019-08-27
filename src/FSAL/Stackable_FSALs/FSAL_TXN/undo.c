@@ -78,6 +78,11 @@ static int hdlset_free_func(struct gsh_buffdesc key, struct gsh_buffdesc val)
 	return 0;
 }
 
+inline void txnfs_init_handle_set(void)
+{
+	op_ctx->txn_hdl_set = hashtable_init(&undoer_hdl_set_param);
+}
+
 /**
  * @brief Release all newly allocated fsal object handles used by the undoer.
  *
@@ -85,7 +90,7 @@ static int hdlset_free_func(struct gsh_buffdesc key, struct gsh_buffdesc val)
  * destroy the hash set. This is to be called after the undo executor finishes
  * its jobs.
  */
-static inline void release_all_handles(void)
+inline void txnfs_release_all_handles(void)
 {
 	hashtable_destroy(op_ctx->txn_hdl_set, hdlset_free_func);
 	op_ctx->txn_hdl_set = NULL;
@@ -889,9 +894,6 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 	/* initialize op vector */
 	opvec_init(&vector, txnid);
 
-	/* initialize handle hash set */
-	op_ctx->txn_hdl_set = hashtable_init(&undoer_hdl_set_param);
-
 	ret = txnfs_build_opvec(&vector, args, res, true, txnid);
 
 	if (!ret) {
@@ -903,7 +905,6 @@ int do_txn_rollback(uint64_t txnid, COMPOUND4res *res)
 				ret);
 	}
 
-	release_all_handles();
 	opvec_destroy(&vector);
 	return ret;
 }

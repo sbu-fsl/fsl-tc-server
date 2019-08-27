@@ -65,6 +65,7 @@ lock_manager_t *lm;
 long fileid;
 
 struct txnfs_fsal_obj_handle;
+struct op_vector;
 
 struct next_ops {
 	struct export_ops exp_ops;	   /*< Vector of operations */
@@ -296,6 +297,8 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root);
 struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 					 uint64_t txnid);
+void txnfs_init_handle_set(void);
+void txnfs_release_all_handles(void);
 fsal_status_t txnfs_backup_file(unsigned int opidx,
 				struct fsal_obj_handle *src_hdl, loff_t offset,
 				size_t length);
