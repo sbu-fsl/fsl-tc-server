@@ -45,6 +45,7 @@ void opvec_init(struct op_vector *vec, uint64_t txnid)
  * @param[in] res	The nfs_resop4 result
  * @param[in] current	Current FSAL object handle
  * @param[in] saved	Saved FSAL object handle
+ * @param[in] cfh	Current File handle - mainly for backup worker
  *
  * @return Status code: If it's successful, return 0; if the operation type
  * does not match, return ERR_FSAL_BADTYPE. Note that if there isn't enough
@@ -52,7 +53,8 @@ void opvec_init(struct op_vector *vec, uint64_t txnid)
  */
 int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
 	       nfs_argop4 *arg, nfs_resop4 *res,
-	       struct fsal_obj_handle *current, struct fsal_obj_handle *saved)
+	       struct fsal_obj_handle *current, struct fsal_obj_handle *saved,
+	       struct gsh_buffdesc *cfh)
 {
 	/* supply the operation type of this vector */
 	if (vec->op == 0) vec->op = opcode;
@@ -62,8 +64,8 @@ int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
 
 	/* if the array is full,
 	 * request for reallocation of a double sized one */
-	if (vec->len == vec->max) {
-		gsh_realloc(vec->v, 2 * vec->max * sizeof(struct op_desc));
+	if (vec->len >= vec->max) {
+		vec->v = gsh_realloc(vec->v, 2 * vec->max * sizeof(struct op_desc));
 		vec->max *= 2;
 	}
 
@@ -74,6 +76,12 @@ int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
 	vec->v[vec->len].res = res;
 	vec->v[vec->len].cwh = current;
 	vec->v[vec->len].savedh = saved;
+	if (cfh) {
+		vec->v[vec->len].cfh = *cfh;
+	} else {
+		vec->v[vec->len].cfh.addr = NULL;
+		vec->v[vec->len].cfh.len = 0;
+	}
 	vec->len++;
 
 	return 0;
