@@ -55,7 +55,8 @@ struct op_vector {
 void opvec_init(struct op_vector *vec, uint64_t txnid);
 int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
 	       nfs_argop4 *arg, nfs_resop4 *res,
-	       struct fsal_obj_handle *current, struct fsal_obj_handle *saved, struct gsh_buffdesc *cfh);
+	       struct fsal_obj_handle *current, struct fsal_obj_handle *saved,
+	       struct gsh_buffdesc *cfh);
 
 void opvec_destroy(struct op_vector *vec);
 
