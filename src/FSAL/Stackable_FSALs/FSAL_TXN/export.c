@@ -34,6 +34,7 @@
 #include "gsh_list.h"
 #include "nfs_exports.h"
 #include "nfs_proto_data.h"
+#include "opvec.h"
 #include "txn_logger.h"
 #include "txnfs_methods.h"
 #include <dlfcn.h>
@@ -355,6 +356,133 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
+struct backup_worker_args {
+	struct req_op_context *myctx;
+	struct op_desc *begin;
+	size_t n_tasks;
+};
+
+static void *backup_write_worker(void *arg)
+{
+	struct backup_worker_args *my_arg = arg;
+	WRITE4args *write_arg;
+	struct fsal_obj_handle *cur;
+	struct txnfs_fsal_obj_handle *txn_cur;
+	file_handle_v4_t *file_handle;
+	fsal_status_t ret = {0};
+
+	op_ctx = gsh_malloc(sizeof(*op_ctx));
+	memcpy(op_ctx, my_arg->myctx, sizeof(*op_ctx));
+
+	for (int i = 0; i < my_arg->n_tasks; ++i) {
+		write_arg = &my_arg->begin[i].arg->nfs_argop4_u.opwrite;
+		file_handle = my_arg->begin[i].cfh.addr;
+		struct gsh_buffdesc fh = {.addr = file_handle->fsopaque,
+					  .len = file_handle->fs_len};
+		ret = txnfs_create_handle(op_ctx->fsal_export, &fh, &cur, NULL);
+		assert(FSAL_IS_SUCCESS(ret));
+		txn_cur =
+		    container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
+
+		ret = txnfs_backup_file(my_arg->begin[i].opidx,
+					txn_cur->sub_handle, write_arg->offset,
+					write_arg->data.data_len);
+		assert(FSAL_IS_SUCCESS(ret));
+
+		cur->obj_ops->release(cur);
+		cur = NULL;
+	}
+
+	gsh_free(op_ctx);
+
+	return (void *)ret.major;
+}
+
+static int parallelized_backup_write(COMPOUND4args *comp_args)
+{
+	struct op_vector opvec;
+	struct op_desc *op_ptr;
+	pthread_t *threads = NULL;
+	struct backup_worker_args *args = NULL;
+	struct fsal_obj_handle *backup_dir = NULL;
+	int tasks_per_th =
+	    MAX(comp_args->argarray.argarray_len / BACKUP_NWORKERS, 1);
+	int n_threads = MIN(comp_args->argarray.argarray_len, BACKUP_NWORKERS);
+	int remaining;
+	int ret = 0;
+
+	opvec_init(&opvec, op_ctx->txnid);
+
+	/* We assume that a typical WRITE compound has only PUTFH, WRITE *
+	 * and GETATTR operations. And SEQUENCE. */
+	struct gsh_buffdesc current_FH = {0};
+	for (int i = 0; i < comp_args->argarray.argarray_len; ++i) {
+		nfs_argop4 *arg = &comp_args->argarray.argarray_val[i];
+		switch (arg->argop) {
+			case NFS4_OP_PUTFH:
+				current_FH.addr = arg->nfs_argop4_u.opputfh
+						      .object.nfs_fh4_val;
+				current_FH.len = arg->nfs_argop4_u.opputfh
+						     .object.nfs_fh4_len;
+				break;
+
+			case NFS4_OP_WRITE:
+				opvec_push(&opvec, i, arg->argop, arg, NULL,
+					   NULL, NULL, &current_FH);
+				break;
+
+			case NFS4_OP_SEQUENCE:
+			case NFS4_OP_GETATTR:
+				break;
+
+			default:
+				LogWarn(COMPONENT_FSAL,
+					"write_comp has op %d"
+					"cannot parallel.",
+					arg->argop);
+				ret = ERR_FSAL_NOTSUPP;
+				goto end;
+		}
+	}
+
+	/* create the backup dir before threads start - avoid race */
+	txnfs_create_or_lookup_backup_dir(&backup_dir);
+
+	threads = gsh_calloc(n_threads, sizeof(*threads));
+	args = gsh_calloc(n_threads, sizeof(*args));
+	remaining = opvec.len;
+	op_ptr = opvec.v;
+	for (int i = 0; i < n_threads && remaining > 0;
+	     ++i, remaining -= tasks_per_th) {
+		if (opvec.v[i].opcode != NFS4_OP_WRITE) continue;
+		args[i].myctx = op_ctx;
+		args[i].n_tasks = MIN(tasks_per_th, remaining);
+		args[i].begin = op_ptr;
+		op_ptr += args[i].n_tasks;
+
+		ret = pthread_create(&threads[i], NULL, backup_write_worker,
+				     &args[i]);
+		if (ret) {
+			LogFatal(COMPONENT_FSAL, "thread fail: %d", ret);
+		}
+	}
+
+	/* wait till all finished */
+	for (int i = 0; i < n_threads; ++i) {
+		void *thread_ret;
+		pthread_join(threads[i], &thread_ret);
+		if ((long)thread_ret != 0) {
+			LogFatal(COMPONENT_FSAL, "wr_backup fail: %p",
+				 thread_ret);
+		}
+	}
+end:
+	if (threads) gsh_free(threads);
+	if (args) gsh_free(args);
+	opvec_destroy(&opvec);
+	return ret;
+}
+
 /**
  * Sometimes txn_cache is not initialized before calling txnfs_end_compound
  * because the start_compound method of PSEUDOFS is called. This function is
@@ -387,6 +515,13 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	txnfs_init_handle_set();
 
 	txnfs_tracepoint(init_txn_cache, op_ctx->txnid);
+
+	if (type == VWRITE) {
+		int err = parallelized_backup_write(args);
+		if (err != 0) {
+			LogFatal(COMPONENT_FSAL, "backup_write: %d", err);
+		}
+	}
 
 	op_ctx->op_args = args;
 
@@ -447,13 +582,13 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 
 	// clear the list of entry in op_ctx->txn_cache
 	txnfs_cache_cleanup();
-	/* release all handles in the hash set */
-	txnfs_release_all_handles();
 	txnfs_tracepoint(cleaned_up_cache, op_ctx->txnid);
 	submit_cleanup_task(exp, op_ctx->txnid, op_ctx->txn_bkp_folder);
 	/* backup folder is per transaction, so we should clear this */
 	op_ctx->txn_bkp_folder = NULL;
 	txnfs_tracepoint(cleaned_up_backup, op_ctx->txnid);
+	/* release all handles in the hash set */
+	txnfs_release_all_handles();
 
 	return ret;
 }
@@ -506,8 +641,6 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 	struct txnfs_fsal_export *exp =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct attrlist attrs = {0};
-	loff_t wr_offset = 0;
-	size_t wr_len = 0;
 	char *pathname = NULL;
 	nfsstat4 ret;
 
@@ -578,13 +711,6 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			break;
 
 		case NFS4_OP_WRITE:
-			// TODO: check handle in db
-			wr_offset = op->nfs_argop4_u.opwrite.offset;
-			wr_len = op->nfs_argop4_u.opwrite.data.data_len;
-			txnfs_tracepoint(backup_write, op_ctx->txnid, wr_offset,
-					 wr_len);
-			txnfs_backup_file(opidx, cur_hdl->sub_handle, wr_offset,
-					  wr_len);
 			break;
 
 		default:
