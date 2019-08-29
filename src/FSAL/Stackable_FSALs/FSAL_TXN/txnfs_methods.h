@@ -23,9 +23,11 @@
  */
 #include "cleanup.h"
 #include "fsal_api.h"
+#include "fridgethr.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
 #include "txnfs.h"
+#include <pthread.h>
 #include <uuid/uuid.h>
 
 #ifdef USE_LTTNG
@@ -37,7 +39,7 @@
 #define UUID_KEY_PREFIX "uuid-"
 #define FH_KEY_PREFIX "fhdl-"
 #define PREF_LEN 5
-#define BACKUP_NWORKERS 8
+#define BACKUP_NWORKERS 16
 
 struct txnfs_file_entry {
 	char *name;
@@ -126,6 +128,8 @@ struct txnfs_fsal_export {
 	struct cleanup_queue cqueue;
 	/* A op_ctx dedicated for cleanup thread */
 	struct req_op_context *cleaner_ctx;
+	/* WRITE backup worker pool */
+	struct fridgethr *pool;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
