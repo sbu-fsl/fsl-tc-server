@@ -457,7 +457,6 @@ static int parallelized_backup_write(COMPOUND4args *comp_args)
 		args[i].cond = &cond;
 		fridgethr_submit(exp->pool, backup_write_worker, &args[i]);
 	}
-	fridgethr_start(exp->pool, NULL, NULL, NULL, NULL);
 
 	/* join */
 	opvec_iter(i, &opvec, op) {
@@ -764,7 +763,7 @@ static struct config_block export_param = {
     .blk_desc.u.blk.commit = noop_conf_commit};
 
 static struct fridgethr_params pool_param = {
-	.thr_max = 16,
+	.thr_max = BACKUP_NWORKERS,
 	.thr_min = 4,
 	.thread_delay = 0,
 	.flavor = fridgethr_flavor_worker,
@@ -847,6 +846,7 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 
 	retval = fridgethr_init(&myself->pool, "bkp_workers", &pool_param);
 	assert(retval == 0);
+	fridgethr_start(myself->pool, NULL, NULL, NULL, NULL);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
