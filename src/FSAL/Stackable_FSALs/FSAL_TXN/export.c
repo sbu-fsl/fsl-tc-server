@@ -43,6 +43,7 @@
 #include <os/mntent.h>
 #include <os/quota.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <string.h>
 #include <sys/types.h>
 
@@ -358,13 +359,13 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 
 struct backup_worker_args {
 	struct req_op_context *myctx;
-	struct op_desc *begin;
-	size_t n_tasks;
+	struct op_desc *op;
+	sem_t *cond;
 };
 
-static void *backup_write_worker(void *arg)
+static void backup_write_worker(struct fridgethr_context *ctx)
 {
-	struct backup_worker_args *my_arg = arg;
+	struct backup_worker_args *my_arg = ctx->arg;
 	WRITE4args *write_arg;
 	struct fsal_obj_handle *cur;
 	struct txnfs_fsal_obj_handle *txn_cur;
@@ -374,42 +375,39 @@ static void *backup_write_worker(void *arg)
 	op_ctx = gsh_malloc(sizeof(*op_ctx));
 	memcpy(op_ctx, my_arg->myctx, sizeof(*op_ctx));
 
-	for (int i = 0; i < my_arg->n_tasks; ++i) {
-		write_arg = &my_arg->begin[i].arg->nfs_argop4_u.opwrite;
-		file_handle = my_arg->begin[i].cfh.addr;
-		struct gsh_buffdesc fh = {.addr = file_handle->fsopaque,
-					  .len = file_handle->fs_len};
-		ret = txnfs_create_handle(op_ctx->fsal_export, &fh, &cur, NULL);
-		assert(FSAL_IS_SUCCESS(ret));
-		txn_cur =
-		    container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
+	write_arg = &my_arg->op->arg->nfs_argop4_u.opwrite;
+	file_handle = my_arg->op->cfh.addr;
+	struct gsh_buffdesc fh = {.addr = file_handle->fsopaque,
+				  .len = file_handle->fs_len};
+	ret = txnfs_create_handle(op_ctx->fsal_export, &fh, &cur, NULL);
+	assert(FSAL_IS_SUCCESS(ret));
+	txn_cur =
+	    container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
 
-		ret = txnfs_backup_file(my_arg->begin[i].opidx,
-					txn_cur->sub_handle, write_arg->offset,
-					write_arg->data.data_len);
-		assert(FSAL_IS_SUCCESS(ret));
+	ret = txnfs_backup_file(my_arg->op->opidx,
+				txn_cur->sub_handle, write_arg->offset,
+				write_arg->data.data_len);
+	assert(FSAL_IS_SUCCESS(ret));
 
-		cur->obj_ops->release(cur);
-		cur = NULL;
-	}
+	cur->obj_ops->release(cur);
+	cur = NULL;
 
 	gsh_free(op_ctx);
 
-	return (void *)ret.major;
+	/* signal finish */
+	sem_post(my_arg->cond);
 }
 
 static int parallelized_backup_write(COMPOUND4args *comp_args)
 {
 	struct op_vector opvec;
-	struct op_desc *op_ptr;
-	pthread_t *threads = NULL;
 	struct backup_worker_args *args = NULL;
 	struct fsal_obj_handle *backup_dir = NULL;
-	int tasks_per_th =
-	    MAX(comp_args->argarray.argarray_len / BACKUP_NWORKERS, 1);
-	int n_threads = MIN(comp_args->argarray.argarray_len, BACKUP_NWORKERS);
-	int remaining;
-	int ret = 0;
+	struct op_desc *op;
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	sem_t cond;
+	int ret = 0, i;
 
 	opvec_init(&opvec, op_ctx->txnid);
 
@@ -448,36 +446,26 @@ static int parallelized_backup_write(COMPOUND4args *comp_args)
 	/* create the backup dir before threads start - avoid race */
 	txnfs_create_or_lookup_backup_dir(&backup_dir);
 
-	threads = gsh_calloc(n_threads, sizeof(*threads));
-	args = gsh_calloc(n_threads, sizeof(*args));
-	remaining = opvec.len;
-	op_ptr = opvec.v;
-	for (int i = 0; i < n_threads && remaining > 0;
-	     ++i, remaining -= tasks_per_th) {
-		if (opvec.v[i].opcode != NFS4_OP_WRITE) continue;
+	args = gsh_calloc(opvec.len, sizeof(*args));
+
+	ret = sem_init(&cond, 0, 0);
+
+	/* assembly worker arguments */
+	opvec_iter(i, &opvec, op) {
 		args[i].myctx = op_ctx;
-		args[i].n_tasks = MIN(tasks_per_th, remaining);
-		args[i].begin = op_ptr;
-		op_ptr += args[i].n_tasks;
-
-		ret = pthread_create(&threads[i], NULL, backup_write_worker,
-				     &args[i]);
-		if (ret) {
-			LogFatal(COMPONENT_FSAL, "thread fail: %d", ret);
-		}
+		args[i].op = op;
+		args[i].cond = &cond;
+		fridgethr_submit(exp->pool, backup_write_worker, &args[i]);
 	}
+	fridgethr_start(exp->pool, NULL, NULL, NULL, NULL);
 
-	/* wait till all finished */
-	for (int i = 0; i < n_threads; ++i) {
-		void *thread_ret;
-		pthread_join(threads[i], &thread_ret);
-		if ((long)thread_ret != 0) {
-			LogFatal(COMPONENT_FSAL, "wr_backup fail: %p",
-				 thread_ret);
-		}
+	/* join */
+	opvec_iter(i, &opvec, op) {
+		sem_wait(&cond);
 	}
+	sem_destroy(&cond);
+	
 end:
-	if (threads) gsh_free(threads);
 	if (args) gsh_free(args);
 	opvec_destroy(&opvec);
 	return ret;
@@ -775,6 +763,14 @@ static struct config_block export_param = {
     .blk_desc.u.blk.params = export_params,
     .blk_desc.u.blk.commit = noop_conf_commit};
 
+static struct fridgethr_params pool_param = {
+	.thr_max = 16,
+	.thr_min = 4,
+	.thread_delay = 0,
+	.flavor = fridgethr_flavor_worker,
+	.deferment = fridgethr_defer_queue
+};
+
 /* create_export
  * Create an export point and return a handle to it to be kept
  * in the export list.
@@ -848,6 +844,9 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 
 	get_txn_root(&myself->root, NULL);
 	init_backup_worker(myself);
+
+	retval = fridgethr_init(&myself->pool, "bkp_workers", &pool_param);
+	assert(retval == 0);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
