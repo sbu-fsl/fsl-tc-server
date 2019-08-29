@@ -275,10 +275,14 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	/* let's copy ONLY when source is a regular file */
 	/* TODO: when offset > filesize */
 	if (src_hdl->type == REGULAR_FILE && offset < attrs_out.filesize) {
-		src_offset = offset;
+		/* round offset to comply with the requirement of clone() */
+		/* TODO: adjust the undo executor for correctness */
+		/* round down */
+		src_offset = roundup(offset, 4096) - 4096;
 		sz = (offset + length <= attrs_out.filesize)
 			 ? length
 			 : attrs_out.filesize - offset;
+		sz = roundup(sz, 4096);
 		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
 						  &dst_offset, sz, 0);
 		if (!FSAL_IS_SUCCESS(status)) {
