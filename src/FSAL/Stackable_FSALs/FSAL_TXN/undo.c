@@ -845,7 +845,7 @@ int txnfs_build_opvec(struct op_vector *vector, COMPOUND4args *args,
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
 				ret = opvec_push(vector, i, op, curop_arg,
-						 curop_res, current, saved);
+						 curop_res, current, saved, NULL);
 				break;
 
 			default:
