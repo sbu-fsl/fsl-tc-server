@@ -67,12 +67,12 @@ void opvec_destroy(struct op_vector *vec);
  * @param[in] ptr An op_desc pointer
  */
 #define opvec_iter(i, vec, ptr) \
-	for (i = 0, ptr = vec->v; i < vec->len; ++i, ++ptr)
+	for (i = 0, ptr = (vec)->v; i < (vec)->len; ++i, ++ptr)
 
 /**
  * @brief Iterate a op vector in reverse order
  */
 #define opvec_iter_back(i, vec, ptr) \
-	for (i = vec->len - 1, ptr = &vec->v[vec->len - 1]; i >= 0; --i, --ptr)
+	for (i = (vec)->len - 1, ptr = &(vec)->v[(vec)->len - 1]; i >= 0; --i, --ptr)
 
 #endif
