@@ -48,6 +48,7 @@
 #include "hashtable.h"
 #include "sal_shared.h"
 #include "txnfs.h"
+#include <semaphore.h>
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -425,6 +426,9 @@ struct req_op_context {
 	struct fsal_obj_handle *txn_bkp_folder;
 	/* a set of obj handles used by undo executor for release after use */
 	struct hash_table *txn_hdl_set;
+  /* Joining semaphore for parallel writers */
+  sem_t *writer_sem;
+  enum txnfs_txn_type txn_type;
 };
 
 /**
