@@ -455,7 +455,7 @@ static int parallelized_backup_write(COMPOUND4args *comp_args)
 		args[i].myctx = op_ctx;
 		args[i].op = op;
 		args[i].cond = &cond;
-		fridgethr_submit(exp->pool, backup_write_worker, &args[i]);
+		fridgethr_submit(exp->bk_pool, backup_write_worker, &args[i]);
 	}
 
 	/* join */
@@ -482,7 +482,6 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
-	enum txnfs_txn_type type;
 	struct txnfs_fsal_module *fs =
 	    container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
 
@@ -492,7 +491,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_start_compound, args->argarray.argarray_len);
 
-	op_ctx->txnid = create_txn_log(fs->db, args, &type);
+	op_ctx->txnid = create_txn_log(fs->db, args, &op_ctx->txn_type);
 
 	txnfs_tracepoint(create_txn_log, op_ctx->txnid);
 
@@ -503,11 +502,13 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_txn_cache, op_ctx->txnid);
 
-	if (type == VWRITE) {
+	if (op_ctx->txn_type == VWRITE) {
 		int err = parallelized_backup_write(args);
 		if (err != 0) {
 			LogFatal(COMPONENT_FSAL, "backup_write: %d", err);
 		}
+		op_ctx->writer_sem = gsh_calloc(1, sizeof(sem_t));
+		sem_init(op_ctx->writer_sem, 0, 0);
 	}
 
 	op_ctx->op_args = args;
@@ -551,6 +552,20 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	/* If txn-related data has neven been properly initialized, don't do
 	 * the following operations. */
 	if (!txn_context_valid()) return ret;
+
+	/* For WRITE compounds, wait for all workers before proceeding */
+	if (op_ctx->txn_type == VWRITE) {
+		nfs_argop4 *oparg = op_ctx->op_args->argarray.argarray_val;
+		int len = op_ctx->op_args->argarray.argarray_len;
+		for (int i = 0; i < len; ++i, ++oparg) {
+			if (oparg->argop == NFS4_OP_WRITE) {
+				sem_wait(op_ctx->writer_sem);
+			}
+		}
+		sem_destroy(op_ctx->writer_sem);
+		gsh_free(op_ctx->writer_sem);
+		op_ctx->writer_sem = NULL;
+	}
 
 	txnfs_tracepoint(init_end_compound, res->status, op_ctx->txnid);
 	if (res->status == NFS4_OK) {
@@ -844,9 +859,12 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	get_txn_root(&myself->root, NULL);
 	init_backup_worker(myself);
 
-	retval = fridgethr_init(&myself->pool, "bkp_workers", &pool_param);
+	retval = fridgethr_init(&myself->bk_pool, "bk_workers", &pool_param);
 	assert(retval == 0);
-	fridgethr_start(myself->pool, NULL, NULL, NULL, NULL);
+	retval = fridgethr_init(&myself->wr_pool, "wr_workers", &pool_param);
+	assert(retval == 0);
+	fridgethr_start(myself->bk_pool, NULL, NULL, NULL, NULL);
+	fridgethr_start(myself->wr_pool, NULL, NULL, NULL, NULL);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
