@@ -27,11 +27,13 @@
 
 #include "FSAL/access_check.h"
 #include "FSAL/fsal_commonlib.h"
+#include "fridgethr.h"
 #include "fsal.h"
 #include "fsal_convert.h"
 #include "txnfs_methods.h"
 #include <assert.h>
 #include <fcntl.h>
+#include <semaphore.h>
 #include <unistd.h>
 
 /**
@@ -46,6 +48,15 @@ struct null_async_arg {
 	void *cb_arg;			 /**< Wrapped callback data */
 };
 
+struct txnfs_writer_arg {
+	struct req_op_context *my_ctx;
+	struct fsal_obj_handle *handle;
+	bool bypass;
+	fsal_async_cb callback;
+	struct fsal_io_arg *write_arg;
+	struct null_async_arg *txnfs_arg;
+};
+
 /**
  * @brief Callback for TXN async calls
  *
@@ -53,8 +64,8 @@ struct null_async_arg {
  *
  * @param[in] obj		Object being acted on
  * @param[in] ret		Return status of call
- * @param[in] obj_data		Data for call
- * @param[in] caller_data	Data for caller
+ * @param[in] obj_data		Data for call (aka. write_arg)
+ * @param[in] caller_data	Data for caller (aka. caller_arg)
  */
 void null_async_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
 		   void *obj_data, void *caller_data)
@@ -207,6 +218,24 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	op_ctx->fsal_export = &export->export;
 }
 
+static void txnfs_write_worker(struct fridgethr_context *ctx)
+{
+	struct txnfs_writer_arg *my_arg = ctx->arg;
+	struct fsal_obj_handle *hdl = my_arg->handle;
+	
+	/* make a copy of op context */
+	op_ctx = my_arg->my_ctx;
+
+	/* call sub-FSAL's write2() method */
+	hdl->obj_ops->write2(hdl, my_arg->bypass, my_arg->callback, my_arg->write_arg, my_arg->txnfs_arg);
+
+	/* signal */
+	sem_post(op_ctx->writer_sem);
+
+	gsh_free(op_ctx);
+	gsh_free(my_arg);
+}
+
 void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 		  fsal_async_cb done_cb, struct fsal_io_arg *write_arg,
 		  void *caller_arg)
@@ -217,6 +246,7 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct null_async_arg *arg;
+	struct txnfs_writer_arg *thread_arg;
 
 	/* Set up async callback */
 	arg = gsh_calloc(1, sizeof(*arg));
@@ -224,10 +254,23 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	arg->cb = done_cb;
 	arg->cb_arg = caller_arg;
 
+	/* prepare thread arg */
+	thread_arg = gsh_calloc(1, sizeof(*thread_arg));
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
-					    null_async_cb, write_arg, arg);
+	thread_arg->my_ctx = gsh_malloc(sizeof(*thread_arg->my_ctx));
+	memcpy(thread_arg->my_ctx, op_ctx, sizeof(*op_ctx));
+	thread_arg->bypass = bypass;
+	thread_arg->callback = null_async_cb;
+	thread_arg->handle = handle->sub_handle;
+	thread_arg->txnfs_arg = arg;
+	thread_arg->write_arg = write_arg;
+
+	fridgethr_submit(export->wr_pool, txnfs_write_worker, thread_arg);
+
+	// handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
+	// 				    null_async_cb, write_arg, arg);
 	op_ctx->fsal_export = &export->export;
 }
 
