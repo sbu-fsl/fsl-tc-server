@@ -129,7 +129,9 @@ struct txnfs_fsal_export {
 	/* A op_ctx dedicated for cleanup thread */
 	struct req_op_context *cleaner_ctx;
 	/* WRITE backup worker pool */
-	struct fridgethr *pool;
+	struct fridgethr *bk_pool;
+	/* WRITE operation worker pool */
+	struct fridgethr *wr_pool;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
