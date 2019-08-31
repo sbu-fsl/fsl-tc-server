@@ -278,7 +278,7 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 		/* round offset to comply with the requirement of clone() */
 		/* TODO: adjust the undo executor for correctness */
 		/* round down */
-		src_offset = roundup(offset, 4096) - 4096;
+		src_offset = (offset > 0) ? roundup(offset, 4096) - 4096 : 0;
 		sz = (offset + length <= attrs_out.filesize)
 			 ? length
 			 : attrs_out.filesize - offset;
