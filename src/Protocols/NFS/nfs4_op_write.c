@@ -98,6 +98,8 @@ done:
 
 	if (write_arg->state)
 		dec_state_t_ref(write_arg->state);
+
+	gsh_free(caller_data);
 }
 
 /**
@@ -222,7 +224,7 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 		atomic_fetch_uint64_t(&op_ctx->ctx_export->MaxWrite);
 	uint64_t MaxOffsetWrite =
 		atomic_fetch_uint64_t(&op_ctx->ctx_export->MaxOffsetWrite);
-	struct nfs4_write_data write_data;
+	struct nfs4_write_data *write_data = gsh_malloc(sizeof(*write_data));
 	struct fsal_io_arg *write_arg = alloca(sizeof(*write_arg) +
 						sizeof(struct iovec));
 
@@ -452,11 +454,11 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 		write_arg->fsal_stable = true;
 
 
-	write_data.res_WRITE4 = res_WRITE4;
-	write_data.owner = owner;
+	write_data->res_WRITE4 = res_WRITE4;
+	write_data->owner = owner;
 
 	/* Do the actual write */
-	obj->obj_ops->write2(obj, false, nfs4_write_cb, write_arg, &write_data);
+	obj->obj_ops->write2(obj, false, nfs4_write_cb, write_arg, write_data);
 
  out:
 
