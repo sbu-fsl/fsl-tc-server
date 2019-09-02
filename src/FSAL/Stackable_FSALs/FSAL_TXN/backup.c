@@ -278,17 +278,17 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 		/* round offset to comply with the requirement of clone() */
 		/* TODO: adjust the undo executor for correctness */
 		/* round down */
-		src_offset = (offset > 0) ? roundup(offset, 4096) - 4096 : 0;
+		src_offset = offset;
 		sz = (offset + length <= attrs_out.filesize)
 			 ? length
 			 : attrs_out.filesize - offset;
-		sz = roundup(sz, 4096);
 		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
 						  &dst_offset, sz, 0);
 		if (!FSAL_IS_SUCCESS(status)) {
-			LogDebug(COMPONENT_FSAL,
-				 "clone failed (%d, %d), try copy",
-				 status.major, status.minor);
+			LogWarn(COMPONENT_FSAL,
+				"clone failed (%d, %d), try copy, "
+				"offset=%ld, sz=%zu",
+				status.major, status.minor, src_offset, sz);
 			src_offset = offset;
 			dst_offset = 0;
 			status = fsal_copy(src_hdl, src_offset, dst_hdl,
