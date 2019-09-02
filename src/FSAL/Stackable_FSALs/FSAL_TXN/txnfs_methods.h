@@ -128,8 +128,6 @@ struct txnfs_fsal_export {
 	struct cleanup_queue cqueue;
 	/* A op_ctx dedicated for cleanup thread */
 	struct req_op_context *cleaner_ctx;
-	/* WRITE backup worker pool */
-	struct fridgethr *bk_pool;
 	/* WRITE operation worker pool */
 	struct fridgethr *wr_pool;
 };

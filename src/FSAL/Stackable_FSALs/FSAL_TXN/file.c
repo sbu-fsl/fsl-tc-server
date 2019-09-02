@@ -221,17 +221,31 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 
 static void txnfs_write_worker(struct fridgethr_context *ctx)
 {
+	struct txnfs_fsal_export *exp;
 	struct txnfs_writer_arg *my_arg = ctx->arg;
 	struct fsal_obj_handle *hdl = my_arg->handle;
 	sem_t *signal;
+	loff_t offset = my_arg->write_arg->offset;
+	size_t len = my_arg->write_arg->iov[0].iov_len;
+	fsal_status_t ret = {0};
 
 	/* make a copy of op context */
 	op_ctx = my_arg->my_ctx;
 	signal = op_ctx->writer_sem;
+	exp = container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 
-	/* call sub-FSAL's write2() method */
-	hdl->obj_ops->write2(hdl, my_arg->bypass, my_arg->callback,
+	/* backup first */
+	ret = txnfs_backup_file(op_ctx->opidx, hdl, offset, len);
+	if (likely(FSAL_IS_SUCCESS(ret))) {
+		/* call sub-fsal's write2 method */
+		op_ctx->fsal_export = exp->export.sub_export;
+		hdl->obj_ops->write2(hdl, my_arg->bypass, my_arg->callback,
 			     my_arg->write_arg, my_arg->txnfs_arg);
+		/* no need to switch back because op_ctx has been freed */
+	} else {
+		/* backup failed: error out */
+		my_arg->callback(hdl, ret, my_arg->write_arg, my_arg->txnfs_arg);
+	}
 
 	/* signal */
 	sem_post(signal);
@@ -266,8 +280,7 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	/* prepare thread arg */
 	thread_arg = (void *)((char *)myctx + sizeof(*myctx));
 
-	/* calling subfsal method */
-	op_ctx->fsal_export = export->export.sub_export;
+	/* assembly thread arg & data and submit task */
 	memcpy(myctx, op_ctx, sizeof(*op_ctx));
 	thread_arg->my_ctx = myctx;
 	thread_arg->bypass = bypass;
@@ -280,7 +293,6 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 
 	// handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
 	// 				    null_async_cb, write_arg, arg);
-	op_ctx->fsal_export = &export->export;
 }
 
 fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,

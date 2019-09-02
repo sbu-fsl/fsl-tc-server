@@ -357,119 +357,6 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
 	op_ctx->fsal_export = &exp->export;
 }
 
-struct backup_worker_args {
-	struct req_op_context *myctx;
-	struct op_desc *op;
-	sem_t *cond;
-};
-
-static void backup_write_worker(struct fridgethr_context *ctx)
-{
-	struct backup_worker_args *my_arg = ctx->arg;
-	WRITE4args *write_arg;
-	struct fsal_obj_handle *cur;
-	struct txnfs_fsal_obj_handle *txn_cur;
-	file_handle_v4_t *file_handle;
-	fsal_status_t ret = {0};
-
-	op_ctx = gsh_malloc(sizeof(*op_ctx));
-	memcpy(op_ctx, my_arg->myctx, sizeof(*op_ctx));
-
-	write_arg = &my_arg->op->arg->nfs_argop4_u.opwrite;
-	file_handle = my_arg->op->cfh.addr;
-	struct gsh_buffdesc fh = {.addr = file_handle->fsopaque,
-				  .len = file_handle->fs_len};
-	ret = txnfs_create_handle(op_ctx->fsal_export, &fh, &cur, NULL);
-	assert(FSAL_IS_SUCCESS(ret));
-	txn_cur =
-	    container_of(cur, struct txnfs_fsal_obj_handle, obj_handle);
-
-	ret = txnfs_backup_file(my_arg->op->opidx,
-				txn_cur->sub_handle, write_arg->offset,
-				write_arg->data.data_len);
-	assert(FSAL_IS_SUCCESS(ret));
-
-	cur->obj_ops->release(cur);
-	cur = NULL;
-
-	gsh_free(op_ctx);
-
-	/* signal finish */
-	sem_post(my_arg->cond);
-}
-
-static int parallelized_backup_write(COMPOUND4args *comp_args)
-{
-	struct op_vector opvec;
-	struct backup_worker_args *args = NULL;
-	struct fsal_obj_handle *backup_dir = NULL;
-	struct op_desc *op;
-	struct txnfs_fsal_export *exp =
-	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
-	sem_t cond;
-	int ret = 0, i;
-
-	opvec_init(&opvec, op_ctx->txnid);
-
-	/* We assume that a typical WRITE compound has only PUTFH, WRITE *
-	 * and GETATTR operations. And SEQUENCE. */
-	struct gsh_buffdesc current_FH = {0};
-	for (int i = 0; i < comp_args->argarray.argarray_len; ++i) {
-		nfs_argop4 *arg = &comp_args->argarray.argarray_val[i];
-		switch (arg->argop) {
-			case NFS4_OP_PUTFH:
-				current_FH.addr = arg->nfs_argop4_u.opputfh
-						      .object.nfs_fh4_val;
-				current_FH.len = arg->nfs_argop4_u.opputfh
-						     .object.nfs_fh4_len;
-				break;
-
-			case NFS4_OP_WRITE:
-				opvec_push(&opvec, i, arg->argop, arg, NULL,
-					   NULL, NULL, &current_FH);
-				break;
-
-			case NFS4_OP_SEQUENCE:
-			case NFS4_OP_GETATTR:
-				break;
-
-			default:
-				LogWarn(COMPONENT_FSAL,
-					"write_comp has op %d"
-					"cannot parallel.",
-					arg->argop);
-				ret = ERR_FSAL_NOTSUPP;
-				goto end;
-		}
-	}
-
-	/* create the backup dir before threads start - avoid race */
-	txnfs_create_or_lookup_backup_dir(&backup_dir);
-
-	args = gsh_calloc(opvec.len, sizeof(*args));
-
-	ret = sem_init(&cond, 0, 0);
-
-	/* assembly worker arguments */
-	opvec_iter(i, &opvec, op) {
-		args[i].myctx = op_ctx;
-		args[i].op = op;
-		args[i].cond = &cond;
-		fridgethr_submit(exp->bk_pool, backup_write_worker, &args[i]);
-	}
-
-	/* join */
-	opvec_iter(i, &opvec, op) {
-		sem_wait(&cond);
-	}
-	sem_destroy(&cond);
-	
-end:
-	if (args) gsh_free(args);
-	opvec_destroy(&opvec);
-	return ret;
-}
-
 /**
  * Sometimes txn_cache is not initialized before calling txnfs_end_compound
  * because the start_compound method of PSEUDOFS is called. This function is
@@ -503,10 +390,6 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	txnfs_tracepoint(init_txn_cache, op_ctx->txnid);
 
 	if (op_ctx->txn_type == VWRITE) {
-		int err = parallelized_backup_write(args);
-		if (err != 0) {
-			LogFatal(COMPONENT_FSAL, "backup_write: %d", err);
-		}
 		op_ctx->writer_sem = gsh_calloc(1, sizeof(sem_t));
 		sem_init(op_ctx->writer_sem, 0, 0);
 	}
@@ -713,6 +596,8 @@ fsal_status_t txnfs_backup_nfs4_op(struct fsal_export *exp_hdl,
 			break;
 
 		case NFS4_OP_WRITE:
+			/* create the backup dir first to prevent race */
+			txnfs_create_or_lookup_backup_dir(&handle);
 			break;
 
 		default:
@@ -859,11 +744,8 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	get_txn_root(&myself->root, NULL);
 	init_backup_worker(myself);
 
-	retval = fridgethr_init(&myself->bk_pool, "bk_workers", &pool_param);
-	assert(retval == 0);
 	retval = fridgethr_init(&myself->wr_pool, "wr_workers", &pool_param);
 	assert(retval == 0);
-	fridgethr_start(myself->bk_pool, NULL, NULL, NULL, NULL);
 	fridgethr_start(myself->wr_pool, NULL, NULL, NULL, NULL);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
