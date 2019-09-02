@@ -125,7 +125,8 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 	    verifier, &sub_handle, attrs_out, caller_perm_check);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "open");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "open");
 	if (sub_handle) {
 		bool is_creation = createmode != FSAL_NO_CREATE;
 		/* wrap the subfsal handle in a txnfs handle. */
@@ -222,18 +223,18 @@ static void txnfs_write_worker(struct fridgethr_context *ctx)
 {
 	struct txnfs_writer_arg *my_arg = ctx->arg;
 	struct fsal_obj_handle *hdl = my_arg->handle;
-	
+	sem_t *signal;
+
 	/* make a copy of op context */
 	op_ctx = my_arg->my_ctx;
+	signal = op_ctx->writer_sem;
 
 	/* call sub-FSAL's write2() method */
-	hdl->obj_ops->write2(hdl, my_arg->bypass, my_arg->callback, my_arg->write_arg, my_arg->txnfs_arg);
+	hdl->obj_ops->write2(hdl, my_arg->bypass, my_arg->callback,
+			     my_arg->write_arg, my_arg->txnfs_arg);
 
 	/* signal */
-	sem_post(op_ctx->writer_sem);
-
-	gsh_free(op_ctx);
-	gsh_free(my_arg);
+	sem_post(signal);
 }
 
 void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
@@ -246,21 +247,29 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct null_async_arg *arg;
+	struct req_op_context *myctx;
 	struct txnfs_writer_arg *thread_arg;
+	/* allocate memory contiguously to avoid multiple mallocs */
+	/* layout: arg --> myctx --> thread_arg */
+	void *data =
+	    gsh_malloc(sizeof(*arg) + sizeof(*thread_arg) + sizeof(*op_ctx));
 
 	/* Set up async callback */
-	arg = gsh_calloc(1, sizeof(*arg));
+	arg = data;
 	arg->obj_hdl = obj_hdl;
 	arg->cb = done_cb;
 	arg->cb_arg = caller_arg;
 
+	/* opctx for the child thread */
+	myctx = (void *)((char *)data + sizeof(*arg));
+
 	/* prepare thread arg */
-	thread_arg = gsh_calloc(1, sizeof(*thread_arg));
+	thread_arg = (void *)((char *)myctx + sizeof(*myctx));
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	thread_arg->my_ctx = gsh_malloc(sizeof(*thread_arg->my_ctx));
-	memcpy(thread_arg->my_ctx, op_ctx, sizeof(*op_ctx));
+	memcpy(myctx, op_ctx, sizeof(*op_ctx));
+	thread_arg->my_ctx = myctx;
 	thread_arg->bypass = bypass;
 	thread_arg->callback = null_async_cb;
 	thread_arg->handle = handle->sub_handle;
