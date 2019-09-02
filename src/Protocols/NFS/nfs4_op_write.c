@@ -100,6 +100,7 @@ done:
 		dec_state_t_ref(write_arg->state);
 
 	gsh_free(caller_data);
+	gsh_free(write_data);
 }
 
 /**
@@ -225,7 +226,7 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 	uint64_t MaxOffsetWrite =
 		atomic_fetch_uint64_t(&op_ctx->ctx_export->MaxOffsetWrite);
 	struct nfs4_write_data *write_data = gsh_malloc(sizeof(*write_data));
-	struct fsal_io_arg *write_arg = alloca(sizeof(*write_arg) +
+	struct fsal_io_arg *write_arg = gsh_malloc(sizeof(*write_arg) +
 						sizeof(struct iovec));
 
 	/* Lock are not supported */
