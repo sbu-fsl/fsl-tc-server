@@ -664,7 +664,7 @@ static struct config_block export_param = {
 
 static struct fridgethr_params pool_param = {
 	.thr_max = BACKUP_NWORKERS,
-	.thr_min = 4,
+	.thr_min = BACKUP_NWORKERS / 2, 
 	.thread_delay = 0,
 	.flavor = fridgethr_flavor_worker,
 	.deferment = fridgethr_defer_queue
