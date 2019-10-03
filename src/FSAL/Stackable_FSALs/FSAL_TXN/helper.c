@@ -23,14 +23,6 @@
 #include "txnfs_methods.h"
 #include <assert.h>
 
-static inline void txnfs_cache_expand(void)
-{
-	op_ctx->txn_cache->entries = gsh_realloc(
-	    op_ctx->txn_cache->entries,
-	    op_ctx->txn_cache->capacity * 2 * sizeof(struct txnfs_cache_entry));
-	op_ctx->txn_cache->capacity *= 2;
-}
-
 static inline int txnfs_cache_cmpfh(struct txnfs_cache_entry *ent,
 				    struct gsh_buffdesc *buf)
 {
@@ -56,8 +48,7 @@ int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 	assert((entry_type == txnfs_cache_entry_create && hdl_desc) ||
 	       (entry_type == txnfs_cache_entry_delete));
 
-	if (unlikely(op_ctx->txn_cache->size >= op_ctx->txn_cache->capacity))
-		txnfs_cache_expand();
+	assert(likely(op_ctx->txn_cache->size <= op_ctx->txn_cache->capacity));
 
 	struct txnfs_cache_entry *entry =
 	    op_ctx->txn_cache->entries + op_ctx->txn_cache->size;
@@ -145,14 +136,22 @@ int txnfs_cache_delete_uuid(uuid_t uuid)
 
 void txnfs_cache_init(uint32_t compound_size)
 {
+	size_t cap = MIN(compound_size, TXN_CACHE_CAP);
+
 	if (op_ctx->txn_cache)
 		LogFatal(COMPONENT_FSAL,
 			 "txnfs cache has already been initialized");
-	op_ctx->txn_cache = gsh_calloc(1, sizeof(*op_ctx->txn_cache));
-	op_ctx->txn_cache->capacity = MIN(compound_size, TXN_CACHE_CAP);
+	/* Ganesha limits the max number of operations in a compound
+	 * to be 256. Therefore the txnfs cache's size can be fixed
+	 * to min(256, number of ops). */
+	op_ctx->txn_cache =
+	    gsh_calloc(1, sizeof(*op_ctx->txn_cache) +
+			      sizeof(struct txnfs_cache_entry) * cap);
+	op_ctx->txn_cache->capacity = cap;
 	op_ctx->txn_cache->size = 0;
-	op_ctx->txn_cache->entries = gsh_calloc(
-	    op_ctx->txn_cache->capacity, sizeof(struct txnfs_cache_entry));
+	op_ctx->txn_cache->entries =
+	    (struct txnfs_cache_entry *)((char *)op_ctx->txn_cache +
+					 sizeof(*op_ctx->txn_cache));
 }
 
 static inline void combine_prefix(const char *prefix, const size_t prefix_len,
@@ -256,7 +255,6 @@ void txnfs_cache_cleanup(void)
 {
 	if (!op_ctx->txn_cache)
 		LogFatal(COMPONENT_FSAL, "attempt to destroy null cache");
-	gsh_free(op_ctx->txn_cache->entries);
 	op_ctx->txn_cache->capacity = 0;
 	gsh_free(op_ctx->txn_cache);
 	op_ctx->txn_cache = NULL;
