@@ -10,6 +10,10 @@
 /* Default vector capacity */
 #define TXN_CACHE_CAP 256
 
+/* TXN cache. This is a continuously allocated vector
+ * that buffers file handle insertion or removal.
+ * @c entries is an array whose size and capacity are
+ * given by the struct. */
 struct txnfs_cache {
 	uint32_t size;
 	uint32_t capacity;
