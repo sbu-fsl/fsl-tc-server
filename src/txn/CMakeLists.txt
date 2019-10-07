@@ -77,6 +77,8 @@ add_cpplib(txn_context uuid)
 
 add_cpplib(lock_manager lwrapper)
 
+add_library(path_utils STATIC "util/path_utils.cpp")
+
 # add_cpplib(pre_generate_uuid protobuf)
 
 find_package(Protobuf REQUIRED)
