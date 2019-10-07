@@ -114,13 +114,17 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 	    verifier, &sub_handle, attrs_out, caller_perm_check);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "open");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "open");
 	if (sub_handle) {
 		bool is_creation = createmode != FSAL_NO_CREATE;
 		/* wrap the subfsal handle in a txnfs handle. */
-		return txnfs_alloc_and_check_handle(export, sub_handle,
-						    obj_hdl->fs, new_obj,
-						    status, is_creation);
+		const char *parent_path = obj_hdl->absolute_path;
+		const char *filename = (is_creation) ? name : "";
+
+		return txnfs_alloc_and_check_handle(
+		    export, sub_handle, obj_hdl->fs, new_obj, parent_path,
+		    filename, status, is_creation);
 	}
 
 	return status;

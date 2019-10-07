@@ -102,6 +102,7 @@ struct next_ops {
 struct txnfs_readdir_state {
 	fsal_readdir_cb cb;	    /*< Callback to the upper layer. */
 	struct txnfs_fsal_export *exp; /*< Export of the current txnfsal. */
+	char *parent_path;	     /*< Absolute path of the parent dir */
 	void *dir_state; /*< State to be sent to the next callback. */
 };
 
@@ -135,12 +136,11 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 				  struct fsal_obj_handle **handle,
 				  struct attrlist *attrs_out);
 
-fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
-					   struct fsal_obj_handle *sub_handle,
-					   struct fsal_filesystem *fs,
-					   struct fsal_obj_handle **new_handle,
-					   fsal_status_t subfsal_status,
-					   bool is_creation);
+fsal_status_t txnfs_alloc_and_check_handle(
+    struct txnfs_fsal_export *export, struct fsal_obj_handle *sub_handle,
+    struct fsal_filesystem *fs, struct fsal_obj_handle **new_handle,
+    const char *parent_path, const char *this_path,
+    fsal_status_t subfsal_status, bool is_creation);
 
 /*
  * TXNFS internal object handle

@@ -29,6 +29,7 @@
 #include "fsal_convert.h"
 #include "gsh_list.h"
 #include "nfs4_acls.h"
+#include "path_utils.h"
 #include "txnfs_methods.h"
 #include <libgen.h> /* used for 'dirname' */
 #include <os/subr.h>
@@ -51,12 +52,14 @@
  * @param[in] export The txnfs export used by the handle.
  * @param[in] sub_handle The handle used by the subfsal.
  * @param[in] fs The filesystem of the new handle.
+ * @param[in] uuid
+ * @param[in] abs_path	Absolute path of the file represente by this handle
  *
  * @return The new handle, or NULL if the allocation failed.
  */
 static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
     struct txnfs_fsal_export *export, struct fsal_obj_handle *sub_handle,
-    struct fsal_filesystem *fs, uuid_t uuid)
+    struct fsal_filesystem *fs, uuid_t uuid, char *abs_path)
 {
 	struct txnfs_fsal_obj_handle *result;
 	UDBG;
@@ -74,6 +77,7 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
 	result->obj_handle.fileid = sub_handle->fileid;
 	result->obj_handle.fs = fs;
 	result->obj_handle.state_hdl = sub_handle->state_hdl;
+	result->obj_handle.absolute_path = abs_path;
 	result->refcnt = 1;
 
 	// copy uuid
@@ -93,18 +97,23 @@ static struct txnfs_fsal_obj_handle *txnfs_alloc_handle(
  * @param[in] fs The filesystem of the new handle.
  * @param[in] new_handle Address where the new allocated pointer should be
  * written.
+ * @param[in] parent_path The absolute path of the parent handle.
+ * @param[in] this_path	The name of the file represented by this new handle.
  * @param[in] subfsal_status Result of the allocation of the subfsal handle.
+ * @param[in] is_creation Indicate whether this is called by a creation
+ * operation.
  *
  * @return An error code for the function.
  */
-fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
-					   struct fsal_obj_handle *sub_handle,
-					   struct fsal_filesystem *fs,
-					   struct fsal_obj_handle **new_handle,
-					   fsal_status_t subfsal_status,
-					   bool is_creation)
+fsal_status_t txnfs_alloc_and_check_handle(
+    struct txnfs_fsal_export *export, struct fsal_obj_handle *sub_handle,
+    struct fsal_filesystem *fs, struct fsal_obj_handle **new_handle,
+    const char *parent_path, const char *this_path,
+    fsal_status_t subfsal_status, bool is_creation)
 {
 	struct gsh_buffdesc fh_desc;
+	char *abs_path;
+	int ret = 0;
 	UDBG;
 
 	if (FSAL_IS_ERROR(subfsal_status)) return subfsal_status;
@@ -120,11 +129,25 @@ fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
 	sub_handle->obj_ops->handle_to_key(sub_handle, &fh_desc);
 	op_ctx->fsal_export = &export->export;
 
+	/* construct absolute pathname */
+	abs_path = gsh_calloc(1, PATH_MAX);
+	strncpy(abs_path, parent_path, PATH_MAX);
+	ret = tc_path_join(abs_path, this_path, abs_path, PATH_MAX);
+	if (ret < 0) {
+		LogFatal(COMPONENT_FSAL, "path join failed: %d", ret);
+	}
+	/* shrink to the real length of the path plus a 0 terminator */
+	abs_path = gsh_realloc(abs_path, ret + 1);
+	abs_path[ret] = '\0';
+	LogDebug(COMPONENT_FSAL, "fsal obj hdl=%p, abs path: %s", *new_handle,
+		 abs_path);
+
 	if (is_creation) {
 		uuid_t uuid;
 		int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 		assert(ret == 0);
-		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, uuid);
+		txn_handle =
+		    txnfs_alloc_handle(export, sub_handle, fs, uuid, abs_path);
 	} else {
 		uuid_t uuid;
 		int ret = txnfs_db_get_uuid(&fh_desc, uuid);
@@ -135,10 +158,14 @@ fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
 			int ret = txnfs_db_insert_handle(&fh_desc, uuid);
 			assert(ret == 0);
 		}
-		txn_handle = txnfs_alloc_handle(export, sub_handle, fs, uuid);
+		txn_handle =
+		    txnfs_alloc_handle(export, sub_handle, fs, uuid, abs_path);
 	}
 	*new_handle = &txn_handle->obj_handle;
-	txnfs_tracepoint(alloc_handle, *new_handle, txn_handle->obj_handle.fileid, txn_handle->obj_handle.type);
+
+	txnfs_tracepoint(alloc_handle, *new_handle,
+			 txn_handle->obj_handle.fileid,
+			 txn_handle->obj_handle.type);
 	return status;
 }
 
@@ -169,12 +196,13 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent, const char *path,
 	    txn_parent->sub_handle, path, &sub_handle, attrs_out);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "lookup");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "lookup");
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, parent->fs,
-					    handle, status,
-					    false /* is_creation */
+					    handle, parent->absolute_path, path,
+					    status, false /* is_creation */
 	);
 }
 
@@ -200,12 +228,13 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl, const char *name,
 	    parent_hdl->sub_handle, name, attrs_in, &sub_handle, attrs_out);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "mkdir");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "mkdir");
 
 	/* wraping the subfsal handle in a txnfs handle. */
-	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					    new_obj, status,
-					    true /* is_creation */);
+	return txnfs_alloc_and_check_handle(
+	    export, sub_handle, dir_hdl->fs, new_obj, dir_hdl->absolute_path,
+	    name, status, true /* is_creation */);
 }
 
 static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl, const char *name,
@@ -233,12 +262,13 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl, const char *name,
 	    attrs_out);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "mknode");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "mknode");
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					    new_obj, status,
-					    true /* is_creation */
+					    new_obj, dir_hdl->absolute_path,
+					    name, status, true /* is_creation */
 	);
 }
 
@@ -273,12 +303,13 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 	    attrs_out);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "symlink");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "symlink");
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
-					    new_obj, status,
-					    true /* is_creation */
+					    new_obj, dir_hdl->absolute_path,
+					    name, status, true /* is_creation */
 	);
 }
 
@@ -345,7 +376,8 @@ static enum fsal_dir_result txnfs_readdir_cb(const char *name,
 	UDBG;
 	if (FSAL_IS_ERROR(txnfs_alloc_and_check_handle(
 		state->exp, sub_handle, sub_handle->fs, &new_obj,
-		fsalstat(ERR_FSAL_NO_ERROR, 0), false))) {
+		state->parent_path, name, fsalstat(ERR_FSAL_NO_ERROR, 0),
+		false))) {
 		return false;
 	}
 
@@ -381,7 +413,10 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 
 	struct txnfs_readdir_state cb_state = {
-	    .cb = cb, .dir_state = dir_state, .exp = export};
+	    .cb = cb,
+	    .dir_state = dir_state,
+	    .exp = export,
+	    .parent_path = dir_hdl->absolute_path};
 	UDBG;
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
@@ -601,9 +636,10 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 
 end:
 	op_ctx->fsal_export = &export->export;
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "mkdir");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "mkdir");
 	if (FSAL_IS_SUCCESS(status)) {
- 		txnfs_db_delete_uuid(txnfs_obj->uuid);
+		txnfs_db_delete_uuid(txnfs_obj->uuid);
 		txnfs_tracepoint(delete_uuid, obj_hdl->fileid);
 	}
 
@@ -682,6 +718,7 @@ static void release(struct fsal_obj_handle *obj_hdl)
 
 	/* cleaning data allocated by txnfs */
 	fsal_obj_handle_fini(&hdl->obj_handle);
+	gsh_free(obj_hdl->absolute_path);
 	gsh_free(hdl);
 }
 
@@ -789,9 +826,10 @@ fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "lookupp");
-	return txnfs_alloc_and_check_handle(exp, sub_handle, NULL, handle,
-					    status,
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "lookupp");
+	return txnfs_alloc_and_check_handle(exp, sub_handle, NULL, handle, path,
+					    "", status,
 					    !txnfs_db_handle_exists(&fh_desc));
 }
 
@@ -854,7 +892,15 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "create_handle");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "create_handle");
+	/* NOTE: handles created by this function does NOT come with a pathname.
+	 * Fortunately this function won't be called by NFS protocol layer
+	 * because create_handle will be absorbed by MDCACHE. 
+	 * 
+	 * TODO: However, undo executor calls this and we need to think of
+	 * workarounds. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, NULL, handle,
-					    status, false /* is_creation */);
+					    "", "", status,
+					    false /* is_creation */);
 }
