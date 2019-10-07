@@ -18,6 +18,7 @@
  *
  */
 
+#include "common_types.h"
 #include "path_utils.h"
 
 #include <assert.h>

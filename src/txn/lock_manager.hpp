@@ -8,7 +8,7 @@
 #include <vector>
 #include <set>
 
-#include "util/path_utils.h"
+#include "path_utils.h"
 #include "util/slice.h"
 
 // Contains C interface

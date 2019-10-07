@@ -4,7 +4,8 @@
 #include <linux/limits.h>
 #include <stdio.h>
 
-#include "util/path_utils.h"
+#include "path_utils.h"
+#include "common_types.h"
 #include "util/slice.h"
 
 LockManager::LockRefCount::LockRefCount(bool write_lock)
