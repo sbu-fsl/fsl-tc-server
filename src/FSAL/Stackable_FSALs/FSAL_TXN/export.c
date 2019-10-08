@@ -69,6 +69,9 @@ static void release(struct fsal_export *exp_hdl)
 	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
 	free_export_ops(exp_hdl);
 
+	/* free lock manager */
+	free_lock_manager(myself->lm);
+
 	gsh_free(myself); /* elvis has left the building */
 }
 
@@ -709,6 +712,10 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	myself->root = NULL;
 	myself->bkproot = NULL;
 	op_ctx->txn_bkp_folder = NULL;
+
+	/* init lock manager */
+	myself->lm = new_lock_manager();
+	assert(myself->lm);
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.

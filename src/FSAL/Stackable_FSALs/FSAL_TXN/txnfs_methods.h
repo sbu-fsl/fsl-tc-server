@@ -125,6 +125,8 @@ struct txnfs_fsal_export {
 	struct cleanup_queue cqueue;
 	/* A op_ctx dedicated for cleanup thread */
 	struct req_op_context *cleaner_ctx;
+  /* Lock manager object (Opaque) */
+  lock_manager_t *lm;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
