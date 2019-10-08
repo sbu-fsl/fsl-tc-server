@@ -197,6 +197,13 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct null_async_arg *arg;
+	/* variables for locking */
+	lock_manager_t *lm = export->lm;
+	lock_request_t lockreq = {
+		.path = obj_hdl->absolute_path,
+		.write_lock = false 
+	};
+	lock_handle_t *lock_hdl;
 
 	/* Set up async callback */
 	arg = gsh_calloc(1, sizeof(*arg));
@@ -204,11 +211,18 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	arg->cb = done_cb;
 	arg->cb_arg = caller_arg;
 
+	/* request lock */
+	lock_hdl = lm_lock(lm, &lockreq, 1);
+	assert(lock_hdl);
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass,
 					   null_async_cb, read_arg, arg);
 	op_ctx->fsal_export = &export->export;
+
+	/* unlock */
+	unlock_handle(lock_hdl);
 }
 
 void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
@@ -221,6 +235,13 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct null_async_arg *arg;
+	/* locking */
+	lock_manager_t *lm = export->lm;
+	lock_request_t lockreq = {
+		.path = obj_hdl->absolute_path,
+		.write_lock = true
+	};
+	lock_handle_t *lock_hdl;
 
 	/* Set up async callback */
 	arg = gsh_calloc(1, sizeof(*arg));
@@ -228,11 +249,18 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	arg->cb = done_cb;
 	arg->cb_arg = caller_arg;
 
+	/* lock */
+	lock_hdl = lm_lock(lm, &lockreq, 1);
+	assert(lock_hdl);
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
 					    null_async_cb, write_arg, arg);
 	op_ctx->fsal_export = &export->export;
+
+	/* unlock */
+	unlock_handle(lock_hdl);
 }
 
 fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
