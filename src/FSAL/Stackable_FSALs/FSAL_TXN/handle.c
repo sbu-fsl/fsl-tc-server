@@ -219,6 +219,14 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl, const char *name,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 
+	/* lock the parent dir */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_req = {.path = dir_hdl->absolute_path,
+				   .write_lock = true};
+	lock_hdl = lm_lock(lm, &lock_req, 1);
+	assert(lock_hdl);
+
 	/** Subfsal handle of the new directory.*/
 	struct fsal_obj_handle *sub_handle;
 	UDBG;
@@ -230,6 +238,9 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl, const char *name,
 
 	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
 			 op_ctx->txnid, "mkdir");
+
+	/* unlock after sub-fsal is done */
+	unlock_handle(lock_hdl);
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(
@@ -253,6 +264,14 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl, const char *name,
 	/** Subfsal handle of the new node.*/
 	struct fsal_obj_handle *sub_handle;
 
+	/* lock the parent dir */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_req = {.path = dir_hdl->absolute_path,
+				   .write_lock = true};
+	lock_hdl = lm_lock(lm, &lock_req, 1);
+	assert(lock_hdl);
+
 	*new_obj = NULL;
 
 	/* Creating the node with a subfsal handle. */
@@ -264,6 +283,9 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl, const char *name,
 
 	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
 			 op_ctx->txnid, "mknode");
+
+	/* unlock */
+	unlock_handle(lock_hdl);
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
@@ -296,6 +318,14 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 	UDBG;
 	*new_obj = NULL;
 
+	/* lock the parent dir */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_req = {.path = dir_hdl->absolute_path,
+				   .write_lock = true};
+	lock_hdl = lm_lock(lm, &lock_req, 1);
+	assert(lock_hdl);
+
 	/* creating the file with a subfsal handle. */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = txnfs_dir->sub_handle->obj_ops->symlink(
@@ -305,6 +335,8 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 
 	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
 			 op_ctx->txnid, "symlink");
+
+	unlock_handle(lock_hdl);
 
 	/* wraping the subfsal handle in a txnfs handle. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
@@ -322,11 +354,22 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	UDBG;
+
+	/* lock the parent dir */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_req = {.path = obj_hdl->absolute_path,
+				   .write_lock = false};
+	lock_hdl = lm_lock(lm, &lock_req, 1);
+	assert(lock_hdl);
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = handle->sub_handle->obj_ops->readlink(
 	    handle->sub_handle, link_content, refresh);
 	op_ctx->fsal_export = &export->export;
+
+	unlock_handle(lock_hdl);
 
 	return status;
 }
@@ -342,12 +385,22 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	UDBG;
+	/* lock the parent dir */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_req[2] = {
+	    {.path = obj_hdl->absolute_path, .write_lock = false},
+	    {.path = destdir_hdl->absolute_path, .write_lock = true}};
+	lock_hdl = lm_lock(lm, lock_req, 2);
+	assert(lock_hdl);
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = handle->sub_handle->obj_ops->link(
 	    handle->sub_handle, txnfs_dir->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
 
+	unlock_handle(lock_hdl);
 	return status;
 }
 
@@ -896,8 +949,8 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 			 op_ctx->txnid, "create_handle");
 	/* NOTE: handles created by this function does NOT come with a pathname.
 	 * Fortunately this function won't be called by NFS protocol layer
-	 * because create_handle will be absorbed by MDCACHE. 
-	 * 
+	 * because create_handle will be absorbed by MDCACHE.
+	 *
 	 * TODO: However, undo executor calls this and we need to think of
 	 * workarounds. */
 	return txnfs_alloc_and_check_handle(export, sub_handle, NULL, handle,

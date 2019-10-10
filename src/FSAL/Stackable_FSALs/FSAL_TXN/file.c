@@ -199,10 +199,8 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct null_async_arg *arg;
 	/* variables for locking */
 	lock_manager_t *lm = export->lm;
-	lock_request_t lockreq = {
-		.path = obj_hdl->absolute_path,
-		.write_lock = false 
-	};
+	lock_request_t lockreq = {.path = obj_hdl->absolute_path,
+				  .write_lock = false};
 	lock_handle_t *lock_hdl;
 
 	/* Set up async callback */
@@ -237,10 +235,8 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct null_async_arg *arg;
 	/* locking */
 	lock_manager_t *lm = export->lm;
-	lock_request_t lockreq = {
-		.path = obj_hdl->absolute_path,
-		.write_lock = true
-	};
+	lock_request_t lockreq = {.path = obj_hdl->absolute_path,
+				  .write_lock = true};
 	lock_handle_t *lock_hdl;
 
 	/* Set up async callback */
@@ -395,14 +391,29 @@ fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	fsal_status_t status;
 
+	/* locking data structures */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_reqs[2] = {
+	    {.path = src_hdl->absolute_path, .write_lock = false},
+	    {.path = dst_hdl->absolute_path, .write_lock = true}};
+
+	/* acquire lock for src and dst */
+	lock_hdl = lm_lock(lm, lock_reqs, 2);
+	assert(lock_hdl);
+
 	op_ctx->fsal_export = export->export.sub_export;
 	status = txn_src_hdl->sub_handle->obj_ops->copy(
 	    txn_src_hdl->sub_handle, src_offset, txn_dst_hdl->sub_handle,
 	    dst_offset, count, copied);
 	op_ctx->fsal_export = &export->export;
+
+	/* unlock */
+	unlock_handle(lock_hdl);
 	return status;
 }
 
+/* NOTE: Not sure if this method is needed in real workloads */
 fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
 			  struct fsal_obj_handle *dst_hdl, char *file_uuid)
 {
@@ -436,7 +447,17 @@ fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 	    container_of(dst_hdl, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
-	LogCrit(COMPONENT_FSAL, "txn: clone2");
+
+	/* locking data structures */
+	lock_manager_t *lm = export->lm;
+	lock_handle_t *lock_hdl;
+	lock_request_t lock_reqs[2] = {
+	    {.path = src_hdl->absolute_path, .write_lock = false},
+	    {.path = dst_hdl->absolute_path, .write_lock = true}};
+
+	/* acquire lock for src and dst */
+	lock_hdl = lm_lock(lm, lock_reqs, 2);
+	assert(lock_hdl);
 
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = txn_hdl->sub_handle->obj_ops->clone2(
@@ -444,5 +465,6 @@ fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 	    flags);
 	op_ctx->fsal_export = &export->export;
 
+	unlock_handle(lock_hdl);
 	return status;
 }
