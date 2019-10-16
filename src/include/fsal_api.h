@@ -430,6 +430,22 @@ struct req_op_context {
 };
 
 /**
+ * @brief Call FSAL APIs inside FSAL layer but pass through all requests from
+ * the top (i.e. FSAL_MDCACHE)
+ *
+ * Note, it is NOT recommended to call this inside FSAL method implementation,
+ * especially in the same method (For example, DO NOT do topcall(fsal_open())
+ * inside the implementation of open() method, because this will cause infinite
+ * recursions)
+ */
+#define topcall(call) do { \
+  struct fsal_export *__saved_exp = op_ctx->fsal_export; \
+  op_ctx->fsal_export = op_ctx->mdc_export; \
+  call; \
+  op_ctx->fsal_export = __saved_exp; \
+} while (0)
+
+/**
  * @brief FSAL module methods
  */
 
