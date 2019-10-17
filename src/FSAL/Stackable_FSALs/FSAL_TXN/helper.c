@@ -19,32 +19,58 @@
  * 02110-1301 USA
  */
 
+#include "nfs_proto_tools.h"
 #include "txnfs_methods.h"
 #include <assert.h>
+
+static inline int txnfs_cache_cmpfh(struct txnfs_cache_entry *ent,
+				    struct gsh_buffdesc *buf)
+{
+	if (ent->hdl_size != buf->len) return -1;
+	if (likely(ent->hdl_size <= FH_LEN))
+		return memcmp(ent->fh.data, buf->addr, ent->hdl_size);
+	else
+		return memcmp(ent->fh.addr, buf->addr, ent->hdl_size);
+}
+
+static inline void *txnfs_cache_copyfh(struct txnfs_cache_entry *ent, void *buf)
+{
+	if (likely(ent->hdl_size <= FH_LEN))
+		return memcpy(buf, ent->fh.data, ent->hdl_size);
+	else
+		return memcpy(buf, ent->fh.addr, ent->hdl_size);
+}
 
 int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 		       struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
 	UDBG;
-	// allocate for cache
-	struct txnfs_cache_entry *entry =
-	    gsh_malloc(sizeof(struct txnfs_cache_entry));
-
-	/* allocate and initialize for handle */
-	uuid_copy(entry->uuid, uuid);
-	entry->entry_type = entry_type;
-	entry->hdl_desc.addr = NULL;
-	entry->hdl_desc.len = 0;
-
 	assert((entry_type == txnfs_cache_entry_create && hdl_desc) ||
 	       (entry_type == txnfs_cache_entry_delete));
-	if (hdl_desc) {
-		entry->hdl_desc.addr = gsh_malloc(hdl_desc->len);
-		entry->hdl_desc.len = hdl_desc->len;
-		memcpy(entry->hdl_desc.addr, hdl_desc->addr, hdl_desc->len);
-	}
 
-	glist_add(&op_ctx->txn_cache, &entry->glist);
+	assert(likely(op_ctx->txn_cache->size <= op_ctx->txn_cache->capacity));
+
+	struct txnfs_cache_entry *entry =
+	    op_ctx->txn_cache->entries + op_ctx->txn_cache->size;
+	entry->entry_type = entry_type;
+	entry->hdl_size = 0;
+	uuid_copy(entry->uuid, uuid);
+	if (hdl_desc) {
+		entry->hdl_size = hdl_desc->len;
+		if (likely(hdl_desc->len <= FH_LEN)) {
+			memcpy(entry->fh.data, hdl_desc->addr, hdl_desc->len);
+		} else {
+			LogWarnOnce(
+			    COMPONENT_FSAL,
+			    "sub-fsal fh size is %zu"
+			    "which exceeds %d, individual malloc is required"
+			    " and performance may be impacted",
+			    hdl_desc->len, FH_LEN);
+			entry->fh.addr = gsh_malloc(hdl_desc->len);
+			memcpy(entry->fh.addr, hdl_desc->addr, hdl_desc->len);
+		}
+	}
+	op_ctx->txn_cache->size++;
 
 	return 0;
 }
@@ -52,22 +78,12 @@ int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 int txnfs_cache_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
 	UDBG;
-	LogDebug(COMPONENT_FSAL, "HandleAddr: %p HandleLen: %zu",
-		 hdl_desc->addr, hdl_desc->len);
-
-	char uuid_str[UUID_STR_LEN];
 	struct txnfs_cache_entry *entry;
-	struct glist_head *glist;
 
-	glist_for_each(glist, &op_ctx->txn_cache)
+	txnfs_cache_foreach(entry, op_ctx->txn_cache)
 	{
-		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
-
-		uuid_unparse_lower(uuid, uuid_str);
-		LogDebug(COMPONENT_FSAL, "cache scan uuid=%s\n", uuid_str);
 		if (entry->entry_type == txnfs_cache_entry_create &&
-		    memcmp(entry->hdl_desc.addr, hdl_desc->addr,
-			   hdl_desc->len) == 0) {
+		    txnfs_cache_cmpfh(entry, hdl_desc) == 0) {
 			uuid_copy(uuid, entry->uuid);
 			return 0;
 		}
@@ -79,13 +95,10 @@ int txnfs_cache_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 int txnfs_cache_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 {
 	struct txnfs_cache_entry *entry;
-	struct glist_head *glist;
 	char *hdl_str;
 
-	glist_for_each(glist, &op_ctx->txn_cache)
+	txnfs_cache_foreach(entry, op_ctx->txn_cache)
 	{
-		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
-
 		/* If a matching entry is found in cache, it will copy the
 		 * content of file handle into a new buffer. BE SURE TO FREE.
 		 * The reason for such design is to make it consistent with
@@ -93,12 +106,10 @@ int txnfs_cache_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 		 */
 		if (entry->entry_type == txnfs_cache_entry_create &&
 		    memcmp(entry->uuid, uuid, sizeof(uuid_t)) == 0) {
-			size_t len = entry->hdl_desc.len;
-
-			hdl_str = gsh_malloc(len);
-			memcpy(hdl_str, entry->hdl_desc.addr, len);
+			hdl_str = gsh_malloc(entry->hdl_size);
+			txnfs_cache_copyfh(entry, hdl_str);
 			hdl_desc->addr = hdl_str;
-			hdl_desc->len = len;
+			hdl_desc->len = entry->hdl_size;
 			return 0;
 		}
 	}
@@ -108,35 +119,39 @@ int txnfs_cache_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 
 int txnfs_cache_delete_uuid(uuid_t uuid)
 {
-	UDBG;
-
-	char uuid_str[UUID_STR_LEN];
-	struct txnfs_cache_entry *entry;
-	struct glist_head *glist;
-
-	glist_for_each(glist, &op_ctx->txn_cache)
-	{
-		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
-		uuid_unparse_lower(uuid, uuid_str);
-		LogDebug(COMPONENT_FSAL, "cache scan uuid=%s\n", uuid_str);
-		if (uuid_compare(uuid, entry->uuid) == 0) {
-			if (entry->entry_type == txnfs_cache_entry_create) {
-				glist_del(&entry->glist);
-			}
-			return 0;
-		}
-	}
-
-	// the entry does not exist in the cache
-	// but we must prevent future lookups from database
+	/* Let's not scan the whole cache for existing items.
+	 * The rationale are as follows:
+	 * - We don't anticipate a compound that mixes CREATE/OPEN and REMOVE;
+	 * - We don't allow such scenario where there are existing files
+	 * created outside TXNFS context (which won't have a UUID and in the
+	 * earlier implementation txnfs_alloc_and_check_handle will give it
+	 * a new UUID and insert it to cache for later commit)
+	 *
+	 * Therefore, we will just insert a removal candidate into the
+	 * cache for later commit. This should be very fast since it's O(1)
+	 * and txn cache is a vector now.
+	 */
 	return txnfs_cache_insert(txnfs_cache_entry_delete, NULL, uuid);
 }
 
-void txnfs_cache_init(void)
+void txnfs_cache_init(uint32_t compound_size)
 {
-	UDBG;
-	assert(glist_null(&op_ctx->txn_cache) == 1);
-	glist_init(&op_ctx->txn_cache);
+	size_t cap = MIN(compound_size, TXN_CACHE_CAP);
+
+	if (op_ctx->txn_cache)
+		LogFatal(COMPONENT_FSAL,
+			 "txnfs cache has already been initialized");
+	/* Ganesha limits the max number of operations in a compound
+	 * to be 256. Therefore the txnfs cache's size can be fixed
+	 * to min(256, number of ops). */
+	op_ctx->txn_cache =
+	    gsh_calloc(1, sizeof(*op_ctx->txn_cache) +
+			      sizeof(struct txnfs_cache_entry) * cap);
+	op_ctx->txn_cache->capacity = cap;
+	op_ctx->txn_cache->size = 0;
+	op_ctx->txn_cache->entries =
+	    (struct txnfs_cache_entry *)((char *)op_ctx->txn_cache +
+					 sizeof(*op_ctx->txn_cache));
 }
 
 static inline void combine_prefix(const char *prefix, const size_t prefix_len,
@@ -161,7 +176,6 @@ int txnfs_cache_commit(void)
 	char *err = NULL;
 	char uuid_str[UUID_STR_LEN];
 	struct txnfs_cache_entry *entry;
-	struct glist_head *glist;
 
 	struct fsal_module *fs = op_ctx->fsal_export->fsal;
 	struct txnfs_fsal_module *txnfs =
@@ -174,21 +188,20 @@ int txnfs_cache_commit(void)
 	int n_put = 0, n_del = 0;
 
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
-	glist_for_each(glist, &op_ctx->txn_cache)
+	txnfs_cache_foreach(entry, op_ctx->txn_cache)
 	{
-		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
 		uuid_unparse_lower(entry->uuid, uuid_str);
 
 		/* add prefix to keys */
 		combine_prefix(UUID_KEY_PREFIX, PREF_LEN, entry->uuid,
 			       sizeof(uuid_t), &uuid_key, &uuid_key_len);
-		combine_prefix(FH_KEY_PREFIX, PREF_LEN, entry->hdl_desc.addr,
-			       entry->hdl_desc.len, &hdl_key, &hdl_key_len);
+		combine_prefix(FH_KEY_PREFIX, PREF_LEN, TXNCACHE_FH(entry),
+			       entry->hdl_size, &hdl_key, &hdl_key_len);
 
 		if (entry->entry_type == txnfs_cache_entry_create) {
-			leveldb_writebatch_put(
-			    commit_batch, uuid_key, uuid_key_len,
-			    entry->hdl_desc.addr, entry->hdl_desc.len);
+			leveldb_writebatch_put(commit_batch, uuid_key,
+					       uuid_key_len, TXNCACHE_FH(entry),
+					       entry->hdl_size);
 
 			leveldb_writebatch_put(commit_batch, hdl_key,
 					       hdl_key_len, entry->uuid,
@@ -200,7 +213,7 @@ int txnfs_cache_commit(void)
 		} else if (entry->entry_type == txnfs_cache_entry_delete) {
 			leveldb_writebatch_delete(commit_batch, uuid_key,
 						  uuid_key_len);
-			if (entry->hdl_desc.addr)
+			if (entry->hdl_size > 0)
 				leveldb_writebatch_delete(commit_batch, hdl_key,
 							  hdl_key_len);
 
@@ -240,22 +253,11 @@ int txnfs_cache_commit(void)
 // cleanup txn entries
 void txnfs_cache_cleanup(void)
 {
-	UDBG;
-	assert(glist_null(&op_ctx->txn_cache) == 0);
-
-	struct txnfs_cache_entry *entry;
-	struct glist_head *glist, *glistn;
-
-	glist_for_each_safe(glist, glistn, &op_ctx->txn_cache)
-	{
-		entry = glist_entry(glist, struct txnfs_cache_entry, glist);
-
-		/* Remove this entry from list */
-		glist_del(&entry->glist);
-
-		/* And free it */
-		gsh_free(entry);
-	}
+	if (!op_ctx->txn_cache)
+		LogFatal(COMPONENT_FSAL, "attempt to destroy null cache");
+	op_ctx->txn_cache->capacity = 0;
+	gsh_free(op_ctx->txn_cache);
+	op_ctx->txn_cache = NULL;
 }
 
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
@@ -276,7 +278,7 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	uuid_unparse_lower(uuid, uuid_str);
 	LogDebug(COMPONENT_FSAL, "generate uuid=%s\n", uuid_str);
 
-	if (!glist_null(&op_ctx->txn_cache)) {
+	if (op_ctx->txn_cache) {
 		return txnfs_cache_insert(txnfs_cache_entry_create, hdl_desc,
 					  uuid);
 	}
@@ -355,8 +357,7 @@ int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 {
 	// search txnfs compound cache first
-	if (!glist_null(&op_ctx->txn_cache) &&
-	    txnfs_cache_get_uuid(hdl_desc, uuid) == 0) {
+	if (op_ctx->txn_cache && txnfs_cache_get_uuid(hdl_desc, uuid) == 0) {
 		return 0;
 	}
 
@@ -374,8 +375,7 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
 	db_store_t *db = txnfs->db;
 
 	/* look up in the cache first */
-	if (!glist_null(&op_ctx->txn_cache) &&
-	    txnfs_cache_get_handle(uuid, hdl_desc) == 0) {
+	if (op_ctx->txn_cache && txnfs_cache_get_handle(uuid, hdl_desc) == 0) {
 		return 0;
 	}
 
@@ -412,7 +412,7 @@ int txnfs_db_delete_uuid(uuid_t uuid)
 	db_store_t *db = txnfs->db;
 	int ret = 0;
 
-	if (!glist_null(&op_ctx->txn_cache)) {
+	if (op_ctx->txn_cache) {
 		return txnfs_cache_delete_uuid(uuid);
 	}
 
@@ -460,8 +460,7 @@ bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc)
 	uuid_t uuid;
 
 	// search txnfs compound cache
-	if (!glist_null(&op_ctx->txn_cache) &&
-	    txnfs_cache_get_uuid(hdl_desc, uuid) == 0) {
+	if (op_ctx->txn_cache && txnfs_cache_get_uuid(hdl_desc, uuid) == 0) {
 		return 0;
 	}
 	return txnfs_db_get_uuid(hdl_desc, uuid) == 0;

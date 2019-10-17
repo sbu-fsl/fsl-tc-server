@@ -47,6 +47,7 @@
 #include "fsal_types.h"
 #include "hashtable.h"
 #include "sal_shared.h"
+#include "txnfs.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -417,8 +418,9 @@ struct req_op_context {
 	struct fsal_module *fsal_module;   /*< current fsal module */
 	struct fsal_pnfs_ds *fsal_pnfs_ds; /*< current pNFS DS */
 	/* add new context members here */
-	struct glist_head txn_cache;
+	struct txnfs_cache *txn_cache;
 	uint64_t txnid;
+	int opidx;
 	COMPOUND4args *op_args;
 	struct fsal_obj_handle *txn_bkp_folder;
 	/* a set of obj handles used by undo executor for release after use */
@@ -1191,8 +1193,10 @@ struct export_ops {
 	fsal_status_t (*end_compound)(struct fsal_export *exp_hdl, void *data);
 
 	fsal_status_t (*backup_nfs4_op)(struct fsal_export *exp_hdl,
-					unsigned int opidx, struct fsal_obj_handle *current,
-					struct nfs_argop4 *op);
+					unsigned int opidx,
+					struct fsal_obj_handle *current,
+					struct nfs_argop4 *op,
+					void *data);
 };
 
 /**

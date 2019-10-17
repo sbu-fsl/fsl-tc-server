@@ -49,12 +49,11 @@ static int undoer_hdl_compare(struct gsh_buffdesc *key1,
 }
 
 static hash_parameter_t undoer_hdl_set_param = {
-	.index_size = 17,
-	.hash_func_key = undoer_hdlset_indexfxn,
-	.hash_func_rbt = undoer_hdlset_hashfxn,
-	.compare_key = undoer_hdl_compare,
-	.flags = HT_FLAG_NONE
-};
+    .index_size = 17,
+    .hash_func_key = undoer_hdlset_indexfxn,
+    .hash_func_rbt = undoer_hdlset_hashfxn,
+    .compare_key = undoer_hdl_compare,
+    .flags = HT_FLAG_NONE};
 
 static inline void insert_handle(struct fsal_obj_handle *hdl)
 {
@@ -155,6 +154,30 @@ static inline fsal_status_t my_lookup(struct fsal_obj_handle *parent,
 	fsal_status_t res;
 	res = parent->obj_ops->lookup(parent, name, output, attrs);
 	if (FSAL_IS_SUCCESS(res)) insert_handle(*output);
+	return res;
+}
+
+/**
+ * @brief Call the sub-FSAL's unlink method, because TXNFS's unlink has been
+ * modified to rename the target into the backup folder
+ */
+static inline fsal_status_t my_unlink(struct fsal_obj_handle *parent,
+				      struct fsal_obj_handle *obj,
+				      const char *name)
+{
+	struct txnfs_fsal_export *exp =
+	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
+	struct txnfs_fsal_obj_handle *txn_parent =
+	    container_of(parent, struct txnfs_fsal_obj_handle, obj_handle);
+	struct txnfs_fsal_obj_handle *txn_obj =
+	    container_of(obj, struct txnfs_fsal_obj_handle, obj_handle);
+	fsal_status_t res = {0};
+
+	op_ctx->fsal_export = exp->export.sub_export;
+	res = txn_parent->sub_handle->obj_ops->unlink(
+	    txn_parent->sub_handle, txn_obj->sub_handle, name);
+	op_ctx->fsal_export = &exp->export;
+
 	return res;
 }
 
@@ -275,7 +298,7 @@ static int undo_create(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 
 	status = my_lookup(cur, name, &created, NULL);
 	assert(FSAL_IS_SUCCESS(status));
-	status = cur->obj_ops->unlink(cur, created, name);
+	status = my_unlink(cur, created, name);
 
 	/* cleanup name */
 	gsh_free(name);
@@ -394,7 +417,13 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	backup_root = query_backup_root(root);
 	assert(backup_root);
 	backup_dir = query_txn_backup(backup_root, txnid);
-	assert(backup_dir);
+	if (!backup_dir) {
+		/* If backup_dir is NULL, it is because the backup executor
+		 * did not actually make any backup for this compound. This
+		 * could be a rational reason, so let's just return */
+		ret = ERR_FSAL_NOENT;
+		goto end;
+	}
 	status = my_lookup(backup_dir, backup_name, &backup_file, &attrs);
 	if (FSAL_IS_ERROR(status)) {
 		ret = status.major;
@@ -494,12 +523,16 @@ static int undo_open(struct nfs_argop4 *arg, struct fsal_obj_handle **cur,
 	 * that the file is newly created. In this case we will remove that
 	 * file */
 	if (!file_has_uuid(target)) {
-		status = (*cur)->obj_ops->unlink(*cur, target, name);
+		status = my_unlink(*cur, target, name);
 		ret = status.major;
-	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE &&
-		   attrs.filesize == 0) {
+	} else if (arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE) {
 		/* In this case the file might have been truncated when open */
 		ret = restore_data(target, txnid, opidx, false, 0, SIZE_MAX);
+		/* If there is no backup file then it's because the backup
+		 * function decided that the operation was not a truncation and
+		 * did not create any backup. This is not to be considered an
+		 * error */
+		if (ret == ERR_FSAL_NOENT) ret = 0;
 	}
 
 	exchange_cfh(cur, target);
@@ -527,7 +560,7 @@ static int undo_link(struct nfs_argop4 *arg, struct fsal_obj_handle *cur)
 	nfs4_utf8string2dynamic(str, UTF8_SCAN_ALL, &name);
 	status = my_lookup(cur, name, &created, NULL);
 	assert(FSAL_IS_SUCCESS(status));
-	status = cur->obj_ops->unlink(cur, created, name);
+	status = my_unlink(cur, created, name);
 	if (FSAL_IS_ERROR(status)) {
 		LogWarn(COMPONENT_FSAL, "undo link failed:");
 		LogWarn(COMPONENT_FSAL, "%s", msg_fsal_err(status.major));

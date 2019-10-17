@@ -25,6 +25,7 @@
 #include "fsal_api.h"
 #include "lock_manager.h"
 #include "lwrapper.h"
+#include "txnfs.h"
 #include <uuid/uuid.h>
 
 #ifdef USE_LTTNG
@@ -36,20 +37,6 @@
 #define UUID_KEY_PREFIX "uuid-"
 #define FH_KEY_PREFIX "fhdl-"
 #define PREF_LEN 5
-
-enum txnfs_cache_entry_type {
-	txnfs_cache_entry_create = 0,
-	txnfs_cache_entry_delete = 1
-};
-
-/* TODO: Use a more efficient data structure for txn cache */
-struct txnfs_cache_entry {
-	uuid_t uuid;
-	struct gsh_buffdesc hdl_desc;
-	enum txnfs_cache_entry_type entry_type;
-
-	struct glist_head glist;
-};
 
 struct txnfs_file_entry {
 	char *name;
@@ -298,12 +285,14 @@ int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */
-void txnfs_cache_init(void);
+void txnfs_cache_init(uint32_t compound_size);
 int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
 
 /* txn backup and restore */
+fsal_status_t txnfs_create_or_lookup_backup_dir(
+    struct fsal_obj_handle **bkp_handle);
 struct fsal_obj_handle *query_backup_root(struct fsal_obj_handle *txn_root);
 struct fsal_obj_handle *query_txn_backup(struct fsal_obj_handle *backup_root,
 					 uint64_t txnid);
