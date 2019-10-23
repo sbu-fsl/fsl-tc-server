@@ -231,6 +231,7 @@ mdcache_fsal_create_export(struct fsal_module *sub_fsal, void *parse_node,
 
 	/* Set up op_ctx */
 	op_ctx->fsal_export = &myself->mfe_exp;
+	op_ctx->mdc_export = &myself->mfe_exp;
 	op_ctx->fsal_module = &MDCACHE.module;
 
 	/* Stacking is setup and ready to take upcalls now */
