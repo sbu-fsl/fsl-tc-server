@@ -48,6 +48,7 @@
 #include "hashtable.h"
 #include "sal_shared.h"
 #include "txnfs.h"
+#include "lock_manager.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -427,6 +428,11 @@ struct req_op_context {
 	struct hash_table *txn_hdl_set;
   /* the FSAL export object for MDCACHE */
   struct fsal_export *mdc_export;
+  /* locked paths - an array of char* strings */
+  char **locked_paths;
+  size_t paths_count;
+  /* lock handle */
+  lock_handle_t *lh;
 };
 
 /**
@@ -440,9 +446,11 @@ struct req_op_context {
  */
 #define topcall(call) do { \
   struct fsal_export *__saved_exp = op_ctx->fsal_export; \
-  op_ctx->fsal_export = op_ctx->mdc_export; \
+  if (likely(op_ctx->mdc_export)) \
+    op_ctx->fsal_export = op_ctx->mdc_export; \
   call; \
-  op_ctx->fsal_export = __saved_exp; \
+  if (likely(op_ctx->mdc_export)) \
+    op_ctx->fsal_export = __saved_exp; \
 } while (0)
 
 /**
