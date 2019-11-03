@@ -565,6 +565,8 @@ extern struct config_block mdcache_param_blk;
 /* Call a sub-FSAL function using it's export */
 #define subcall(call) do { \
 	struct mdcache_fsal_export *__export = mdc_cur_export(); \
+	if(unlikely(op_ctx->mdc_export == NULL)) \
+		 op_ctx->mdc_export = &__export->mfe_exp; \
 	subcall_raw(__export, call); \
 } while (0)
 
