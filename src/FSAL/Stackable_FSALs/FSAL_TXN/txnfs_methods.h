@@ -303,3 +303,6 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 				size_t length);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
 int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);
+
+/* locking */
+int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec);
