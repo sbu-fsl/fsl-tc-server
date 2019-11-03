@@ -19,6 +19,7 @@ SET(fsaltxn_LIB_SRCS
    undo.c
    opvec.c
    cleanup.c
+   locking.c
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
