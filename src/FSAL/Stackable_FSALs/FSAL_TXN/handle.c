@@ -121,6 +121,7 @@ fsal_status_t txnfs_alloc_and_check_handle(
 	fsal_status_t status = subfsal_status;
 
 	struct txnfs_fsal_obj_handle *txn_handle;
+	struct gsh_buffdesc pathbuf;
 
 	/* calling subfsal method to get unique key
 	 * corresponding to the sub-handle
@@ -139,12 +140,14 @@ fsal_status_t txnfs_alloc_and_check_handle(
 	/* shrink to the real length of the path plus a 0 terminator */
 	abs_path = gsh_realloc(abs_path, ret + 1);
 	abs_path[ret] = '\0';
+	pathbuf.addr = abs_path;
+	pathbuf.len = ret + 1;
 	LogDebug(COMPONENT_FSAL, "fsal obj hdl=%p, abs path: %s", *new_handle,
 		 abs_path);
 
 	if (is_creation) {
 		uuid_t uuid;
-		int ret = txnfs_db_insert_handle(&fh_desc, uuid);
+		int ret = txnfs_db_insert_handle(&fh_desc, uuid, &pathbuf);
 		assert(ret == 0);
 		txn_handle =
 		    txnfs_alloc_handle(export, sub_handle, fs, uuid, abs_path);
@@ -155,7 +158,8 @@ fsal_status_t txnfs_alloc_and_check_handle(
 		if (ret == -1) {
 			LogDebug(COMPONENT_FSAL,
 				 "Handle not found, creating one!");
-			int ret = txnfs_db_insert_handle(&fh_desc, uuid);
+			int ret =
+			    txnfs_db_insert_handle(&fh_desc, uuid, &pathbuf);
 			assert(ret == 0);
 		}
 		txn_handle =
@@ -343,7 +347,7 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	UDBG;
-	
+
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = handle->sub_handle->obj_ops->link(
@@ -865,9 +869,14 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 
 	struct fsal_obj_handle *sub_handle; /*< New subfsal handle.*/
+	/* root obj handle is used for comparison */
+	struct fsal_obj_handle *root = NULL;
+	struct attrlist root_attrs;
 	struct gsh_buffdesc sub_fh;
+	struct gsh_buffdesc abs_path;
 	fsal_status_t status;
 	uuid_t uuid = {0};
+	int ret = 0;
 
 	*handle = NULL;
 
@@ -896,13 +905,15 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 	/* Note : txnfs filesystem = subfsal filesystem or NULL ? */
 	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
 			 op_ctx->txnid, "create_handle");
-	/* NOTE: handles created by this function does NOT come with a pathname.
-	 * Fortunately this function won't be called by NFS protocol layer
-	 * because create_handle will be absorbed by MDCACHE.
-	 *
-	 * TODO: However, undo executor calls this and we need to think of
-	 * workarounds. */
+	/* absolute path should be queried from database, except for root */
+	get_txn_root(&root, &root_attrs);
+	if (sub_handle->fileid == root->fileid) {
+		abs_path.addr = root->absolute_path;
+	} else {
+		ret = txnfs_db_get_path(uuid, &abs_path, NULL);
+		assert(ret == 0);
+	}
 	return txnfs_alloc_and_check_handle(export, sub_handle, NULL, handle,
-					    "", "", status,
+					    "", abs_path.addr, status,
 					    false /* is_creation */);
 }
