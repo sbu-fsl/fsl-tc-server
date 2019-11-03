@@ -36,6 +36,7 @@
 #define BKP_FN_LEN 20
 #define UUID_KEY_PREFIX "uuid-"
 #define FH_KEY_PREFIX "fhdl-"
+#define PATH_KEY_PREFIX "path-"
 #define PREF_LEN 5
 
 struct txnfs_file_entry {
@@ -280,10 +281,12 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 
 /* txn handle */
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
-int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid,
+                           struct gsh_buffdesc *path);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
+int txnfs_db_get_path(uuid_t uuid, struct gsh_buffdesc *path, struct fsal_obj_handle *obj_hdl);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */
