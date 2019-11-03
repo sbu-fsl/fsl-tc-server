@@ -22,6 +22,7 @@
 #include "log.h"
 #include "lock_manager.h"
 #include "opvec.h"
+#include "path_utils.h"
 #include "txnfs_methods.h"
 #include <assert.h>
 #include <fsal_api.h>
@@ -32,27 +33,7 @@ struct lock_req_vec {
 	size_t size;
 	size_t cap;
 	lock_request_t *v;
-}
-
-/**
- * @brief Get the MDCache fsal_obj_handle of TXNFS's root export dir.
- *
- * This is similar to get_txn_root(), but we need MDCACHE's fsal_obj_handle
- * here. Therefore we need a different function
- */
-static int get_root_mdc_hdl(struct fsal_obj_handle **root_hdl, struct attrlist *attrs)
-{
-	struct fsal_obj_handle *mdc_root_entry = NULL;
-	fsal_status_t ret;
-
-	topcall(
-	    ret = op_ctx->mdc_export->exp_ops.lookup_path(
-	        op_ctx->fsal_export, op_ctx->ctx_export->fullpath, &mdc_root_entry, attrs)
-	);
-
-	assert(FSAL_IS_SUCCESS(ret));
-	*root_hdl = mdc_root_entry;
-}
+};
 
 /**
  * @brief Exchange CFH / Save CFH / Restore saved CFH to current
@@ -105,11 +86,11 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 				   .len = file_handle->fs_len};
 	struct fsal_obj_handle *handle = NULL;
 	struct attrlist _attrs = {0};
-	struct fsal_export *exp = op_ctx->mdc_export;
+	struct fsal_export *exp = (op_ctx->mdc_export) ? op_ctx->mdc_export : op_ctx->fsal_export;
 	fsal_status_t ret;
 
-	topcall(ret = exp->exp_ops.wire_to_host(exp, FSAL_DIGEST_NFSV4, &buf, 0));
-	assert(FSAL_IS_SUCCESS(ret));
+	// topcall(ret = exp->exp_ops.wire_to_host(exp, FSAL_DIGEST_NFSV4, &buf, 0));
+	// assert(FSAL_IS_SUCCESS(ret));
 
 	topcall(ret = exp->exp_ops.create_handle(exp, &buf, &handle, &_attrs));
 	if (FSAL_IS_SUCCESS(ret)) {
@@ -197,31 +178,32 @@ static utf8string *extract_open_name(open_claim4 *claim)
 /**
  * @brief Analyze compound args and extract fsal object handles that will
  * involve in the compound execution.
+ *
+ * @param[in] args Compound args
+ * @param[in] lr_vec Lock request array: Should have adequate space to hold
+ * 	      256 lock requests
+ * 
+ * @return Number of paths to be locked
  */
-int find_relevant_handles(COMPOUND4args *args)
+int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 {
-	int i, ret = 0;
-	struct fsal_obj_handle *root = NULL;
+	int i, ret = 0, veclen = 0;
+	/* What we need is the path */
+	char *current_path = gsh_calloc(1, PATH_MAX + 1);
+	char *saved_path = gsh_calloc(1, PATH_MAX + 1);
 	struct fsal_obj_handle *current = NULL;
-	struct fsal_obj_handle *saved = NULL;
-	fsal_status_t status;
 	struct attrlist cur_attr = {0};
-	struct lock_req_vec vector;
-
-	/* initialize op vector */
-	vector.size = 0;
-	vector.cap = args->argarray.argarray_len * 2;
-	vector.v = gsh_calloc(vector.cap, sizeof(lock_request_t));
+	utf8string utf8_name;
+	char *name;
 
 	/* let's start from ROOT */
-	get_root_mdc_hdl(&root, &cur_attr);
-	exchange_cfh(&current, root);
+	char *root_path = op_ctx->ctx_export->fullpath;
+	strncpy(current_path, root_path, PATH_MAX);
 
 	for (i = 0; i < args->argarray.argarray_len; i++) {
 		struct nfs_argop4 *curop_arg = &args->argarray.argarray_val[i];
 
 		int op = curop_arg->argop;
-		struct fsal_obj_handle *temp;
 		nfs_fh4 *fh = NULL;
 
 		switch (op) {
@@ -229,65 +211,107 @@ int find_relevant_handles(COMPOUND4args *args)
 				/* update current file handle */
 				fh = &curop_arg->nfs_argop4_u.opputfh.object;
 
-				temp = fh_to_obj_handle(fh, &cur_attr);
-				exchange_cfh(&current, temp);
+				current = fh_to_obj_handle(fh, &cur_attr);
+				if (!current->absolute_path) {
+					current->absolute_path = "/undefined";
+				}
+				strncpy(current_path, current->absolute_path, PATH_MAX);
+
 				if (!current) {
 					LogWarn(
 					    COMPONENT_FSAL,
 					    "Can't find obj_handle from fh.");
-					ret = ERR_FSAL_NOENT;
+					ret = -ERR_FSAL_NOENT;
 				}
 				break;
 
 			case NFS4_OP_PUTROOTFH:
 				/* update current fh to root */
-				exchange_cfh(&current, root);
+				memset(current_path, 0, PATH_MAX);
+				strncpy(current_path, root_path, PATH_MAX);
 				break;
 
 			case NFS4_OP_SAVEFH:
-				save_cfh(&saved, current);
+				strncpy(saved_path, current_path, PATH_MAX);
 				break;
 
 			case NFS4_OP_RESTOREFH:
-				if (!saved) {
-					ret = ERR_FSAL_FAULT;
-					break;
-				}
-				restore_cfh(&current, saved);
+				strncpy(current_path, saved_path, PATH_MAX);
 				break;
 
-			case NFS4_OP_LOOKUP:
+			case NFS4_OP_LOOKUP:;
 				/* update current fh to the queried one */
-				utf8string *name = curop_arg->nfs_argop4_u.oplookup.objname;
-				ret = replay_lookup(name, &current,
-						    &cur_attr);
+				utf8_name = curop_arg->nfs_argop4_u.oplookup.objname;
+				ret = nfs4_utf8string2dynamic(&utf8_name, UTF8_SCAN_ALL, &name);
+				assert(ret == 0);
+				ret = tc_path_join(current_path, name, current_path, PATH_MAX);
+				assert(ret >= 0);
+				free(name);
 				break;
 
 			case NFS4_OP_LOOKUPP:
 				/* update current fh to its parent */
-				status =
-				    replay_lookup("..", &current, &cur_attr);
-				ret = status.major;
-				exchange_cfh(&current, temp);
+				ret = tc_path_join(current_path, "..", current_path, PATH_MAX);
+				assert(ret >= 0);
 				break;
 
-				/* Treat OPEN similar to LOOKUP. It's just
-				 * the arg structure is different */
-			case NFS4_OP_OPEN:
-				utf8string *name = extract_open_name(&curop_arg->nfs_argop4_u.opopen.claim);
-				if (name)
-					ret = replay_lookup(curop_arg, &current, txnid, i);
+				/* We don't have to worry about appending lock request
+				 * until real read/write operations */
+			case NFS4_OP_OPEN:;
+				utf8string *u8name = extract_open_name(&curop_arg->nfs_argop4_u.opopen.claim);
+				ret = nfs4_utf8string2dynamic(u8name, UTF8_SCAN_ALL, &name);
+				assert(ret == 0);
+				if (name) {
+					tc_path_join(current_path, name, current_path, PATH_MAX);
+					gsh_free(name);
+				}
+				/* If name is null, target is the current file */
+					
 				break;
 
 			case NFS4_OP_CREATE:
-			case NFS4_OP_LINK:
+				/* CREATE: lock parent dir (current) */
 			case NFS4_OP_REMOVE:
+				/* REMOVE: just lock the parent dir */
+			case NFS4_OP_WRITE:;
+				/* WRITE: lock current path */
+				size_t pathlen = strnlen(current_path, PATH_MAX);
+				char *pathbuf = gsh_calloc(1, pathlen + 1);
+				strncpy(pathbuf, current_path, pathlen);
+				lr_vec[veclen].path = pathbuf;
+				lr_vec[veclen].write_lock = true;
+				veclen++;
+				break;
+
+			case NFS4_OP_LINK:;
+				/* LINK: lock src and dest dir
+				 * saved_fh: source object
+				 * current_fh: target dir */
+				size_t destlen = strnlen(current_path, PATH_MAX);
+				size_t srclen = strnlen(saved_path, PATH_MAX);
+				char *destbuf = gsh_calloc(1, destlen + 1);
+				char *srcbuf = gsh_calloc(1, srclen + 1);
+				strncpy(destbuf, current_path, destlen);
+				strncpy(srcbuf, saved_path, srclen);
+				/* We should lock the parent of src, not src file */
+				tc_path_join(srcbuf, "..", srcbuf, srclen);
+
+				lr_vec[veclen].path = srcbuf;
+				lr_vec[veclen].write_lock = false;
+				veclen++;
+
+				lr_vec[veclen].path = destbuf;
+				lr_vec[veclen].write_lock = true;
+				veclen++;
+				break;
+
 			case NFS4_OP_RENAME:
-			case NFS4_OP_WRITE:
+				/* rename is complex - let's not deal with it now */
+				break;
+
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				ret = opvec_push(&vector, i, op, curop_arg,
-						 curop_res, current, saved);
+				/* they are rarely used - let's not care them for now */
 				break;
 
 			default:
@@ -308,16 +332,14 @@ int find_relevant_handles(COMPOUND4args *args)
 		}
 	}
 
-	if (!ret) {
-		ret = dispatch_undoer(&vector);
-		if (ret)
-			LogWarn(COMPONENT_FSAL,
-				"Error %d occurred when"
-				" executing rollback.\n",
-				ret);
+	if (ret) {
+		LogWarn(COMPONENT_FSAL,
+			"Error %d occurred when"
+			" analyzing lrq.\n",
+			ret);
 	}
 
-	release_all_handles();
-	opvec_destroy(&vector);
-	return ret;
+	gsh_free(current_path);
+	gsh_free(saved_path);
+	return veclen;
 }
