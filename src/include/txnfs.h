@@ -22,7 +22,8 @@ struct txnfs_cache {
 
 enum txnfs_cache_entry_type {
 	txnfs_cache_entry_create = 0,
-	txnfs_cache_entry_delete = 1
+	txnfs_cache_entry_delete = 1,
+  txnfs_cache_entry_modify = 2
 };
 
 struct txnfs_cache_entry {
@@ -34,6 +35,7 @@ struct txnfs_cache_entry {
 		char data[FH_LEN];
 		void *addr;
 	} fh;
+  struct gsh_buffdesc abs_path;
 };
 
 #define TXNCACHE_FH(entry) \
