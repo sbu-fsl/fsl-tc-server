@@ -42,11 +42,13 @@ static inline void *txnfs_cache_copyfh(struct txnfs_cache_entry *ent, void *buf)
 }
 
 int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
-		       struct gsh_buffdesc *hdl_desc, uuid_t uuid)
+		       struct gsh_buffdesc *hdl_desc, uuid_t uuid,
+		       struct gsh_buffdesc *path)
 {
 	UDBG;
 	assert((entry_type == txnfs_cache_entry_create && hdl_desc) ||
-	       (entry_type == txnfs_cache_entry_delete));
+	       (entry_type == txnfs_cache_entry_delete) ||
+	       (entry_type == txnfs_cache_entry_modify && path));
 
 	assert(likely(op_ctx->txn_cache->size <= op_ctx->txn_cache->capacity));
 
@@ -55,6 +57,8 @@ int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
 	entry->entry_type = entry_type;
 	entry->hdl_size = 0;
 	uuid_copy(entry->uuid, uuid);
+	if (path) entry->abs_path = *path;
+
 	if (hdl_desc) {
 		entry->hdl_size = hdl_desc->len;
 		if (likely(hdl_desc->len <= FH_LEN)) {
@@ -89,6 +93,26 @@ int txnfs_cache_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 		}
 	}
 
+	return -1;
+}
+
+int txnfs_cache_get_path(uuid_t uuid, struct gsh_buffdesc *path)
+{
+	struct txnfs_cache_entry *entry;
+
+	txnfs_cache_foreach(entry, op_ctx->txn_cache)
+	{
+		if ((entry->entry_type == txnfs_cache_entry_create ||
+		     entry->entry_type == txnfs_cache_entry_modify) &&
+		    memcmp(entry->uuid, uuid, sizeof(uuid_t) == 0)) {
+			/* We assume that entry->abs_path is referenced from
+			 * absolute_path field of fsal_obj_handle. This should
+			 * exist throughout the life cycle of a fsal obj handle
+			 * so we don't need to do deep copy */
+			*path = entry->abs_path;
+			return 0;
+		}
+	}
 	return -1;
 }
 
@@ -131,7 +155,7 @@ int txnfs_cache_delete_uuid(uuid_t uuid)
 	 * cache for later commit. This should be very fast since it's O(1)
 	 * and txn cache is a vector now.
 	 */
-	return txnfs_cache_insert(txnfs_cache_entry_delete, NULL, uuid);
+	return txnfs_cache_insert(txnfs_cache_entry_delete, NULL, uuid, NULL);
 }
 
 void txnfs_cache_init(uint32_t compound_size)
@@ -184,7 +208,8 @@ int txnfs_cache_commit(void)
 
 	char *uuid_key = NULL;
 	char *hdl_key = NULL;
-	size_t uuid_key_len, hdl_key_len;
+	char *path_key = NULL;
+	size_t uuid_key_len, hdl_key_len, path_key_len;
 	int n_put = 0, n_del = 0;
 
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
@@ -197,6 +222,8 @@ int txnfs_cache_commit(void)
 			       sizeof(uuid_t), &uuid_key, &uuid_key_len);
 		combine_prefix(FH_KEY_PREFIX, PREF_LEN, TXNCACHE_FH(entry),
 			       entry->hdl_size, &hdl_key, &hdl_key_len);
+		combine_prefix(PATH_KEY_PREFIX, PREF_LEN, entry->uuid,
+			       sizeof(uuid_t), &path_key, &path_key_len);
 
 		if (entry->entry_type == txnfs_cache_entry_create) {
 			leveldb_writebatch_put(commit_batch, uuid_key,
@@ -207,6 +234,10 @@ int txnfs_cache_commit(void)
 					       hdl_key_len, entry->uuid,
 					       sizeof(uuid_t));
 
+			leveldb_writebatch_put(
+			    commit_batch, path_key, path_key_len,
+			    entry->abs_path.addr, entry->abs_path.len);
+
 			LogDebug(COMPONENT_FSAL, "put_key:%s ", uuid_str);
 
 			n_put++;
@@ -216,14 +247,24 @@ int txnfs_cache_commit(void)
 			if (entry->hdl_size > 0)
 				leveldb_writebatch_delete(commit_batch, hdl_key,
 							  hdl_key_len);
+			if (entry->abs_path.len > 0)
+				leveldb_writebatch_delete(
+				    commit_batch, path_key, path_key_len);
 
 			LogDebug(COMPONENT_FSAL, "delete_key:%s ", uuid_str);
 
 			n_del++;
+		} else if (entry->entry_type == txnfs_cache_entry_modify) {
+			assert(likely(entry->abs_path.len > 0));
+			leveldb_writebatch_put(
+			    commit_batch, path_key, path_key_len,
+			    entry->abs_path.addr, entry->abs_path.len);
+			n_put++;
 		}
 
 		gsh_free(uuid_key);
 		gsh_free(hdl_key);
+		gsh_free(path_key);
 	}
 	txnfs_tracepoint(collected_cache_entries, op_ctx->txnid, n_put, n_del);
 	// TODO - add entry to remove txn log
@@ -260,7 +301,8 @@ void txnfs_cache_cleanup(void)
 	op_ctx->txn_cache = NULL;
 }
 
-int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid,
+			   struct gsh_buffdesc *path)
 {
 	char uuid_str[UUID_STR_LEN];
 	int ret = 0;
@@ -270,8 +312,8 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 	struct txnfs_fsal_module *txnfs =
 	    container_of(fs, struct txnfs_fsal_module, module);
 	db_store_t *db = txnfs->db;
-	char *uuid_key = NULL, *hdl_key = NULL;
-	size_t uuid_key_len, hdl_key_len;
+	char *uuid_key = NULL, *hdl_key = NULL, *path_key = NULL;
+	size_t uuid_key_len, hdl_key_len, path_key_len;
 
 	UDBG;
 	uuid_generate(uuid);
@@ -280,7 +322,7 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 
 	if (op_ctx->txn_cache) {
 		return txnfs_cache_insert(txnfs_cache_entry_create, hdl_desc,
-					  uuid);
+					  uuid, path);
 	}
 
 	/* let's add prefix first */
@@ -288,6 +330,8 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 		       &uuid_key, &uuid_key_len);
 	combine_prefix(FH_KEY_PREFIX, PREF_LEN, hdl_desc->addr, hdl_desc->len,
 		       &hdl_key, &hdl_key_len);
+	combine_prefix(PATH_KEY_PREFIX, PREF_LEN, uuid, sizeof(uuid_t),
+		       &path_key, &path_key_len);
 
 	/* write to database */
 	leveldb_writebatch_t *commit_batch = leveldb_writebatch_create();
@@ -295,6 +339,8 @@ int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 			       hdl_desc->addr, hdl_desc->len);
 	leveldb_writebatch_put(commit_batch, hdl_key, hdl_key_len, uuid,
 			       sizeof(uuid_t));
+	leveldb_writebatch_put(commit_batch, path_key, path_key_len, path->addr,
+			       path->len);
 	leveldb_write(db->db, db->w_options, commit_batch, &err);
 
 	if (err) {
@@ -365,6 +411,55 @@ int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid)
 		 hdl_desc->addr, hdl_desc->len);
 
 	return txnfs_db_get_uuid_nocache(hdl_desc, uuid);
+}
+
+/* @brief Query absolute path given UUID
+ *
+ * @param[in] uuid	The UUID we want to query
+ * @param[out] path	The buffdesc object where this method places path buf.
+ * 			No need to allocate memory.
+ * @param[out] obj_hdl	The fsal_obj_handle object whose absolute_path field
+ * 			is going to be set.
+ *
+ * @return 0 if successful, -1 if failed
+ */
+int txnfs_db_get_path(uuid_t uuid, struct gsh_buffdesc *path,
+		      struct fsal_obj_handle *obj_hdl)
+{
+	struct fsal_module *fs = op_ctx->fsal_export->fsal;
+	struct txnfs_fsal_module *txnfs =
+	    container_of(fs, struct txnfs_fsal_module, module);
+	db_store_t *db = txnfs->db;
+
+	/* look up in the cache first */
+	if (op_ctx->txn_cache && txnfs_cache_get_path(uuid, path) == 0) {
+		if (obj_hdl) obj_hdl->absolute_path = path->addr;
+		return 0;
+	}
+
+	char *path_key;
+	size_t path_key_len;
+	combine_prefix(PATH_KEY_PREFIX, PREF_LEN, uuid, sizeof(uuid_t),
+		       &path_key, &path_key_len);
+
+	char *val;
+	size_t length;
+	char *err = NULL;
+
+	val = leveldb_get(db->db, db->r_options, path_key, path_key_len,
+			  &length, &err);
+
+	if (err) {
+		LogFatal(COMPONENT_FSAL, "leveldb error: %s", err);
+	}
+	gsh_free(path_key);
+
+	if (!val) return -1;
+
+	path->len = length;
+	path->addr = val;
+	if (obj_hdl) obj_hdl->absolute_path = val;
+	return 0;
 }
 
 int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc)
