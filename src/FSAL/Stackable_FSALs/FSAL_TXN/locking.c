@@ -29,48 +29,6 @@
 #include <hashtable.h>
 #include <nfs_proto_tools.h>
 
-struct lock_req_vec {
-	size_t size;
-	size_t cap;
-	lock_request_t *v;
-};
-
-/**
- * @brief Exchange CFH / Save CFH / Restore saved CFH to current
- *
- * These wrappers are intended to resolve reference issue. In locking.c
- * we should deal with MDCACHE's obj handles, ref countings DOES matter.
- *
- */
-/* exchange_cfh: We assume that the new handle has been ref'd. */
-static inline void exchange_cfh(struct fsal_obj_handle **current,
-				struct fsal_obj_handle *new)
-{
-	if (!new) return;
-	/* release a reference of the current handle */
-	if (*current)
-		topcall((*current)->obj_ops->put_ref(*current));
-	*current = new;
-}
-
-static inline void save_cfh(struct fsal_obj_handle **saved,
-			    struct fsal_obj_handle *current)
-{
-	if (!current) return;
-	if (*saved)
-		topcall((*saved)->obj_ops->put_ref(*saved));
-	*saved = current;
-}
-
-static inline void restore_cfh(struct fsal_obj_handle **current,
-			       struct fsal_obj_handle *saved)
-{
-	if (!saved) return;
-	if (*current)
-		topcall((*current)->obj_ops->put_ref(*current));
-	*current = saved;
-}
-
 /**
  * @brief Convert NFS4 file handle into MDCache fsal_obj_handle
  *
@@ -101,44 +59,6 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 			ret.major);
 		return NULL;
 	}
-}
-
-/**
- * @brief Replay LOOKUP operation
- *
- * A helper to perform a file lookup according to the given LOOKUP4args
- * parameter, and update the current file handle & attrs
- */
-
-static inline int replay_lookup(utf8string *encoded_name,
-				struct fsal_obj_handle **current,
-				struct attrlist *attrs)
-{
-	char *name;
-	struct attrlist queried_attrs = {0};
-	struct fsal_obj_handle *queried = NULL;
-	fsal_status_t status;
-
-	nfs4_utf8string2dynamic(encoded_name, UTF8_SCAN_ALL, &name);
-
-	topcall(status = fsal_lookup(*current, name, &queried, &queried_attrs));
-
-	/* cleanup *name after use */
-	gsh_free(name);
-
-	if (!queried) {
-		return ERR_FSAL_NOENT;
-	}
-
-	if (FSAL_IS_ERROR(status)) {
-		LogDebug(COMPONENT_FSAL, "replay lookup failed:");
-		LogDebug(COMPONENT_FSAL, "%s", msg_fsal_err(status.major));
-		return status.major;
-	}
-
-	exchange_cfh(current, queried);
-	if (attrs) *attrs = queried_attrs;
-	return 0;
 }
 
 /**
@@ -259,9 +179,9 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				 * until real read/write operations */
 			case NFS4_OP_OPEN:;
 				utf8string *u8name = extract_open_name(&curop_arg->nfs_argop4_u.opopen.claim);
-				ret = nfs4_utf8string2dynamic(u8name, UTF8_SCAN_ALL, &name);
-				assert(ret == 0);
-				if (name) {
+				if (u8name) {
+					ret = nfs4_utf8string2dynamic(u8name, UTF8_SCAN_ALL, &name);
+					assert(ret == 0);
 					tc_path_join(current_path, name, current_path, PATH_MAX);
 					gsh_free(name);
 				}
