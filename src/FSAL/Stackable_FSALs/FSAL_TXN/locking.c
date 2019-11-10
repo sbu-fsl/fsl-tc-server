@@ -93,6 +93,16 @@ static utf8string *extract_open_name(open_claim4 *claim)
 	return NULL;
 }
 
+static void add_lock_request(lock_request_t *lrs, int *pos, const char *path, bool is_write)
+{
+	size_t pathlen = strnlen(path, PATH_MAX);
+	char *pathbuf = gsh_calloc(1, pathlen + 1);
+	strncpy(pathbuf, path, pathlen);
+	lrs[*pos].path = pathbuf;
+	lrs[*pos].write_lock = is_write;
+	(*pos)++;
+}
+
 /**
  * @brief Analyze compound args and extract fsal object handles that will
  * involve in the compound execution.
@@ -137,10 +147,9 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 					PATH_MAX);
 
 				if (!current) {
-					LogWarn(
+					LogFatal(
 					    COMPONENT_FSAL,
 					    "Can't find obj_handle from fh.");
-					ret = -ERR_FSAL_NOENT;
 				}
 				break;
 
@@ -183,57 +192,68 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 			case NFS4_OP_OPEN:;
 				utf8string *u8name = extract_open_name(
 				    &curop_arg->nfs_argop4_u.opopen.claim);
+				char *parent_path = gsh_calloc(1, PATH_MAX);
+
+				/* If the OPEN operation creates new file, we
+				 * should lock the parent directory. If that
+				 * is the case, the current path should be the
+				 * parent dir, not the file. */
 				if (u8name) {
+					strncpy(parent_path, current_path, PATH_MAX);
 					ret = nfs4_utf8string2dynamic(
 					    u8name, UTF8_SCAN_ALL, &name);
 					assert(ret == 0);
 					tc_path_join(current_path, name,
 						     current_path, PATH_MAX);
 					gsh_free(name);
+				} else {
+				/* If name is null, target is the current file.
+				 * In that case the parent should be manually
+				 * constructed. */
+					tc_path_join(current_path, "..", parent_path, PATH_MAX);
 				}
-				/* If name is null, target is the current file
-				 */
 
+				/* request lock for parent path of the open
+				 * target. */
+				if (curop_arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE)
+					add_lock_request(lr_vec, &veclen, parent_path, true);
+				else
+					add_lock_request(lr_vec, &veclen, parent_path, false);
+
+				gsh_free(parent_path);
 				break;
 
 			case NFS4_OP_CREATE:
 				/* CREATE: lock parent dir (current) */
 			case NFS4_OP_REMOVE:
 				/* REMOVE: just lock the parent dir */
-			case NFS4_OP_WRITE:;
+			case NFS4_OP_WRITE:
 				/* WRITE: lock current path */
-				size_t pathlen =
-				    strnlen(current_path, PATH_MAX);
-				char *pathbuf = gsh_calloc(1, pathlen + 1);
-				strncpy(pathbuf, current_path, pathlen);
-				lr_vec[veclen].path = pathbuf;
-				lr_vec[veclen].write_lock = true;
-				veclen++;
+				add_lock_request(lr_vec, &veclen, current_path, true);
 				break;
 
 			case NFS4_OP_LINK:;
 				/* LINK: lock src and dest dir
 				 * saved_fh: source object
 				 * current_fh: target dir */
-				size_t destlen =
-				    strnlen(current_path, PATH_MAX);
 				size_t srclen = strnlen(saved_path, PATH_MAX);
-				char *destbuf = gsh_calloc(1, destlen + 1);
 				char *srcbuf = gsh_calloc(1, srclen + 1);
-				strncpy(destbuf, current_path, destlen);
+				char *destbuf = current_path;
 				strncpy(srcbuf, saved_path, srclen);
 				/* We should lock the parent of src, not src
 				 * file */
 				tc_path_join(srcbuf, "..", srcbuf, srclen);
 
-				lr_vec[veclen].path = srcbuf;
-				lr_vec[veclen].write_lock = false;
-				veclen++;
-
-				lr_vec[veclen].path = destbuf;
-				lr_vec[veclen].write_lock = true;
-				veclen++;
+				add_lock_request(lr_vec, &veclen, srcbuf, false);
+				add_lock_request(lr_vec, &veclen, destbuf, true);
+				gsh_free(srcbuf);
 				break;
+
+			case NFS4_OP_GETATTR:;
+				/* GETATTR: used to check file existence */
+				char *parent = gsh_calloc(1, PATH_MAX);
+				tc_path_join(current_path, "..", parent, PATH_MAX);
+				add_lock_request(lr_vec, &veclen, parent, false);
 
 			case NFS4_OP_RENAME:
 				/* rename is complex - let's not deal with it
@@ -252,15 +272,6 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 					" counted for rollback",
 					op);
 				break;
-		}
-
-		if (ret != 0) {
-			LogWarn(COMPONENT_FSAL,
-				"Error %d occurred when"
-				"analyzing the compound. Txn rollback will"
-				"not be supported. opidx=%d",
-				ret, i);
-			break;
 		}
 	}
 
