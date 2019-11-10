@@ -266,12 +266,17 @@ int txnfs_cache_commit(void)
 		gsh_free(hdl_key);
 		gsh_free(path_key);
 	}
+
+	/* Remove txn log */
+	if (op_ctx->txnid > 0) {
+		/* length of RR: len('txn-{uint64}') = 4+20+1 */
+		char rr_key[25] = {'\0'};
+		strncpy(rr_key, "txn-", 4);
+		snprintf(rr_key + 4, 21, "%lu", op_ctx->txnid);
+		leveldb_writebatch_delete(commit_batch, rr_key, sizeof(rr_key));
+		n_del++;
+	}
 	txnfs_tracepoint(collected_cache_entries, op_ctx->txnid, n_put, n_del);
-	// TODO - add entry to remove txn log
-	/*char txnkey[20];
-	strcpy(txnkey, "txn-", 4);
-	uuid_copy(txnkey + 4, op_ctx->uuid);
-	leveldb_writebatch_delete(commit_batch, txnkey, sizeof(uuid_t) + 4);*/
 
 	if (n_put + n_del > 0) {
 		leveldb_write(db->db, db->w_options, commit_batch, &err);

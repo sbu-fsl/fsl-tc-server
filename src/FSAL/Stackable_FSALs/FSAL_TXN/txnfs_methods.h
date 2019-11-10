@@ -37,6 +37,7 @@
 #define UUID_KEY_PREFIX "uuid-"
 #define FH_KEY_PREFIX "fhdl-"
 #define PATH_KEY_PREFIX "path-"
+#define RR_KEY_PREFIX "txn-"
 #define PREF_LEN 5
 
 struct txnfs_file_entry {
