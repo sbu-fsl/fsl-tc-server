@@ -19,8 +19,8 @@
  * 02110-1301 USA
  */
 
-#include "log.h"
 #include "lock_manager.h"
+#include "log.h"
 #include "opvec.h"
 #include "path_utils.h"
 #include "txnfs_methods.h"
@@ -44,11 +44,9 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
 				   .len = file_handle->fs_len};
 	struct fsal_obj_handle *handle = NULL;
 	struct attrlist _attrs = {0};
-	struct fsal_export *exp = (op_ctx->mdc_export) ? op_ctx->mdc_export : op_ctx->fsal_export;
+	struct fsal_export *exp =
+	    (op_ctx->mdc_export) ? op_ctx->mdc_export : op_ctx->fsal_export;
 	fsal_status_t ret;
-
-	// topcall(ret = exp->exp_ops.wire_to_host(exp, FSAL_DIGEST_NFSV4, &buf, 0));
-	// assert(FSAL_IS_SUCCESS(ret));
 
 	topcall(ret = exp->exp_ops.create_handle(exp, &buf, &handle, &_attrs));
 	if (FSAL_IS_SUCCESS(ret)) {
@@ -102,7 +100,7 @@ static utf8string *extract_open_name(open_claim4 *claim)
  * @param[in] args Compound args
  * @param[in] lr_vec Lock request array: Should have adequate space to hold
  * 	      256 lock requests
- * 
+ *
  * @return Number of paths to be locked
  */
 int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
@@ -135,7 +133,8 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				if (!current->absolute_path) {
 					current->absolute_path = "/undefined";
 				}
-				strncpy(current_path, current->absolute_path, PATH_MAX);
+				strncpy(current_path, current->absolute_path,
+					PATH_MAX);
 
 				if (!current) {
 					LogWarn(
@@ -161,32 +160,40 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 
 			case NFS4_OP_LOOKUP:;
 				/* update current fh to the queried one */
-				utf8_name = curop_arg->nfs_argop4_u.oplookup.objname;
-				ret = nfs4_utf8string2dynamic(&utf8_name, UTF8_SCAN_ALL, &name);
+				utf8_name =
+				    curop_arg->nfs_argop4_u.oplookup.objname;
+				ret = nfs4_utf8string2dynamic(
+				    &utf8_name, UTF8_SCAN_ALL, &name);
 				assert(ret == 0);
-				ret = tc_path_join(current_path, name, current_path, PATH_MAX);
+				ret = tc_path_join(current_path, name,
+						   current_path, PATH_MAX);
 				assert(ret >= 0);
 				free(name);
 				break;
 
 			case NFS4_OP_LOOKUPP:
 				/* update current fh to its parent */
-				ret = tc_path_join(current_path, "..", current_path, PATH_MAX);
+				ret = tc_path_join(current_path, "..",
+						   current_path, PATH_MAX);
 				assert(ret >= 0);
 				break;
 
-				/* We don't have to worry about appending lock request
-				 * until real read/write operations */
+				/* We don't have to worry about appending lock
+				 * request until real read/write operations */
 			case NFS4_OP_OPEN:;
-				utf8string *u8name = extract_open_name(&curop_arg->nfs_argop4_u.opopen.claim);
+				utf8string *u8name = extract_open_name(
+				    &curop_arg->nfs_argop4_u.opopen.claim);
 				if (u8name) {
-					ret = nfs4_utf8string2dynamic(u8name, UTF8_SCAN_ALL, &name);
+					ret = nfs4_utf8string2dynamic(
+					    u8name, UTF8_SCAN_ALL, &name);
 					assert(ret == 0);
-					tc_path_join(current_path, name, current_path, PATH_MAX);
+					tc_path_join(current_path, name,
+						     current_path, PATH_MAX);
 					gsh_free(name);
 				}
-				/* If name is null, target is the current file */
-					
+				/* If name is null, target is the current file
+				 */
+
 				break;
 
 			case NFS4_OP_CREATE:
@@ -195,7 +202,8 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				/* REMOVE: just lock the parent dir */
 			case NFS4_OP_WRITE:;
 				/* WRITE: lock current path */
-				size_t pathlen = strnlen(current_path, PATH_MAX);
+				size_t pathlen =
+				    strnlen(current_path, PATH_MAX);
 				char *pathbuf = gsh_calloc(1, pathlen + 1);
 				strncpy(pathbuf, current_path, pathlen);
 				lr_vec[veclen].path = pathbuf;
@@ -207,13 +215,15 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				/* LINK: lock src and dest dir
 				 * saved_fh: source object
 				 * current_fh: target dir */
-				size_t destlen = strnlen(current_path, PATH_MAX);
+				size_t destlen =
+				    strnlen(current_path, PATH_MAX);
 				size_t srclen = strnlen(saved_path, PATH_MAX);
 				char *destbuf = gsh_calloc(1, destlen + 1);
 				char *srcbuf = gsh_calloc(1, srclen + 1);
 				strncpy(destbuf, current_path, destlen);
 				strncpy(srcbuf, saved_path, srclen);
-				/* We should lock the parent of src, not src file */
+				/* We should lock the parent of src, not src
+				 * file */
 				tc_path_join(srcbuf, "..", srcbuf, srclen);
 
 				lr_vec[veclen].path = srcbuf;
@@ -226,12 +236,14 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				break;
 
 			case NFS4_OP_RENAME:
-				/* rename is complex - let's not deal with it now */
+				/* rename is complex - let's not deal with it
+				 * now */
 				break;
 
 			case NFS4_OP_COPY:
 			case NFS4_OP_CLONE:
-				/* they are rarely used - let's not care them for now */
+				/* they are rarely used - let's not care them
+				 * for now */
 				break;
 
 			default:

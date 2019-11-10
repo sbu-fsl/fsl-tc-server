@@ -426,13 +426,13 @@ struct req_op_context {
 	struct fsal_obj_handle *txn_bkp_folder;
 	/* a set of obj handles used by undo executor for release after use */
 	struct hash_table *txn_hdl_set;
-  /* the FSAL export object for MDCACHE */
-  struct fsal_export *mdc_export;
-  /* locked paths - an array of char* strings */
-  char **locked_paths;
-  size_t paths_count;
-  /* lock handle */
-  lock_handle_t *lh;
+  	/* the FSAL export object for MDCACHE */
+  	struct fsal_export *mdc_export;
+  	/* locked paths - an array of char* strings */
+  	char **locked_paths;
+  	size_t paths_count;
+  	/* lock handle */
+  	lock_handle_t *lh;
 };
 
 /**
