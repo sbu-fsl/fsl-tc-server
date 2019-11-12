@@ -131,9 +131,9 @@ fsal_status_t txnfs_alloc_and_check_handle(
 	op_ctx->fsal_export = &export->export;
 
 	/* construct absolute pathname */
-	abs_path = gsh_calloc(1, PATH_MAX);
-	strncpy(abs_path, parent_path, PATH_MAX);
-	ret = tc_path_join(abs_path, this_path, abs_path, PATH_MAX);
+	abs_path = gsh_calloc(1, PATH_MAX + 1);
+	/* ret is the length of combined abs. path */
+	ret = tc_path_join(parent_path, this_path, abs_path, PATH_MAX);
 	if (ret < 0) {
 		LogFatal(COMPONENT_FSAL, "path join failed: %d", ret);
 	}
