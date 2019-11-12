@@ -48,6 +48,7 @@
 #include "hashtable.h"
 #include "sal_shared.h"
 #include "txnfs.h"
+#include "lock_manager.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -425,7 +426,32 @@ struct req_op_context {
 	struct fsal_obj_handle *txn_bkp_folder;
 	/* a set of obj handles used by undo executor for release after use */
 	struct hash_table *txn_hdl_set;
+  	/* the FSAL export object for MDCACHE */
+  	struct fsal_export *mdc_export;
+  	/* locked paths - an array of char* strings */
+  	char **locked_paths;
+  	size_t paths_count;
+  	/* lock handle */
+  	lock_handle_t *lh;
 };
+
+/**
+ * @brief Call FSAL APIs inside FSAL layer but pass through all requests from
+ * the top (i.e. FSAL_MDCACHE)
+ *
+ * Note, it is NOT recommended to call this inside FSAL method implementation,
+ * especially in the same method (For example, DO NOT do topcall(fsal_open())
+ * inside the implementation of open() method, because this will cause infinite
+ * recursions)
+ */
+#define topcall(call) do { \
+  struct fsal_export *__saved_exp = op_ctx->fsal_export; \
+  if (likely(op_ctx->mdc_export)) \
+    op_ctx->fsal_export = op_ctx->mdc_export; \
+  call; \
+  if (likely(op_ctx->mdc_export)) \
+    op_ctx->fsal_export = __saved_exp; \
+} while (0)
 
 /**
  * @brief FSAL module methods

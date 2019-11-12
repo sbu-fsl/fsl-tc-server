@@ -36,6 +36,8 @@
 #define BKP_FN_LEN 20
 #define UUID_KEY_PREFIX "uuid-"
 #define FH_KEY_PREFIX "fhdl-"
+#define PATH_KEY_PREFIX "path-"
+#define RR_KEY_PREFIX "txn-"
 #define PREF_LEN 5
 
 struct txnfs_file_entry {
@@ -102,6 +104,7 @@ struct next_ops {
 struct txnfs_readdir_state {
 	fsal_readdir_cb cb;	    /*< Callback to the upper layer. */
 	struct txnfs_fsal_export *exp; /*< Export of the current txnfsal. */
+	char *parent_path;	     /*< Absolute path of the parent dir */
 	void *dir_state; /*< State to be sent to the next callback. */
 };
 
@@ -124,6 +127,8 @@ struct txnfs_fsal_export {
 	struct cleanup_queue cqueue;
 	/* A op_ctx dedicated for cleanup thread */
 	struct req_op_context *cleaner_ctx;
+  /* Lock manager object (Opaque) */
+  lock_manager_t *lm;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
@@ -135,12 +140,11 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 				  struct fsal_obj_handle **handle,
 				  struct attrlist *attrs_out);
 
-fsal_status_t txnfs_alloc_and_check_handle(struct txnfs_fsal_export *export,
-					   struct fsal_obj_handle *sub_handle,
-					   struct fsal_filesystem *fs,
-					   struct fsal_obj_handle **new_handle,
-					   fsal_status_t subfsal_status,
-					   bool is_creation);
+fsal_status_t txnfs_alloc_and_check_handle(
+    struct txnfs_fsal_export *export, struct fsal_obj_handle *sub_handle,
+    struct fsal_filesystem *fs, struct fsal_obj_handle **new_handle,
+    const char *parent_path, const char *this_path,
+    fsal_status_t subfsal_status, bool is_creation);
 
 /*
  * TXNFS internal object handle
@@ -278,10 +282,12 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 
 /* txn handle */
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
-int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
+int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid,
+                           struct gsh_buffdesc *path);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
+int txnfs_db_get_path(uuid_t uuid, struct gsh_buffdesc *path, struct fsal_obj_handle *obj_hdl);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */
@@ -301,3 +307,6 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 				size_t length);
 int txnfs_compound_restore(uint64_t txnid, COMPOUND4res *res);
 int do_txn_rollback(uint64_t txnid, COMPOUND4res *res);
+
+/* locking */
+int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec);

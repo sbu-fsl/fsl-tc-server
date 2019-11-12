@@ -19,6 +19,7 @@ SET(fsaltxn_LIB_SRCS
    undo.c
    opvec.c
    cleanup.c
+   locking.c
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
@@ -33,6 +34,7 @@ target_link_libraries(fsaltxnfs
   lwrapper
   txn_logger
   lock_manager
+  path_utils
 )
 
 set_target_properties(fsaltxnfs PROPERTIES VERSION 4.2.0 SOVERSION 4)

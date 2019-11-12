@@ -80,7 +80,7 @@ static inline int bs_ffs(bitset_t *bs) {
                 if (res > 0) {
                         assert(res <= 8);
                         res += ((i * 8) - 1);
-                        return static_cast<size_t>(res) < bs->size ? res : -1;
+                        return (size_t)(res) < bs->size ? res : -1;
                 }
         }
 
@@ -270,7 +270,7 @@ static inline int buf_appendf(buf_t *pbuf, const char *format, ...) {
         va_end(args);
         if (n < 0) {
                 return n;
-        } else if (static_cast<size_t>(n) > buf_remaining(pbuf)) {
+        } else if ((size_t)n > buf_remaining(pbuf)) {
                 return -ENOMEM;
         }
 

@@ -69,6 +69,9 @@ static void release(struct fsal_export *exp_hdl)
 	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
 	free_export_ops(exp_hdl);
 
+	/* free lock manager */
+	free_lock_manager(myself->lm);
+
 	gsh_free(myself); /* elvis has left the building */
 }
 
@@ -369,6 +372,10 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	fsal_status_t res = {ERR_FSAL_NO_ERROR, 0};
 	struct txnfs_fsal_module *fs =
 	    container_of(exp_hdl->fsal, struct txnfs_fsal_module, module);
+	struct txnfs_fsal_export *exp =
+	    container_of(exp_hdl, struct txnfs_fsal_export, export);
+	lock_request_t lrs[256];
+	lock_manager_t *lm = exp->lm;
 
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
@@ -385,10 +392,21 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_txn_cache, op_ctx->txnid);
 
-	op_ctx->op_args = args;
+	/* lock all paths involved */
+	/* analyze compound args to compose lock request */
+	int n = find_relevant_handles(args, lrs);
+	/* We must remind the paths because we need to free them in the end */
+	op_ctx->locked_paths = gsh_calloc(n, sizeof(char *));
+	op_ctx->paths_count = n;
+	for (int i = 0; i < n; ++i) {
+		op_ctx->locked_paths[i] = lrs[i].path;
+	}
+	/* lock */
+	op_ctx->lh = lm_lock(lm, lrs, n);
+	if (n > 0 && op_ctx->lh == NULL)
+		LogFatal(COMPONENT_FSAL, "n_paths: %d, can't lock.", n);
 
-	struct txnfs_fsal_export *exp =
-	    container_of(exp_hdl, struct txnfs_fsal_export, export);
+	op_ctx->op_args = args;
 
 	if (exp->export.sub_export->exp_ops.start_compound) {
 		op_ctx->fsal_export = exp->export.sub_export;
@@ -418,6 +436,14 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data)
 	}
 	txnfs_tracepoint(called_subfsal_end_compound, op_ctx->txnid,
 			 exp->export.sub_export->fsal->name);
+
+	/* unlock and cleanup */
+	unlock_handle(op_ctx->lh);
+	for (int i = 0; i < op_ctx->paths_count; ++i) {
+		gsh_free(op_ctx->locked_paths[i]);
+	}
+	gsh_free(op_ctx->locked_paths);
+	op_ctx->paths_count = 0;
 
 	LogDebug(COMPONENT_FSAL, "End Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound status: %d operations: %d",
@@ -709,6 +735,10 @@ fsal_status_t txnfs_create_export(struct fsal_module *fsal_hdl,
 	myself->root = NULL;
 	myself->bkproot = NULL;
 	op_ctx->txn_bkp_folder = NULL;
+
+	/* init lock manager */
+	myself->lm = new_lock_manager();
+	assert(myself->lm);
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.

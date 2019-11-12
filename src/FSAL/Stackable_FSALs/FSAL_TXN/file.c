@@ -114,13 +114,17 @@ fsal_status_t txnfs_open2(struct fsal_obj_handle *obj_hdl,
 	    verifier, &sub_handle, attrs_out, caller_perm_check);
 	op_ctx->fsal_export = &export->export;
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx, op_ctx->txnid, "open");
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "open");
 	if (sub_handle) {
 		bool is_creation = createmode != FSAL_NO_CREATE;
 		/* wrap the subfsal handle in a txnfs handle. */
-		return txnfs_alloc_and_check_handle(export, sub_handle,
-						    obj_hdl->fs, new_obj,
-						    status, is_creation);
+		const char *parent_path = obj_hdl->absolute_path;
+		const char *filename = (is_creation) ? name : "";
+
+		return txnfs_alloc_and_check_handle(
+		    export, sub_handle, obj_hdl->fs, new_obj, parent_path,
+		    filename, status, is_creation);
 	}
 
 	return status;
@@ -193,7 +197,7 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct null_async_arg *arg;
-
+	
 	/* Set up async callback */
 	arg = gsh_calloc(1, sizeof(*arg));
 	arg->obj_hdl = obj_hdl;
@@ -217,7 +221,7 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
 	struct null_async_arg *arg;
-
+	
 	/* Set up async callback */
 	arg = gsh_calloc(1, sizeof(*arg));
 	arg->obj_hdl = obj_hdl;
@@ -368,9 +372,11 @@ fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 	    txn_src_hdl->sub_handle, src_offset, txn_dst_hdl->sub_handle,
 	    dst_offset, count, copied);
 	op_ctx->fsal_export = &export->export;
+
 	return status;
 }
 
+/* NOTE: Not sure if this method is needed in real workloads */
 fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
 			  struct fsal_obj_handle *dst_hdl, char *file_uuid)
 {
@@ -404,7 +410,6 @@ fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 	    container_of(dst_hdl, struct txnfs_fsal_obj_handle, obj_handle);
 	struct txnfs_fsal_export *export =
 	    container_of(op_ctx->fsal_export, struct txnfs_fsal_export, export);
-	LogCrit(COMPONENT_FSAL, "txn: clone2");
 
 	op_ctx->fsal_export = export->export.sub_export;
 	fsal_status_t status = txn_hdl->sub_handle->obj_ops->clone2(
