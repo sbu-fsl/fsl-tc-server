@@ -151,6 +151,10 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 					    COMPONENT_FSAL,
 					    "Can't find obj_handle from fh.");
 				}
+
+				/* We only want the abs. path, so let's release
+				 * the handle after use */
+				topcall(current->obj_ops->release(current));
 				break;
 
 			case NFS4_OP_PUTROOTFH:
