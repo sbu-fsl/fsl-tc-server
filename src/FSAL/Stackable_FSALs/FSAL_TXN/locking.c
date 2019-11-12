@@ -93,7 +93,8 @@ static utf8string *extract_open_name(open_claim4 *claim)
 	return NULL;
 }
 
-static void add_lock_request(lock_request_t *lrs, int *pos, const char *path, bool is_write)
+static void add_lock_request(lock_request_t *lrs, int *pos, const char *path,
+			     bool is_write)
 {
 	size_t pathlen = strnlen(path, PATH_MAX);
 	char *pathbuf = gsh_calloc(1, pathlen + 1);
@@ -203,7 +204,8 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				 * is the case, the current path should be the
 				 * parent dir, not the file. */
 				if (u8name) {
-					strncpy(parent_path, current_path, PATH_MAX);
+					strncpy(parent_path, current_path,
+						PATH_MAX);
 					ret = nfs4_utf8string2dynamic(
 					    u8name, UTF8_SCAN_ALL, &name);
 					assert(ret == 0);
@@ -211,18 +213,23 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 						     current_path, PATH_MAX);
 					gsh_free(name);
 				} else {
-				/* If name is null, target is the current file.
-				 * In that case the parent should be manually
-				 * constructed. */
-					tc_path_join(current_path, "..", parent_path, PATH_MAX);
+					/* If name is null, target is the
+					 * current file. In that case the parent
+					 * should be manually constructed. */
+					tc_path_join(current_path, "..",
+						     parent_path, PATH_MAX);
 				}
 
 				/* request lock for parent path of the open
 				 * target. */
-				if (curop_arg->nfs_argop4_u.opopen.openhow.opentype & OPEN4_CREATE)
-					add_lock_request(lr_vec, &veclen, parent_path, true);
+				if (curop_arg->nfs_argop4_u.opopen.openhow
+					.opentype &
+				    OPEN4_CREATE)
+					add_lock_request(lr_vec, &veclen,
+							 parent_path, true);
 				else
-					add_lock_request(lr_vec, &veclen, parent_path, false);
+					add_lock_request(lr_vec, &veclen,
+							 parent_path, false);
 
 				gsh_free(parent_path);
 				break;
@@ -233,7 +240,8 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				/* REMOVE: just lock the parent dir */
 			case NFS4_OP_WRITE:
 				/* WRITE: lock current path */
-				add_lock_request(lr_vec, &veclen, current_path, true);
+				add_lock_request(lr_vec, &veclen, current_path,
+						 true);
 				break;
 
 			case NFS4_OP_LINK:;
@@ -248,16 +256,20 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				 * file */
 				tc_path_join(srcbuf, "..", srcbuf, srclen);
 
-				add_lock_request(lr_vec, &veclen, srcbuf, false);
-				add_lock_request(lr_vec, &veclen, destbuf, true);
+				add_lock_request(lr_vec, &veclen, srcbuf,
+						 false);
+				add_lock_request(lr_vec, &veclen, destbuf,
+						 true);
 				gsh_free(srcbuf);
 				break;
 
 			case NFS4_OP_GETATTR:;
 				/* GETATTR: used to check file existence */
 				char *parent = gsh_calloc(1, PATH_MAX);
-				tc_path_join(current_path, "..", parent, PATH_MAX);
-				add_lock_request(lr_vec, &veclen, parent, false);
+				tc_path_join(current_path, "..", parent,
+					     PATH_MAX);
+				add_lock_request(lr_vec, &veclen, parent,
+						 false);
 
 			case NFS4_OP_RENAME:
 				/* rename is complex - let's not deal with it
