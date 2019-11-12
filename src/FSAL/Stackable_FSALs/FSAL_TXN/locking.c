@@ -234,6 +234,7 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				gsh_free(parent_path);
 				break;
 
+			/* Write lock the CURRENT path */
 			case NFS4_OP_CREATE:
 				/* CREATE: lock parent dir (current) */
 			case NFS4_OP_REMOVE:
@@ -263,13 +264,14 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				gsh_free(srcbuf);
 				break;
 
-			case NFS4_OP_GETATTR:;
-				/* GETATTR: used to check file existence */
-				char *parent = gsh_calloc(1, PATH_MAX);
-				tc_path_join(current_path, "..", parent,
-					     PATH_MAX);
-				add_lock_request(lr_vec, &veclen, parent,
+			/* Read/Shared lock the CURRENT path */
+			case NFS4_OP_READDIR:
+				/* READDIR: lock the target dir (current) */
+			case NFS4_OP_GETATTR:
+				/* GETATTR: lock the target file (current) */
+				add_lock_request(lr_vec, &veclen, current_path,
 						 false);
+				break;
 
 			case NFS4_OP_RENAME:
 				/* rename is complex - let's not deal with it
