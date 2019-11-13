@@ -63,7 +63,7 @@ int opvec_push(struct op_vector *vec, uint32_t opidx, nfs_opnum4 opcode,
 	/* if the array is full,
 	 * request for reallocation of a double sized one */
 	if (vec->len == vec->max) {
-		gsh_realloc(vec->v, 2 * vec->max * sizeof(struct op_desc));
+		vec->v = gsh_realloc(vec->v, 2 * vec->max * sizeof(struct op_desc));
 		vec->max *= 2;
 	}
 
