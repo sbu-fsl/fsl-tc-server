@@ -248,7 +248,7 @@ static const uint32_t nfsv40_optype[NFS_V40_NB_OPERATION] = {
 	[NFS4_OP_WRITE] = WRITE_OP,
 };
 
-static const uint32_t nfsv41_optype[NFS_V41_NB_OPERATION] = {
+static const uint32_t nfsv41_optype[NFS_V42_NB_OPERATION] = {
 	[NFS4_OP_READ] = READ_OP,
 	[NFS4_OP_WRITE] = WRITE_OP,
 	[NFS4_OP_GETDEVICEINFO] = LAYOUT_OP,
