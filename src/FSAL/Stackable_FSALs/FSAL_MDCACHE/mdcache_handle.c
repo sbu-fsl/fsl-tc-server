@@ -143,7 +143,7 @@ fsal_status_t mdcache_alloc_and_check_handle(
 		PTHREAD_RWLOCK_unlock(&new_entry->content_lock);
 	}
 	/* transpose abs-path */
-	new_entry->obj_handle.absolute_path = sub_handle->absolute_path;
+	new_entry->obj_handle.absolute_path = new_entry->sub_handle->absolute_path;
 
 	*new_obj = &new_entry->obj_handle;
 
