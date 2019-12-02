@@ -714,6 +714,80 @@ TRACEPOINT_LOGLEVEL(
 	TRACE_INFO
 )
 
+/**
+ * @brief Trace after finding relevant paths to lock
+ * 
+ * @param[in] txnid   Transaction ID
+ * @param[in] npaths  Number of paths involved
+ * @param[in] nops    Number of compound operations
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	find_relevant_paths,
+	TP_ARGS(
+		uint64_t, txnid,
+    int, npaths,
+    int, nops
+	),
+	TP_FIELDS(
+		ctf_integer(uint64_t, txnid, txnid)
+    ctf_integer(int, npaths, npaths)
+    ctf_integer(int, nops, nops)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	find_relevant_paths,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace after locking paths
+ * 
+ * @param[in] txnid   Transaction ID
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	locked_paths,
+	TP_ARGS(
+		uint64_t, txnid 
+	),
+	TP_FIELDS(
+		ctf_integer(uint64_t, txnid, txnid)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	locked_paths,
+	TRACE_INFO
+)
+
+/**
+ * @brief Trace after retrieving abs. path in create_handle
+ * 
+ * @param[in] fileid   File ID
+ * @param[in] path     The abs. path
+ */
+TRACEPOINT_EVENT(
+	txnfs,
+	get_abs_path,
+	TP_ARGS(
+		uint64_t, fileid,
+    const char *, path
+	),
+	TP_FIELDS(
+		ctf_integer(uint64_t, fileid, fileid)
+    ctf_string(path, path)
+	)
+)
+
+TRACEPOINT_LOGLEVEL(
+	txnfs,
+	get_abs_path,
+	TRACE_INFO
+)
 
 #endif /* GANESHA_LTTNG_TXNFS_TP_H */
 
