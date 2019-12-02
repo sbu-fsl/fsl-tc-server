@@ -780,8 +780,8 @@ static void execute_compound(void *worker_args)
 		 * Make the actual op call                                     *
 		 **************************************************************/
 #ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_start, args->pos, argarray[i].argop,
-			   data->opname);
+		tracepoint(nfs_rpc, v4op_start, args->pos,
+			   args->argarray[i].argop, data->opname);
 #endif
 		// create backups for txnfs
 		if (args->txn_ready) {
@@ -791,7 +791,7 @@ static void execute_compound(void *worker_args)
 				&args->argarray[i], data);
 #ifdef USE_LTTNG
 			tracepoint(txnfs, end_backup, op_ctx->txnid, args->pos,
-				   argarray[i].argop, data->opname);
+				   args->argarray[i].argop, data->opname);
 #endif
 		}
 		
