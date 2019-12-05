@@ -3329,6 +3329,24 @@ struct COMPOUND4res {
 };
 typedef struct COMPOUND4res COMPOUND4res;
 
+/* Compound operation sequence: ops to be executed sequentially by workers */
+struct compound_op_seq {
+  /* Start pointer to the arg and res array */
+  nfs_argop4 *args;
+  nfs_resop4 *res;
+  /* Number of operations contained */
+  int len;
+  /* Start position/index on the big compound arg array */
+  int pos;
+};
+
+/* Operation group: contains compound_op_seq sequences to be executed
+ * in parallel */
+struct compound_op_group {
+  struct compound_op_seq *sequences;
+  int count;
+};
+
 struct CB_GETATTR4args {
 	nfs_fh4 fh;
 	struct bitmap4 attr_request;
