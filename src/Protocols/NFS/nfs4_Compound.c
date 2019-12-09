@@ -611,6 +611,8 @@ struct compound_executor_args {
 	nfs_res_t *res;
 	int status;
 	char *bad_op_state_reason;
+	/* Executed in child threads? */
+	bool thread_pool;
 };
 
 static void execute_compound(void *worker_args)
@@ -862,6 +864,96 @@ static void execute_compound(void *worker_args)
 			break;	/* Exit the for loop */
 		}
 	}			/* for */
+}
+
+static int try_group_open_close(nfs_argop4 *argarray, int remaining_len)
+{
+	const int template_read[] = {
+		NFS4_OP_OPEN, NFS4_OP_GETATTR, NFS4_OP_READ, NFS4_OP_CLOSE,
+		NFS4_OP_RESTOREFH
+	};
+	const int template_write[] = {
+		NFS4_OP_OPEN, NFS4_OP_GETATTR, NFS4_OP_WRITE, NFS4_OP_GETATTR,
+		NFS4_OP_CLOSE, NFS4_OP_RESTOREFH
+	};
+	
+	int matched_size = 0;
+	/* try match: OPEN...READ...CLOSE */
+	for (int i = 0; i < sizeof(template_read); ++i, ++matched_size) {
+		if (i >= remaining_len || 
+		  argarray[i].argop != template_read[i]) {
+			matched_size = 0;
+			break;
+		}
+	}
+	if (matched_size > 0)
+		return matched_size;
+	for (int i = 0; i < sizeof(template_write); ++i; ++matched_size) {
+		if (i >= remaining_len ||
+		  argarray[i].argop != template_write[i]) {
+			matched_size = 0;
+			break;
+		}
+	}
+	return matched_size;
+}
+
+int group_compound_ops(nfs_argop4 *argarray, nfs_resop4 *resarray, int arglen,
+		       struct compound_op_group *op_groups)
+{
+	struct compound_op_group *groups = gsh_calloc(OP_MAX, sizeof(*groups));
+	struct compound_op_seq *seqs = gsh_calloc(OP_MAX, sizeof(*seqs));
+	int ngroups = 0;
+	int nseqs = 0;
+	int pos = 0;
+	
+	int group_anchor = 0;
+	for (int i = 0; i < arglen;) {
+		int n_matched = 0;
+		switch(argarray[i].argop) {
+			case NFS4_OP_OPEN:
+				n_matched = try_group_open_close(argarray + i,
+				  arglen - i);
+				if (n_matched == 0)
+					goto default;
+				seqs[nseqs].args = argarray + i;
+				seqs[nseqs].res = resarray + i;
+				seqs[nseqs].len = n_matched;
+				seqs[nseqs].pos = i;
+				if (groups[ngroups].count == 0)
+					groups[ngroups].sequences = seqs + nseqs;
+				groups[ngroups].count++;
+				nseqs++;
+				i += n_matched;
+				break;
+
+			/* unrecognized: assign each op as a singular group */
+			default:
+				/* Break the old group if exists */
+				if (groups[ngroups].count > 0)
+					ngroups++;
+				seqs[nseqs].args = argarray + i;
+				seqs[nseqs].res = resarray + i;
+				seqs[nseqs].len = 1;
+				seqs[nseqs].pos = i;
+				groups[ngroups].sequences = seqs + nseqs;
+				groups[ngroups].count = 1;
+				ngroups++;
+				nseqs++;
+				i++;
+				break;
+		}
+	}
+	/* Shrink the data */
+	groups = gsh_realloc(ngroups, sizeof(*groups));
+	seqs = gsh_realloc(nseqs, sizeof(*seqs));
+	return ngroups;
+}
+
+inline void destroy_compound_groups(struct compound_op_group *groups)
+{
+	gsh_free(groups[0].sequences);
+	gsh_free(groups);
 }
 
 /**
