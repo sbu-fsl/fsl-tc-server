@@ -1428,8 +1428,8 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t *data,
 		state_del(file_state);
 	}
 
-	if (obj_change)
-		obj_change->obj_ops->put_ref(obj_change);
+	// if (obj_change)
+	// 	obj_change->obj_ops->put_ref(obj_change);
 
 	if (owner != NULL) {
 		/* Need to release the open owner for this call */
