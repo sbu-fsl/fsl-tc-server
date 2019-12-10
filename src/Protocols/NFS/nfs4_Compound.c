@@ -31,8 +31,11 @@
  * Routines used for managing the NFS4 COMPOUND functions.
  *
  */
+#include <semaphore.h>
+
 #include "config.h"
 #include "fsal.h"
+#include "fridgethr.h"
 #include "sal_functions.h"
 #include "nfs_convert.h"
 #include "nfs_core.h"
@@ -613,6 +616,8 @@ struct compound_executor_args {
 	char *bad_op_state_reason;
 	/* Executed in child threads? */
 	bool thread_pool;
+	sem_t *sem;
+	struct req_op_context *op_ctx;
 };
 
 static void execute_compound(void *worker_args)
@@ -627,6 +632,11 @@ static void execute_compound(void *worker_args)
 	log_components_t alt_component = COMPONENT_NFS_V4;
 
 	for (int i = 0; i < argarray_len; i++, args->pos++) {
+		/* Skip the last RESTOREFH if execution is in parallel
+		 * because it wouldn't make sense */
+		if (args->thread_pool && i == argarray_len - 1 &&
+			args->argarray[i].argop == NFS4_OP_RESTOREFH)
+			break;
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data->oppos = args->pos;
 		data->op_resp_size = sizeof(nfsstat4);
@@ -782,7 +792,7 @@ static void execute_compound(void *worker_args)
 		 * Make the actual op call                                     *
 		 **************************************************************/
 #ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_start, args->pos, argarray[i].argop,
+		tracepoint(nfs_rpc, v4op_start, args->pos, args->argarray[i].argop,
 			   data->opname);
 #endif
 		// create backups for txnfs
@@ -793,7 +803,7 @@ static void execute_compound(void *worker_args)
 				&args->argarray[i], data);
 #ifdef USE_LTTNG
 			tracepoint(txnfs, end_backup, op_ctx->txnid, args->pos,
-				   argarray[i].argop, data->opname);
+				   args->argarray[i].argop, data->opname);
 #endif
 		}
 		
@@ -869,7 +879,7 @@ static void execute_compound(void *worker_args)
 static int try_group_open_close(nfs_argop4 *argarray, int remaining_len)
 {
 	const int template_read[] = {
-		NFS4_OP_OPEN, NFS4_OP_GETATTR, NFS4_OP_READ, NFS4_OP_CLOSE,
+		NFS4_OP_OPEN, NFS4_OP_READ, NFS4_OP_GETATTR, NFS4_OP_CLOSE,
 		NFS4_OP_RESTOREFH
 	};
 	const int template_write[] = {
@@ -879,7 +889,7 @@ static int try_group_open_close(nfs_argop4 *argarray, int remaining_len)
 	
 	int matched_size = 0;
 	/* try match: OPEN...READ...CLOSE */
-	for (int i = 0; i < sizeof(template_read); ++i, ++matched_size) {
+	for (int i = 0; i < sizeof(template_read) / 4; ++i, ++matched_size) {
 		if (i >= remaining_len || 
 		  argarray[i].argop != template_read[i]) {
 			matched_size = 0;
@@ -888,7 +898,7 @@ static int try_group_open_close(nfs_argop4 *argarray, int remaining_len)
 	}
 	if (matched_size > 0)
 		return matched_size;
-	for (int i = 0; i < sizeof(template_write); ++i; ++matched_size) {
+	for (int i = 0; i < sizeof(template_write) / 4; ++i, ++matched_size) {
 		if (i >= remaining_len ||
 		  argarray[i].argop != template_write[i]) {
 			matched_size = 0;
@@ -898,16 +908,23 @@ static int try_group_open_close(nfs_argop4 *argarray, int remaining_len)
 	return matched_size;
 }
 
-int group_compound_ops(nfs_argop4 *argarray, nfs_resop4 *resarray, int arglen,
-		       struct compound_op_group *op_groups)
+void execute_compound_fr(struct fridgethr_context *ctx)
 {
-	struct compound_op_group *groups = gsh_calloc(OP_MAX, sizeof(*groups));
-	struct compound_op_seq *seqs = gsh_calloc(OP_MAX, sizeof(*seqs));
+	struct compound_executor_args *args = ctx->arg;
+	op_ctx = args->op_ctx;
+	execute_compound(args);
+	if (args->thread_pool && args->sem)
+		sem_post(args->sem);
+}
+
+int group_compound_ops(nfs_argop4 *argarray, nfs_resop4 *resarray, int arglen,
+		       struct compound_op_group **op_groups)
+{
+	struct compound_op_group *groups = gsh_calloc(MAX_OPS, sizeof(*groups));
+	struct compound_op_seq *seqs = gsh_calloc(MAX_OPS, sizeof(*seqs));
 	int ngroups = 0;
 	int nseqs = 0;
-	int pos = 0;
 	
-	int group_anchor = 0;
 	for (int i = 0; i < arglen;) {
 		int n_matched = 0;
 		switch(argarray[i].argop) {
@@ -915,7 +932,7 @@ int group_compound_ops(nfs_argop4 *argarray, nfs_resop4 *resarray, int arglen,
 				n_matched = try_group_open_close(argarray + i,
 				  arglen - i);
 				if (n_matched == 0)
-					goto default;
+					goto unrecognized;
 				seqs[nseqs].args = argarray + i;
 				seqs[nseqs].res = resarray + i;
 				seqs[nseqs].len = n_matched;
@@ -929,6 +946,7 @@ int group_compound_ops(nfs_argop4 *argarray, nfs_resop4 *resarray, int arglen,
 
 			/* unrecognized: assign each op as a singular group */
 			default:
+			unrecognized:
 				/* Break the old group if exists */
 				if (groups[ngroups].count > 0)
 					ngroups++;
@@ -944,17 +962,25 @@ int group_compound_ops(nfs_argop4 *argarray, nfs_resop4 *resarray, int arglen,
 				break;
 		}
 	}
-	/* Shrink the data */
-	groups = gsh_realloc(ngroups, sizeof(*groups));
-	seqs = gsh_realloc(nseqs, sizeof(*seqs));
+	// /* Shrink the data */
+	// groups = gsh_realloc(groups, ngroups * sizeof(*groups));
+	// seqs = gsh_realloc(seqs, nseqs * sizeof(*seqs));
+	*op_groups = groups;
 	return ngroups;
 }
 
-inline void destroy_compound_groups(struct compound_op_group *groups)
+static inline void destroy_compound_groups(struct compound_op_group *groups)
 {
 	gsh_free(groups[0].sequences);
 	gsh_free(groups);
 }
+
+const struct fridgethr_params threadpool_params = {
+	.thr_min = 4,
+	.thr_max = 8,
+	.deferment = fridgethr_defer_queue,
+	.flavor = fridgethr_flavor_worker
+};
 
 /**
  * @brief The NFS PROC4 COMPOUND
@@ -991,6 +1017,16 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	char *tagname = notag;
 	bool txn_ready = false, start_compound_called = false;
 	struct compound_executor_args worker_args;
+
+	/* Data structures for parallelization */
+	struct fridgethr *pool = NULL;
+	sem_t sem;
+	struct compound_op_group *op_groups;
+	int n_groups;
+	int ret = fridgethr_init(&pool, "txn", &threadpool_params);
+	assert(ret == 0);
+	ret = sem_init(&sem, 0, 0);
+	assert(ret == 0);
 
 	if (compound4_minor > 2) {
 		LogCrit(COMPONENT_NFS_V4, "Bad Minor Version %d",
@@ -1141,54 +1177,108 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
+	/* Group the compounds and execute */
+	n_groups = group_compound_ops(argarray, resarray, argarray_len,
+	  &op_groups);
+
 	worker_args.compound4_minor = compound4_minor;
 	worker_args.data = &data;
 	worker_args.res = res;
 	worker_args.status = 0;
-	for (i = 0; i < argarray_len; i++) {
-		worker_args.argarray = &argarray[i];
-		worker_args.resarray = &resarray[i];
-		worker_args.argarray_len = 1;
-		worker_args.pos = i;
-		worker_args.txn_ready = txn_ready;
-		execute_compound(&worker_args);
+	for (i = 0; i < n_groups; i++) {
+		/* If there is only one operation contained in this group,
+		 * treat it as sequential work */
+		if (op_groups[i].count <= 1) {
+			struct compound_op_seq *seq = op_groups[i].sequences;
+			worker_args.argarray = seq->args;
+			worker_args.resarray = seq->res;
+			worker_args.argarray_len = 1;
+			worker_args.pos = seq->pos;
+			worker_args.txn_ready = txn_ready;
+			execute_compound(&worker_args);
 
-		if (worker_args.status != NFS4_OK) {
-			status = worker_args.status;
-			break;
-		}
-
-		/* Check if transactional compound operation is ready */
-		if (!txn_ready && op_ctx->fsal_export 
-		    && op_ctx->fsal_export->exp_ops.start_compound
-		    && op_ctx->fsal_export->exp_ops.end_compound
-		    && op_ctx->fsal_export->exp_ops.backup_nfs4_op) {
-			/* Make sure TXNFS is loaded */
-			struct fsal_export *exp = op_ctx->fsal_export;
-			while (exp) {
-				if (exp->exp_ops.fs_supports(exp,
-				    fso_transaction)) {
-					txn_ready = true;
-					break;
-				}
-				exp = exp->sub_export;
+			if (worker_args.status != NFS4_OK) {
+				status = worker_args.status;
+				break;
 			}
-		}
 
-		if (!start_compound_called && txn_ready) {
-#ifdef USE_LTTNG
-			tracepoint(txnfs, before_start_compound, argarray_len);
-#endif
-			op_ctx->fsal_export->exp_ops.start_compound(
-				op_ctx->fsal_export, &arg->arg_compound4);
-#ifdef USE_LTTNG
-			tracepoint(txnfs, after_start_compound, argarray_len,
-				   op_ctx->txnid);
-#endif
-			start_compound_called = true;
-		}
+			/* Check if transactional compound operation is ready */
+			if (!txn_ready && op_ctx->fsal_export 
+			    && op_ctx->fsal_export->exp_ops.start_compound
+			    && op_ctx->fsal_export->exp_ops.end_compound
+			    && op_ctx->fsal_export->exp_ops.backup_nfs4_op) {
+				/* Make sure TXNFS is loaded */
+				struct fsal_export *exp = op_ctx->fsal_export;
+				while (exp) {
+					if (exp->exp_ops.fs_supports(exp,
+					    fso_transaction)) {
+						txn_ready = true;
+						break;
+					}
+					exp = exp->sub_export;
+				}
+			}
 
+			if (!start_compound_called && txn_ready) {
+#ifdef USE_LTTNG
+				tracepoint(txnfs, before_start_compound, argarray_len);
+#endif
+				op_ctx->fsal_export->exp_ops.start_compound(
+					op_ctx->fsal_export, &arg->arg_compound4);
+#ifdef USE_LTTNG
+				tracepoint(txnfs, after_start_compound, argarray_len,
+				   	op_ctx->txnid);
+#endif
+				start_compound_called = true;
+			}
+		} else {
+			struct compound_executor_args *args;
+			args = gsh_calloc(op_groups[i].count, 
+				sizeof(*args) + sizeof(struct req_op_context) +
+				sizeof(compound_data_t));
+			/* Populate args */
+			int total = op_groups[i].count;
+			for (int n = 0; n < total; ++n) {
+				struct compound_op_seq *seq = &op_groups[i].sequences[n];
+				args[n].argarray = seq->args;
+				args[n].resarray = seq->res;
+				args[n].argarray_len = seq->len;
+				args[n].pos = seq->pos;
+				args[n].compound4_minor = compound4_minor;
+				args[n].txn_ready = txn_ready;
+				args[n].data = (compound_data_t *)((char *)args +
+					total * sizeof(*args) + 
+					n * sizeof(compound_data_t));
+				args[n].op_ctx = (struct req_op_context *)
+					((char *)args + total * (sizeof(*args) + 
+						sizeof(compound_data_t)) +
+					n * sizeof(struct req_op_context));
+				args[n].res = res;
+				args[n].thread_pool = true;
+				args[n].sem = &sem;
+				memcpy(args[n].data, &data, sizeof(data));
+				memcpy(args[n].op_ctx, op_ctx, sizeof(*op_ctx));
+			}
+			/* Execute ops using thread pool (fridgethr) */
+			for (int m = 0; m < total; ++m) {
+				fridgethr_submit(pool, execute_compound_fr,
+					&args[m]);
+			}
+			/* Join all threads */
+			for (int m = 0; m < total; ++m)
+				sem_wait(&sem);
+
+			/* Check status: break res if encountered error */
+			for (int j = 0; j < total; ++j) {
+				if (args[j].status != NFS4_OK)
+					res->res_compound4.resarray.resarray_len = j + 1;
+			}
+
+			/* Free memory */
+			gsh_free(args);
+		}
 	}			/* for */
+	destroy_compound_groups(op_groups);
 
 	server_stats_compound_done(argarray_len, status);
 
