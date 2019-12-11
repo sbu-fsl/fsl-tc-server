@@ -635,8 +635,10 @@ static void execute_compound(void *worker_args)
 		/* Skip the last RESTOREFH if execution is in parallel
 		 * because it wouldn't make sense */
 		if (args->thread_pool && i == argarray_len - 1 &&
-			args->argarray[i].argop == NFS4_OP_RESTOREFH)
+			args->argarray[i].argop == NFS4_OP_RESTOREFH) {
+			args->resarray[i].nfs_resop4_u.oprestorefh.status = 0;
 			break;
+		}
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data->oppos = args->pos;
 		data->op_resp_size = sizeof(nfsstat4);
