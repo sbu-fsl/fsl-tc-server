@@ -625,22 +625,16 @@ static void execute_compound(void *worker_args)
 	struct compound_executor_args *args = worker_args;
 	compound_data_t *data = args->data;
 	int argarray_len = args->argarray_len;
+	int pos = args->pos;
 	struct timespec ts;
 	nsecs_elapsed_t op_start_time;
 	nfs_opnum4 opcode;
 	int perm_flags;
 	log_components_t alt_component = COMPONENT_NFS_V4;
 
-	for (int i = 0; i < argarray_len; i++, args->pos++) {
-		/* Skip the last RESTOREFH if execution is in parallel
-		 * because it wouldn't make sense */
-		if (args->thread_pool && i == argarray_len - 1 &&
-			args->argarray[i].argop == NFS4_OP_RESTOREFH) {
-			args->resarray[i].nfs_resop4_u.oprestorefh.status = 0;
-			break;
-		}
+	for (int i = 0; i < argarray_len; ++i, ++pos) {
 		/* Used to check if OP_SEQUENCE is the first operation */
-		data->oppos = args->pos;
+		data->oppos = pos;
 		data->op_resp_size = sizeof(nfsstat4);
 		opcode = args->argarray[i].argop;
 
@@ -657,7 +651,7 @@ static void execute_compound(void *worker_args)
 		 * with length > 1. This check is NOT redundant with the
 		 * checks above.
 		 */
-		if (args->pos > 0 &&
+		if (pos > 0 &&
 		    args->argarray[i].argop == NFS4_OP_BIND_CONN_TO_SESSION) {
 			args->status = NFS4ERR_NOT_ONLY_OP;
 			args->bad_op_state_reason =
@@ -666,7 +660,7 @@ static void execute_compound(void *worker_args)
 		}
 
 		/* OP_SEQUENCE is always the first operation of the request */
-		if (args->pos > 0 &&
+		if (pos > 0 &&
 		    args->argarray[i].argop == NFS4_OP_SEQUENCE) {
 			args->status = NFS4ERR_SEQUENCE_POS;
 			args->bad_op_state_reason =
@@ -679,7 +673,7 @@ static void execute_compound(void *worker_args)
 		 * has more than one op, we already know it MUST start with
 		 * SEQUENCE), then it MUST be the final op in the compound.
 		 */
-		if (args->pos > 0 &&
+		if (pos > 0 &&
 		    args->argarray[i].argop == NFS4_OP_DESTROY_SESSION) {
 			bool session_compare;
 			bool bad_pos;
@@ -691,13 +685,13 @@ static void execute_compound(void *worker_args)
 				nfs_argop4_u.opdestroy_session.dsa_sessionid,
 			    NFS4_SESSIONID_SIZE) == 0;
 
-			bad_pos = session_compare && args->pos != (argarray_len - 1);
+			bad_pos = session_compare && pos != (argarray_len - 1);
 
 			LogAtLevel(COMPONENT_SESSIONS,
 				   bad_pos ? NIV_INFO : NIV_DEBUG,
 				   "DESTROY_SESSION in position %u out of 0-%"
 				   PRIi32 " %s is %s",
-				   args->pos, argarray_len - 1, session_compare
+				   pos, argarray_len - 1, session_compare
 					? "same session as SEQUENCE"
 					: "different session from SEQUENCE",
 				   bad_pos ? "not last op in compound" : "opk");
@@ -715,7 +709,7 @@ static void execute_compound(void *worker_args)
 		op_start_time = timespec_diff(&nfs_ServerBootTime, &ts);
 
 		if (args->compound4_minor > 0 && data->session != NULL &&
-		    data->session->fore_channel_attrs.ca_maxoperations == args->pos) {
+		    data->session->fore_channel_attrs.ca_maxoperations == pos) {
 			args->status = NFS4ERR_TOO_MANY_OPS;
 			args->bad_op_state_reason = "Too many operations";
 			goto bad_op_state;
@@ -774,7 +768,7 @@ static void execute_compound(void *worker_args)
 			LogDebugAlt(COMPONENT_NFS_V4, alt_component,
 				    "Status of %s in position %d due to %s is %s, op response size = %"
 				    PRIu32" total response size = %"PRIu32,
-				    data->opname, args->pos,
+				    data->opname, pos,
 				    args->bad_op_state_reason,
 				    nfsstat4_to_str(args->status),
 				    data->op_resp_size, data->resp_size);
@@ -786,7 +780,7 @@ static void execute_compound(void *worker_args)
 			args->resarray[i].resop = args->argarray[i].argop;
 
 			/* Do not manage the other requests in the COMPOUND. */
-			args->res->res_compound4.resarray.resarray_len = args->pos + 1;
+			args->res->res_compound4.resarray.resarray_len = pos + 1;
 			break;
 		}
 
@@ -794,17 +788,17 @@ static void execute_compound(void *worker_args)
 		 * Make the actual op call                                     *
 		 **************************************************************/
 #ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_start, args->pos, args->argarray[i].argop,
+		tracepoint(nfs_rpc, v4op_start, pos, args->argarray[i].argop,
 			   data->opname);
 #endif
 		// create backups for txnfs
 		if (args->txn_ready) {
-			op_ctx->opidx = args->pos;
+			op_ctx->opidx = pos;
 			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
-				op_ctx->fsal_export, args->pos, data->current_obj,
+				op_ctx->fsal_export, pos, data->current_obj,
 				&args->argarray[i], data);
 #ifdef USE_LTTNG
-			tracepoint(txnfs, end_backup, op_ctx->txnid, args->pos,
+			tracepoint(txnfs, end_backup, op_ctx->txnid, pos,
 				   args->argarray[i].argop, data->opname);
 #endif
 		}
@@ -814,7 +808,7 @@ static void execute_compound(void *worker_args)
 						  &args->resarray[i]);
 		
 #ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_end, args->pos, args->argarray[i].argop,
+		tracepoint(nfs_rpc, v4op_end, pos, args->argarray[i].argop,
 			   data->opname, nfsstat4_to_str(args->status));
 #endif
 
@@ -843,14 +837,14 @@ static void execute_compound(void *worker_args)
 		LogDebug(COMPONENT_NFS_V4,
 			 "Status of %s in position %d = %s, op response size is %"
 			 PRIu32" total response size is %"PRIu32,
-			 data->opname, args->pos, nfsstat4_to_str(args->status),
+			 data->opname, pos, nfsstat4_to_str(args->status),
 			 data->op_resp_size, data->resp_size);
 
 		if (args->status != NFS4_OK) {
 			/* An error occured, we do not manage the other requests
 			 * in the COMPOUND, this may be a regular behavior
 			 */
-			args->res->res_compound4.resarray.resarray_len = args->pos + 1;
+			args->res->res_compound4.resarray.resarray_len = pos + 1;
 			break;
 			// call end_compound
 		}
@@ -914,7 +908,9 @@ void execute_compound_fr(struct fridgethr_context *ctx)
 {
 	struct compound_executor_args *args = ctx->arg;
 	op_ctx = args->op_ctx;
+	/* payload: compound execution loop */
 	execute_compound(args);
+	/* cleanup */
 	if (args->thread_pool && args->sem)
 		sem_post(args->sem);
 }
@@ -1238,6 +1234,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			args = gsh_calloc(op_groups[i].count, 
 				sizeof(*args) + sizeof(struct req_op_context) +
 				sizeof(compound_data_t));
+			struct fsal_obj_handle *current = data.current_obj;
 			/* Populate args */
 			int total = op_groups[i].count;
 			for (int n = 0; n < total; ++n) {
@@ -1251,6 +1248,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				args[n].data = (compound_data_t *)((char *)args +
 					total * sizeof(*args) + 
 					n * sizeof(compound_data_t));
+				args[n].data->resp_size = 0;
 				args[n].op_ctx = (struct req_op_context *)
 					((char *)args + total * (sizeof(*args) + 
 						sizeof(compound_data_t)) +
@@ -1263,23 +1261,33 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			}
 			/* Execute ops using thread pool (fridgethr) */
 			for (int m = 0; m < total; ++m) {
+				/* protect current fsal_obj_handle so that
+				 * it will not be freed by some threads
+				 * before finishing */
+				current->obj_ops->get_ref(current);
 				fridgethr_submit(pool, execute_compound_fr,
 					&args[m]);
 			}
 			/* Join all threads */
-			for (int m = 0; m < total; ++m)
+			for (int m = 0; m < total; ++m) {
 				sem_wait(&sem);
+			}
 
 			/* Check status: break res if encountered error */
 			for (int j = 0; j < total; ++j) {
-				if (args[j].status != NFS4_OK)
+				data.resp_size += args[j].data->resp_size;
+				if (args[j].status != NFS4_OK) {
 					res->res_compound4.resarray.resarray_len = j + 1;
+					status = args[j].status;
+					goto out;
+				}
 			}
 
 			/* Free memory */
 			gsh_free(args);
 		}
 	}			/* for */
+out:
 	destroy_compound_groups(op_groups);
 
 	server_stats_compound_done(argarray_len, status);
@@ -1405,6 +1413,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	/* release TXN-related context data */
 	op_ctx->op_args = NULL;
 	op_ctx->txnid = 0;
+	fridgethr_destroy(pool);
 
 	return NFS_REQ_OK;
 }				/* nfs4_Compound */
