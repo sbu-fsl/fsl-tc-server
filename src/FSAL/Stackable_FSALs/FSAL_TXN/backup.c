@@ -192,6 +192,13 @@ fsal_status_t txnfs_create_or_lookup_backup_dir(
 		snprintf(txnid_name, BKP_FN_LEN, "%lu", txnid);
 		status = fsal_create(txn_handle, txnid_name, DIRECTORY, &attrs,
 				     NULL, bkp_handle, NULL);
+		/* With in-compound parallel execution, the backup dir may have
+		 * been created by other threads when this one is running
+		 * between 186 and 193. */
+		if (status.major == ERR_FSAL_EXIST) {
+			*bkp_handle = query_txn_backup(txn_handle, txnid);
+			status.major = ERR_FSAL_NO_ERROR;
+		}
 		assert(FSAL_IS_SUCCESS(status));
 		assert(*bkp_handle);
 		op_ctx->txn_bkp_folder = *bkp_handle;
