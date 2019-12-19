@@ -614,6 +614,8 @@ struct compound_executor_args {
 	nfs_res_t *res;
 	int status;
 	char *bad_op_state_reason;
+	/* Should the compound execution loop break? */
+	bool stop;
 	/* Executed in child threads? */
 	bool thread_pool;
 	sem_t *sem;
@@ -781,6 +783,7 @@ static void execute_compound(void *worker_args)
 
 			/* Do not manage the other requests in the COMPOUND. */
 			args->res->res_compound4.resarray.resarray_len = pos + 1;
+			args->stop = true;
 			break;
 		}
 
@@ -845,12 +848,13 @@ static void execute_compound(void *worker_args)
 			 * in the COMPOUND, this may be a regular behavior
 			 */
 			args->res->res_compound4.resarray.resarray_len = pos + 1;
+			args->stop = true;
 			break;
 			// call end_compound
 		}
 
 		/* NFS_V4.1 specific stuff */
-		if (data->use_slot_cached_result) {
+		if (data->use_slot_cached_result && !args->thread_pool) {
 			/* Replay cache, only true for SEQUENCE or
 			 * CREATE_SESSION w/o SEQUENCE. Since will only be set
 			 * in those cases, no need to check operation or
@@ -867,6 +871,7 @@ static void execute_compound(void *worker_args)
 				     "Use session replay cache %p result %s",
 				     data->cached_result,
 				     nfsstat4_to_str(args->status));
+			args->stop = true;
 			break;	/* Exit the for loop */
 		}
 	}			/* for */
@@ -1183,6 +1188,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	worker_args.data = &data;
 	worker_args.res = res;
 	worker_args.status = 0;
+	worker_args.stop = false;
 	for (i = 0; i < n_groups; i++) {
 		/* If there is only one operation contained in this group,
 		 * treat it as sequential work */
@@ -1199,6 +1205,9 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				status = worker_args.status;
 				break;
 			}
+
+			if (worker_args.stop == true)
+				break;
 
 			/* Check if transactional compound operation is ready */
 			if (!txn_ready && op_ctx->fsal_export 
@@ -1277,9 +1286,38 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			for (int j = 0; j < total; ++j) {
 				data.resp_size += args[j].data->resp_size;
 				if (args[j].status != NFS4_OK) {
-					res->res_compound4.resarray.resarray_len = j + 1;
 					status = args[j].status;
+					gsh_free(args);
 					goto out;
+				}
+				
+				if (args[j].stop == true) {
+					gsh_free(args);
+					goto out;
+				}
+
+				/* NFS_V4.1 specific stuff
+				 * Since we are executing compounds in parallel,
+				 * we should check this after all workers
+				 * finish. */
+				if (args[j].data->use_slot_cached_result) {
+					/* Replay cache, only true for SEQUENCE or
+					 * CREATE_SESSION w/o SEQUENCE. Since will only be set
+					 * in those cases, no need to check operation or
+					 * anything.
+					 */
+					/* Free the reply allocated above */
+					gsh_free(res->res_compound4.resarray.resarray_val);
+
+					/* Copy the reply from the cache */
+					res->res_compound4_extended = *data.cached_result;
+					status = ((COMPOUND4res *) data.cached_result)->status;
+					LogFullDebug(COMPONENT_SESSIONS,
+						     "Use session replay cache %p result %s",
+						     data.cached_result,
+						     nfsstat4_to_str(status));
+					gsh_free(args);
+					goto out;	/* Exit the for loop */
 				}
 			}
 
@@ -1288,6 +1326,13 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}			/* for */
 out:
+	/* Revise the length of resarray in case the parallel executor messed
+	 * it up */
+	for (int j = 0; j < argarray_len && !data.use_slot_cached_result; ++j) {
+		res->res_compound4.resarray.resarray_len = j + 1;
+		if (resarray[j].nfs_resop4_u.opaccess.status != NFS4_OK)
+			break;
+	}
 	destroy_compound_groups(op_groups);
 
 	server_stats_compound_done(argarray_len, status);
