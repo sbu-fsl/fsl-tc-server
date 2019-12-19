@@ -285,9 +285,9 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				break;
 
 			default:
-				LogWarn(COMPONENT_FSAL,
+				LogFullDebug(COMPONENT_FSAL,
 					"Operation %d will not be"
-					" counted for rollback",
+					" counted for handle collection",
 					op);
 				break;
 		}
