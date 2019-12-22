@@ -40,6 +40,9 @@
 #define RR_KEY_PREFIX "txn-"
 #define PREF_LEN 5
 
+#define round_down(n, unit) (unit * (n / unit))
+#define round_up(n, unit) (round_down(n, unit) + unit)
+
 struct txnfs_file_entry {
 	char *name;
 	struct fsal_obj_handle *obj;
