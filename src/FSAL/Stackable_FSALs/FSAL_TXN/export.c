@@ -34,6 +34,7 @@
 #include "gsh_list.h"
 #include "nfs_exports.h"
 #include "nfs_proto_data.h"
+#include "txnfs.h"
 #include "txn_logger.h"
 #include "txnfs_methods.h"
 #include <dlfcn.h>
@@ -376,6 +377,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	    container_of(exp_hdl, struct txnfs_fsal_export, export);
 	lock_request_t lrs[256];
 	lock_manager_t *lm = exp->lm;
+	int txn_type;
 
 	LogDebug(COMPONENT_FSAL, "Start Compound in FSAL_TXN layer.");
 	LogDebug(COMPONENT_FSAL, "Compound operations: %d",
@@ -383,7 +385,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_start_compound, args->argarray.argarray_len);
 
-	op_ctx->txnid = create_txn_log(fs->db, args);
+	op_ctx->txnid = create_txn_log(fs->db, args, &txn_type);
 
 	txnfs_tracepoint(create_txn_log, op_ctx->txnid);
 
