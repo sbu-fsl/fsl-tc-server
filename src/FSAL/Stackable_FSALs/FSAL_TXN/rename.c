@@ -70,7 +70,6 @@ static struct fsal_obj_handle *fh_to_obj_handle(nfs_fh4 *fh,
  */
 bool check_support_for_rename(COMPOUND4args *args)
 {
-	int i, ret = 0, veclen = 0;
 	/* What we need is the path */
 	char *current_path = gsh_calloc(1, PATH_MAX + 1);
 	char *saved_path = gsh_calloc(1, PATH_MAX + 1);
@@ -78,12 +77,13 @@ bool check_support_for_rename(COMPOUND4args *args)
 	struct attrlist cur_attr = {0};
 	utf8string utf8_name;
 	char *name;
+	bool result = true;
 
 	/* let's start from ROOT */
 	char *root_path = op_ctx->ctx_export->fullpath;
 	strncpy(current_path, root_path, PATH_MAX);
 
-	for (i = 0; i < args->argarray.argarray_len; i++) {
+	for (int i = 0; i < args->argarray.argarray_len; i++) {
 		struct nfs_argop4 *curop_arg = &args->argarray.argarray_val[i];
 
 		int op = curop_arg->argop;
@@ -148,8 +148,17 @@ bool check_support_for_rename(COMPOUND4args *args)
 				ret = 0;
 				break;
 
+			/* When encountering RENAME operation: Break and return
+			 * false if source dir and target dir are different */
 			case NFS4_OP_RENAME:
-				break
+				if (strncmp(current_path, saved_path, PATH_MAX) != 0) {
+					LogDebug(COMPONENT_FSAL, "rename op at"
+					    "%d cannot be regarded as"
+					    "transaction.", i);
+					result = false;
+					goto out;
+				}
+				break;
 
 			default:
 				LogFullDebug(COMPONENT_FSAL,
@@ -159,15 +168,16 @@ bool check_support_for_rename(COMPOUND4args *args)
 				break;
 		}
 	}
+out:
 
 	if (ret) {
 		LogWarn(COMPONENT_FSAL,
 			"Error %d occurred when"
-			" analyzing lrq.\n",
+			" checking rename op.\n",
 			ret);
 	}
 
 	gsh_free(current_path);
 	gsh_free(saved_path);
-	return veclen;
+	return result;
 }
