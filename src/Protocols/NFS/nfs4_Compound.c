@@ -597,273 +597,6 @@ void copy_tag(utf8str_cs *dest, utf8str_cs *src)
 	}
 }
 
-struct compound_executor_args {
-	nfs_argop4 *argarray;
-	nfs_resop4 *resarray;
-	int argarray_len;
-	/* pos: The position on the big compound arg array */
-	int pos;
-	/* NFSv4 minor version */
-	uint32_t compound4_minor;
-	bool txn_ready;
-	compound_data_t *data;
-	/* Output fields */
-	nfs_res_t *res;
-	int status;
-	char *bad_op_state_reason;
-};
-
-static void execute_compound(void *worker_args)
-{
-	struct compound_executor_args *args = worker_args;
-	compound_data_t *data = args->data;
-	int argarray_len = args->argarray_len;
-	struct timespec ts;
-	nsecs_elapsed_t op_start_time;
-	nfs_opnum4 opcode;
-	int perm_flags;
-	log_components_t alt_component = COMPONENT_NFS_V4;
-
-	for (int i = 0; i < argarray_len; i++, args->pos++) {
-		/* Used to check if OP_SEQUENCE is the first operation */
-		data->oppos = args->pos;
-		data->op_resp_size = sizeof(nfsstat4);
-		opcode = args->argarray[i].argop;
-
-		/* Handle opcode overflow */
-		if (opcode > LastOpcode[args->compound4_minor])
-			opcode = 0;
-
-		data->opname = optabv4[opcode].name;
-
-		LogDebug(COMPONENT_NFS_V4, "Request %d: opcode %d is %s", i,
-			 args->argarray[i].argop, data->opname);
-
-		/* Verify BIND_CONN_TO_SESSION is not used in a compound
-		 * with length > 1. This check is NOT redundant with the
-		 * checks above.
-		 */
-		if (args->pos > 0 &&
-		    args->argarray[i].argop == NFS4_OP_BIND_CONN_TO_SESSION) {
-			args->status = NFS4ERR_NOT_ONLY_OP;
-			args->bad_op_state_reason =
-					"BIND_CONN_TO_SESSION past position 1";
-			goto bad_op_state;
-		}
-
-		/* OP_SEQUENCE is always the first operation of the request */
-		if (args->pos > 0 &&
-		    args->argarray[i].argop == NFS4_OP_SEQUENCE) {
-			args->status = NFS4ERR_SEQUENCE_POS;
-			args->bad_op_state_reason =
-					"SEQUENCE past position 1";
-			goto bad_op_state;
-		}
-
-		/* If a DESTROY_SESSION not the only operation, and it matches
-		 * the session specified in the SEQUENCE op (since the compound
-		 * has more than one op, we already know it MUST start with
-		 * SEQUENCE), then it MUST be the final op in the compound.
-		 */
-		if (args->pos > 0 &&
-		    args->argarray[i].argop == NFS4_OP_DESTROY_SESSION) {
-			bool session_compare;
-			bool bad_pos;
-
-			session_compare = memcmp(
-			    args->argarray[0].
-			        nfs_argop4_u.opsequence.sa_sessionid,
-			    args->argarray[i].
-				nfs_argop4_u.opdestroy_session.dsa_sessionid,
-			    NFS4_SESSIONID_SIZE) == 0;
-
-			bad_pos = session_compare && args->pos != (argarray_len - 1);
-
-			LogAtLevel(COMPONENT_SESSIONS,
-				   bad_pos ? NIV_INFO : NIV_DEBUG,
-				   "DESTROY_SESSION in position %u out of 0-%"
-				   PRIi32 " %s is %s",
-				   args->pos, argarray_len - 1, session_compare
-					? "same session as SEQUENCE"
-					: "different session from SEQUENCE",
-				   bad_pos ? "not last op in compound" : "opk");
-
-			if (bad_pos) {
-				args->status = NFS4ERR_NOT_ONLY_OP;
-				args->bad_op_state_reason =
-				    "DESTROY_SESSION not last op in compound";
-				goto bad_op_state;
-			}
-		}
-
-		/* time each op */
-		now(&ts);
-		op_start_time = timespec_diff(&nfs_ServerBootTime, &ts);
-
-		if (args->compound4_minor > 0 && data->session != NULL &&
-		    data->session->fore_channel_attrs.ca_maxoperations == args->pos) {
-			args->status = NFS4ERR_TOO_MANY_OPS;
-			args->bad_op_state_reason = "Too many operations";
-			goto bad_op_state;
-		}
-
-		perm_flags =
-		    optabv4[opcode].exp_perm_flags & EXPORT_OPTION_ACCESS_MASK;
-
-		if (perm_flags != 0) {
-			args->status = nfs4_Is_Fh_Empty(&data->currentFH);
-			if (args->status != NFS4_OK) {
-				args->bad_op_state_reason = "Empty or NULL handle";
-				goto bad_op_state;
-			}
-
-			/* Operation uses a CurrentFH, so we can check export
-			 * perms. Perms should even be set reasonably for pseudo
-			 * file system.
-			 */
-			LogMidDebugAlt(COMPONENT_NFS_V4, COMPONENT_EXPORT,
-				       "Check export perms export = %08x req = %08x",
-				       op_ctx->export_perms->options &
-						EXPORT_OPTION_ACCESS_MASK,
-				       perm_flags);
-			if ((op_ctx->export_perms->options &
-			     perm_flags) != perm_flags) {
-				/* Export doesn't allow requested
-				 args->* access for this client.
-				 */
-				if ((perm_flags & EXPORT_OPTION_MODIFY_ACCESS)
-				    != 0)
-					args->status = NFS4ERR_ROFS;
-				else
-					args->status = NFS4ERR_ACCESS;
-
-				args->bad_op_state_reason =
-						"Export permission failure";
-				alt_component = COMPONENT_EXPORT;
-				goto bad_op_state;
-			}
-		}
-
-		/* Set up the minimum/default response size and check if there
-		 * is room for it.
-		*/
-		data->op_resp_size = optabv4[opcode].resp_size;
-
-		args->status = check_resp_room(data, data->op_resp_size);
-
-		if (args->status != NFS4_OK) {
-			args->bad_op_state_reason = "op response size";
- bad_op_state:
-			/* Tally the response size */
-			data->resp_size += sizeof(nfs_opnum4) + sizeof(nfsstat4);
-
-			LogDebugAlt(COMPONENT_NFS_V4, alt_component,
-				    "Status of %s in position %d due to %s is %s, op response size = %"
-				    PRIu32" total response size = %"PRIu32,
-				    data->opname, args->pos,
-				    args->bad_op_state_reason,
-				    nfsstat4_to_str(args->status),
-				    data->op_resp_size, data->resp_size);
-
-			/* All the operation, like NFS4_OP_ACCESS, have
-			 * a first replied field called .status
-			 */
-			args->resarray[i].nfs_resop4_u.opaccess.status = args->status;
-			args->resarray[i].resop = args->argarray[i].argop;
-
-			/* Do not manage the other requests in the COMPOUND. */
-			args->res->res_compound4.resarray.resarray_len = args->pos + 1;
-			break;
-		}
-
-		/***************************************************************
-		 * Make the actual op call                                     *
-		 **************************************************************/
-#ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_start, args->pos,
-			   args->argarray[i].argop, data->opname);
-#endif
-		// create backups for txnfs
-		if (args->txn_ready) {
-			op_ctx->opidx = args->pos;
-			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
-				op_ctx->fsal_export, args->pos, data->current_obj,
-				&args->argarray[i], data);
-#ifdef USE_LTTNG
-			tracepoint(txnfs, end_backup, op_ctx->txnid, args->pos,
-				   args->argarray[i].argop, data->opname);
-#endif
-		}
-		
-		args->status = (optabv4[opcode].funct) (&args->argarray[i],
-						  data,
-						  &args->resarray[i]);
-		
-#ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_end, args->pos, args->argarray[i].argop,
-			   data->opname, nfsstat4_to_str(args->status));
-#endif
-
-		LogCompoundFH(data);
-
-		/* All the operation, like NFS4_OP_ACESS, have a first replyied
-		 * field called .status
-		 */
-		args->resarray[i].nfs_resop4_u.opaccess.status = args->status;
-
-		server_stats_nfsv4_op_done(opcode, op_start_time, args->status);
-
-		/* Tally the response size */
-		if (args->status != NFS4_OK &&
-		    (optabv4[opcode].resp_size != VARIABLE_RESP_SIZE ||
-		     data->op_resp_size == VARIABLE_RESP_SIZE)) {
-			/* If the op failed and has a static response size, or
-			 * it has a variable size that hasn't been set, use the
-			 * sizeof nfsstat4 instead.
-			 */
-			data->op_resp_size = sizeof(nfsstat4);
-		}
-
-		data->resp_size += sizeof(nfs_opnum4) + data->op_resp_size;
-
-		LogDebug(COMPONENT_NFS_V4,
-			 "Status of %s in position %d = %s, op response size is %"
-			 PRIu32" total response size is %"PRIu32,
-			 data->opname, args->pos, nfsstat4_to_str(args->status),
-			 data->op_resp_size, data->resp_size);
-
-		if (args->status != NFS4_OK) {
-			/* An error occured, we do not manage the other requests
-			 * in the COMPOUND, this may be a regular behavior
-			 */
-			args->res->res_compound4.resarray.resarray_len = args->pos + 1;
-			break;
-			// call end_compound
-		}
-
-		/* NFS_V4.1 specific stuff */
-		if (data->use_slot_cached_result) {
-			/* Replay cache, only true for SEQUENCE or
-			 * CREATE_SESSION w/o SEQUENCE. Since will only be set
-			 * in those cases, no need to check operation or
-			 * anything.
-			 */
-
-			/* Free the reply allocated above */
-			gsh_free(args->res->res_compound4.resarray.resarray_val);
-
-			/* Copy the reply from the cache */
-			args->res->res_compound4_extended = *data->cached_result;
-			args->status = ((COMPOUND4res *) data->cached_result)->status;
-			LogFullDebug(COMPONENT_SESSIONS,
-				     "Use session replay cache %p result %s",
-				     data->cached_result,
-				     nfsstat4_to_str(args->status));
-			break;	/* Exit the for loop */
-		}
-	}			/* for */
-}
-
 /**
  * @brief The NFS PROC4 COMPOUND
  *
@@ -890,15 +623,20 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	unsigned int i = 0;
 	int status = NFS4_OK;
 	compound_data_t data;
+	nfs_opnum4 opcode;
 	const uint32_t compound4_minor = arg->arg_compound4.minorversion;
 	const uint32_t argarray_len = arg->arg_compound4.argarray.argarray_len;
 	/* Array of op arguments */
 	nfs_argop4 * const argarray = arg->arg_compound4.argarray.argarray_val;
 	nfs_resop4 *resarray;
+	nsecs_elapsed_t op_start_time;
+	struct timespec ts;
+	int perm_flags;
 	char *notag = "NO TAG";
 	char *tagname = notag;
+	const char *bad_op_state_reason = "";
+	log_components_t alt_component = COMPONENT_NFS_V4;
 	bool txn_ready = false, start_compound_called = false;
-	struct compound_executor_args worker_args;
 
 	if (compound4_minor > 2) {
 		LogCrit(COMPONENT_NFS_V4, "Bad Minor Version %d",
@@ -1049,21 +787,239 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 	}
 
-	worker_args.compound4_minor = compound4_minor;
-	worker_args.data = &data;
-	worker_args.res = res;
-	worker_args.status = 0;
 	for (i = 0; i < argarray_len; i++) {
-		worker_args.argarray = &argarray[i];
-		worker_args.resarray = &resarray[i];
-		worker_args.argarray_len = 1;
-		worker_args.pos = i;
-		worker_args.txn_ready = txn_ready;
-		execute_compound(&worker_args);
+		/* Used to check if OP_SEQUENCE is the first operation */
+		data.oppos = i;
+		data.op_resp_size = sizeof(nfsstat4);
+		opcode = argarray[i].argop;
 
-		if (worker_args.status != NFS4_OK) {
-			status = worker_args.status;
+		/* Handle opcode overflow */
+		if (opcode > LastOpcode[compound4_minor])
+			opcode = 0;
+
+		data.opname = optabv4[opcode].name;
+
+		LogDebug(COMPONENT_NFS_V4, "Request %d: opcode %d is %s", i,
+			 argarray[i].argop, data.opname);
+
+		/* Verify BIND_CONN_TO_SESSION is not used in a compound
+		 * with length > 1. This check is NOT redundant with the
+		 * checks above.
+		 */
+		if (i > 0 &&
+		    argarray[i].argop == NFS4_OP_BIND_CONN_TO_SESSION) {
+			status = NFS4ERR_NOT_ONLY_OP;
+			bad_op_state_reason =
+					"BIND_CONN_TO_SESSION past position 1";
+			goto bad_op_state;
+		}
+
+		/* OP_SEQUENCE is always the first operation of the request */
+		if (i > 0 && argarray[i].argop == NFS4_OP_SEQUENCE) {
+			status = NFS4ERR_SEQUENCE_POS;
+			bad_op_state_reason =
+					"SEQUENCE past position 1";
+			goto bad_op_state;
+		}
+
+		/* If a DESTROY_SESSION not the only operation, and it matches
+		 * the session specified in the SEQUENCE op (since the compound
+		 * has more than one op, we already know it MUST start with
+		 * SEQUENCE), then it MUST be the final op in the compound.
+		 */
+		if (i > 0 && argarray[i].argop == NFS4_OP_DESTROY_SESSION) {
+			bool session_compare;
+			bool bad_pos;
+
+			session_compare = memcmp(
+			    argarray[0].nfs_argop4_u.opsequence.sa_sessionid,
+			    argarray[i]
+				.nfs_argop4_u.opdestroy_session.dsa_sessionid,
+			    NFS4_SESSIONID_SIZE) == 0;
+
+			bad_pos = session_compare && i != (argarray_len - 1);
+
+			LogAtLevel(COMPONENT_SESSIONS,
+				   bad_pos ? NIV_INFO : NIV_DEBUG,
+				   "DESTROY_SESSION in position %u out of 0-%"
+				   PRIi32 " %s is %s",
+				   i, argarray_len - 1, session_compare
+					? "same session as SEQUENCE"
+					: "different session from SEQUENCE",
+				   bad_pos ? "not last op in compound" : "opk");
+
+			if (bad_pos) {
+				status = NFS4ERR_NOT_ONLY_OP;
+				bad_op_state_reason =
+				    "DESTROY_SESSION not last op in compound";
+				goto bad_op_state;
+			}
+		}
+
+		/* time each op */
+		now(&ts);
+		op_start_time = timespec_diff(&nfs_ServerBootTime, &ts);
+
+		if (compound4_minor > 0 && data.session != NULL &&
+		    data.session->fore_channel_attrs.ca_maxoperations == i) {
+			status = NFS4ERR_TOO_MANY_OPS;
+			bad_op_state_reason = "Too many operations";
+			goto bad_op_state;
+		}
+
+		perm_flags =
+		    optabv4[opcode].exp_perm_flags & EXPORT_OPTION_ACCESS_MASK;
+
+		if (perm_flags != 0) {
+			status = nfs4_Is_Fh_Empty(&data.currentFH);
+			if (status != NFS4_OK) {
+				bad_op_state_reason = "Empty or NULL handle";
+				goto bad_op_state;
+			}
+
+			/* Operation uses a CurrentFH, so we can check export
+			 * perms. Perms should even be set reasonably for pseudo
+			 * file system.
+			 */
+			LogMidDebugAlt(COMPONENT_NFS_V4, COMPONENT_EXPORT,
+				       "Check export perms export = %08x req = %08x",
+				       op_ctx->export_perms->options &
+						EXPORT_OPTION_ACCESS_MASK,
+				       perm_flags);
+			if ((op_ctx->export_perms->options &
+			     perm_flags) != perm_flags) {
+				/* Export doesn't allow requested
+				 * access for this client.
+				 */
+				if ((perm_flags & EXPORT_OPTION_MODIFY_ACCESS)
+				    != 0)
+					status = NFS4ERR_ROFS;
+				else
+					status = NFS4ERR_ACCESS;
+
+				bad_op_state_reason =
+						"Export permission failure";
+				alt_component = COMPONENT_EXPORT;
+				goto bad_op_state;
+			}
+		}
+
+		/* Set up the minimum/default response size and check if there
+		 * is room for it.
+		*/
+		data.op_resp_size = optabv4[opcode].resp_size;
+
+		status = check_resp_room(&data, data.op_resp_size);
+
+		if (status != NFS4_OK) {
+			bad_op_state_reason = "op response size";
+
+ bad_op_state:
+			/* Tally the response size */
+			data.resp_size += sizeof(nfs_opnum4) + sizeof(nfsstat4);
+
+			LogDebugAlt(COMPONENT_NFS_V4, alt_component,
+				    "Status of %s in position %d due to %s is %s, op response size = %"
+				    PRIu32" total response size = %"PRIu32,
+				    data.opname, i, bad_op_state_reason,
+				    nfsstat4_to_str(status),
+				    data.op_resp_size, data.resp_size);
+
+			/* All the operation, like NFS4_OP_ACCESS, have
+			 * a first replied field called .status
+			 */
+			resarray[i].nfs_resop4_u.opaccess.status = status;
+			resarray[i].resop = argarray[i].argop;
+
+			/* Do not manage the other requests in the COMPOUND. */
+			res->res_compound4.resarray.resarray_len = i + 1;
 			break;
+		}
+
+		/***************************************************************
+		 * Make the actual op call                                     *
+		 **************************************************************/
+#ifdef USE_LTTNG
+		tracepoint(nfs_rpc, v4op_start, i, argarray[i].argop,
+			   data.opname);
+#endif
+		// create backups for txnfs
+		if (txn_ready) {
+			op_ctx->opidx = i;
+			op_ctx->fsal_export->exp_ops.backup_nfs4_op(
+				op_ctx->fsal_export, i, data.current_obj,
+				&argarray[i], &data);
+#ifdef USE_LTTNG
+			tracepoint(txnfs, end_backup, op_ctx->txnid, i,
+				   argarray[i].argop, data.opname);
+#endif
+		}
+		
+		status = (optabv4[opcode].funct) (&argarray[i],
+						  &data,
+						  &resarray[i]);
+		
+#ifdef USE_LTTNG
+		tracepoint(nfs_rpc, v4op_end, i, argarray[i].argop,
+			   data.opname, nfsstat4_to_str(status));
+#endif
+
+		LogCompoundFH(&data);
+
+		/* All the operation, like NFS4_OP_ACESS, have a first replyied
+		 * field called .status
+		 */
+		resarray[i].nfs_resop4_u.opaccess.status = status;
+
+		server_stats_nfsv4_op_done(opcode, op_start_time, status);
+
+		/* Tally the response size */
+		if (status != NFS4_OK &&
+		    (optabv4[opcode].resp_size != VARIABLE_RESP_SIZE ||
+		     data.op_resp_size == VARIABLE_RESP_SIZE)) {
+			/* If the op failed and has a static response size, or
+			 * it has a variable size that hasn't been set, use the
+			 * sizeof nfsstat4 instead.
+			 */
+			data.op_resp_size = sizeof(nfsstat4);
+		}
+
+		data.resp_size += sizeof(nfs_opnum4) + data.op_resp_size;
+
+		LogDebug(COMPONENT_NFS_V4,
+			 "Status of %s in position %d = %s, op response size is %"
+			 PRIu32" total response size is %"PRIu32,
+			 data.opname, i, nfsstat4_to_str(status),
+			 data.op_resp_size, data.resp_size);
+
+		if (status != NFS4_OK) {
+			/* An error occured, we do not manage the other requests
+			 * in the COMPOUND, this may be a regular behavior
+			 */
+			res->res_compound4.resarray.resarray_len = i + 1;
+			break;
+			// call end_compound
+		}
+
+		/* NFS_V4.1 specific stuff */
+		if (data.use_slot_cached_result) {
+			/* Replay cache, only true for SEQUENCE or
+			 * CREATE_SESSION w/o SEQUENCE. Since will only be set
+			 * in those cases, no need to check operation or
+			 * anything.
+			 */
+
+			/* Free the reply allocated above */
+			gsh_free(res->res_compound4.resarray.resarray_val);
+
+			/* Copy the reply from the cache */
+			res->res_compound4_extended = *data.cached_result;
+			status = ((COMPOUND4res *) data.cached_result)->status;
+			LogFullDebug(COMPONENT_SESSIONS,
+				     "Use session replay cache %p result %s",
+				     data.cached_result,
+				     nfsstat4_to_str(status));
+			break;	/* Exit the for loop */
 		}
 
 		/* Check if transactional compound operation is ready */
