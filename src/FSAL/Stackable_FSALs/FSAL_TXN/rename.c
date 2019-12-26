@@ -78,6 +78,7 @@ bool check_support_for_rename(COMPOUND4args *args)
 	utf8string utf8_name;
 	char *name;
 	bool result = true;
+	int ret = 0;
 
 	/* let's start from ROOT */
 	char *root_path = op_ctx->ctx_export->fullpath;

@@ -707,9 +707,9 @@ uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
 
   txn_log.set_id(internal::get_txn_id());
   if (txn_log.type() == proto::TransactionType::VCREATE) {
-    // internal::build_vcreate_txn(arg, txn_log.mutable_creates(), context);
+     internal::build_vcreate_txn(arg, txn_log.mutable_creates());
   } else if (txn_log.type() == proto::TransactionType::VWRITE) {
-    // internal::build_vwrite_txn(arg, txn_log.mutable_writes(), context);
+     internal::build_vwrite_txn(arg, txn_log.mutable_writes());
   }
 
   const string key = absl::StrCat("txn-", txn_log.id());
