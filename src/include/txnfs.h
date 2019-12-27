@@ -38,17 +38,6 @@ struct txnfs_cache_entry {
 	struct gsh_buffdesc abs_path;
 };
 
-enum transaction_type {
-	NONE = 0,
-	VCREATE = 1,
-	VMKDIR = 2,
-	VWRITE = 3,
-	VRENAME = 4,
-	VUNLINK = 5,
-	VSYMLINK = 6,
-	VOPEN = 7,
-};
-
 #define TXNCACHE_FH(entry) \
 	(likely(entry->hdl_size <= FH_LEN) ? entry->fh.data : entry->fh.addr)
 
