@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
+#include <experimental/filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -18,6 +19,8 @@
 
 using namespace std;
 using namespace txnfs;
+namespace stdexp = std::experimental;
+namespace fs = stdexp::filesystem;
 
 constexpr uint64_t kInvalidTxnId = 0;
 const uuid_t kRootUuid = {1, 2,  3,  4,  5,  6,  7,  8,
@@ -691,18 +694,102 @@ int build_vwrite_txn(const COMPOUND4args *arg, proto::VWriteTxn *write_txn) {
 
 } // namespace internal
 
+bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
+    const char *root) {
+  fs::path root_path(std::string(root));
+  fs::path current_path(std::string(root));
+  fs::path saved_path(std::string(root));
+  const struct nfs_argop4 *argarray = arg->argarray.argarray_val;
+  int n = arg->argarray.argarray_len;
+
+  for (int i = 0; i < n; ++i) {
+    int op = argarray[i].argop;
+    switch (op) {
+      case NFS4_OP_PUTFH: {
+        /* PUTFH: query the abs. path associated with the request
+         * file handle (UUID) */
+        const nfs_fh4 raw_fh = argarray[i].nfs_argop4_u.opputfh.object;
+        const file_handle_v4_t *fh = (file_handle_v4_t *)raw_fh.nfs_fh4_val;
+        /* key = "path-{UUID}" */
+        char *key = new char[fh->fs_len + 5];
+        memcpy(key, "path-", 5);
+        memcpy(key + 5, fh->fsopaque, fh->fs_len);
+        size_t pathlen;
+        char *val, *error;
+        val = leveldb_get(db->db, db->r_options, key, fh->fs_len + 5, &pathlen,
+            &error);
+        if (error) {
+          delete key;
+          /* Database error: return EIO */
+          return false;
+        } else {
+          current_path = fs::path(std::string(val, pathlen));
+          delete key;
+        }
+        break;
+      }
+
+      case NFS4_OP_SAVEFH: {
+        /* SAVEFH: assign the content of saved_path to that of current_path */
+        saved_path = current_path;
+        break;
+      }
+
+      case NFS4_OP_RESTOREFH: {
+        /* RESTOREFH: assign the content of current_path to that of saved_path*/
+        current_path = saved_path;
+        break;
+      }
+
+      case NFS4_OP_LOOKUP: {
+        utf8string u8name = argarray[i].nfs_argop4_u.oplookup.objname;
+        std::string name(u8name.utf8string_val, u8name.utf8string_len);
+        fs::path new_cur_path(current_path);
+        new_cur_path /= name;
+        current_path = new_cur_path;
+        break;
+      }
+
+      case NFS4_OP_LOOKUPP: {
+        const fs::path new_cur_path(current_path);
+        current_path = new_cur_path.parent_path();
+        break;
+      }
+
+      case NFS4_OP_RENAME: {
+        fs::path src_path(current_path);
+        utf8string u8name = argarray[i].nfs_argop4_u.oprename.oldname;
+        std::string name(u8name.utf8string_val, u8name.utf8string_len);
+        src_path /= name;
+        fs::file_status src_stat = fs::status(src_path);
+        if (src_stat.type() == fs::file_type::none ||
+            src_stat.type() == fs::file_type::not_found ||
+            src_stat.type() == fs::file_type::directory ||
+            src_stat.type() == fs::file_type::unknown)
+          return false;
+        break; 
+      }   
+    } /* switch(op) */
+  } /* for */
+  /* OK if the loop did not break */
+  return true;
+}
+
 uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
-    int *txn_type) {
+    const char *root_path) {
   proto::TransactionLog txn_log;
 
   txn_log.set_type(internal::get_txn_type(arg));
-  if (txn_type)
-    *txn_type = txn_log.type();
 
   if (txn_log.type() == proto::TransactionType::NONE) {
     /* If the compound is read-only or ineligible for transaction,
      * return immediately without doing expensive leveldb_write */
     return kInvalidTxnId;
+  }
+
+  if (txn_log.type() == proto::TransactionType::VRENAME) {
+    if (check_rename(db, arg, root_path) == false)
+      return kInvalidTxnId;
   }
 
   txn_log.set_id(internal::get_txn_id());
