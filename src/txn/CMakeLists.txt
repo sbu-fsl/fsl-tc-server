@@ -94,4 +94,4 @@ add_library(secnfs_proto STATIC ${ProtoSources})
 target_link_libraries(secnfs_proto ${PROTOBUF_LIBRARIES})
 
 add_cpplib(txn_logger
-  secnfs_proto protobuf absl_strings uuid lwrapper)
+  secnfs_proto protobuf absl_strings uuid lwrapper stdc++fs)
