@@ -19,8 +19,7 @@
 
 using namespace std;
 using namespace txnfs;
-namespace stdexp = std::experimental;
-namespace fs = stdexp::filesystem;
+namespace fs = std::experimental::filesystem;
 
 constexpr uint64_t kInvalidTxnId = 0;
 const uuid_t kRootUuid = {1, 2,  3,  4,  5,  6,  7,  8,
@@ -696,9 +695,9 @@ int build_vwrite_txn(const COMPOUND4args *arg, proto::VWriteTxn *write_txn) {
 
 bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
     const char *root) {
-  fs::path root_path(std::string(root));
-  fs::path current_path(std::string(root));
-  fs::path saved_path(std::string(root));
+  fs::path root_path = std::string(root);
+  fs::path current_path = std::string(root);
+  fs::path saved_path = std::string(root);
   const struct nfs_argop4 *argarray = arg->argarray.argarray_val;
   int n = arg->argarray.argarray_len;
 
@@ -723,7 +722,7 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
           /* Database error: return EIO */
           return false;
         } else {
-          current_path = fs::path(std::string(val, pathlen));
+          current_path = std::string(val, pathlen);
           delete key;
         }
         break;
