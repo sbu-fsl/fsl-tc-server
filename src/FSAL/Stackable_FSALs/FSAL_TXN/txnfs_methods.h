@@ -40,9 +40,6 @@
 #define RR_KEY_PREFIX "txn-"
 #define PREF_LEN 5
 
-#define round_down(n, unit) (unit * (n / unit))
-#define round_up(n, unit) (round_down(n, unit) + unit)
-
 struct txnfs_file_entry {
 	char *name;
 	struct fsal_obj_handle *obj;
@@ -180,6 +177,16 @@ static inline bool txnfs_unopenable_type(object_file_type_t type)
 	} else {
 		return false;
 	}
+}
+
+static inline int round_down(int n, int unit)
+{
+    return unit * (n / unit);
+}
+
+static inline int round_up(int n, int unit)
+{
+    return round_down(n, unit) + unit;
 }
 
 /* I/O management */
