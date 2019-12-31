@@ -95,7 +95,7 @@ db_store_t* init_db_store(const char* db_dir_path, bool is_creation) {
   leveldb_options_set_block_size(db_st->init_options, 4096);
 
   // LevelDB caches uncompressed blocks in an LRU cache.
-  // Set its size to 10 MB
+  // Set its size to 128 MB
   db_st->lru_cache = leveldb_cache_create_lru(128 * 1024 * 1024);
   CHECK_SUCCESS(db_st->lru_cache,
                 "\nERROR: Failed to create LRU cache for the DB");
