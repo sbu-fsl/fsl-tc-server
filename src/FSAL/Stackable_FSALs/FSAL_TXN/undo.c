@@ -447,8 +447,8 @@ static int restore_data(struct fsal_obj_handle *target, uint64_t txnid,
 	if (attrs.filesize == 0) goto end;
 
 	/* overwrite the source file. CFH is the file being written */
-	size = MIN(wr_len, attrs.filesize);
-	out = wr_offset;
+	size = attrs.filesize;
+	out = round_down(wr_offset, 4096);
 	status = backup_file->obj_ops->clone2(backup_file, &in, sub_cur, &out,
 					      size, 0);
 	/* ->clone2 uses FICLONERANGE ioctl which depends on CoW support

@@ -275,10 +275,14 @@ fsal_status_t txnfs_backup_file(unsigned int opidx,
 	/* let's copy ONLY when source is a regular file */
 	/* TODO: when offset > filesize */
 	if (src_hdl->type == REGULAR_FILE && offset < attrs_out.filesize) {
-		src_offset = offset;
-		sz = (offset + length <= attrs_out.filesize)
+		/* We need to round down offset and round up size to align 4K
+		 * page size, otherwise ioctl_FICLONERANGE would fail */
+		src_offset = round_down(offset, 4096);
+		size_t delta = offset - src_offset;
+		length = round_up(length + delta, 4096);
+		sz = (src_offset + length <= attrs_out.filesize)
 			 ? length
-			 : attrs_out.filesize - offset;
+			 : attrs_out.filesize - src_offset;
 		status = src_hdl->obj_ops->clone2(src_hdl, &src_offset, dst_hdl,
 						  &dst_offset, sz, 0);
 		if (!FSAL_IS_SUCCESS(status)) {
