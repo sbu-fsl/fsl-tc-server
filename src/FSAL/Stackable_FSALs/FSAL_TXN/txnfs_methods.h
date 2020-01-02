@@ -298,6 +298,10 @@ void txnfs_cache_init(uint32_t compound_size);
 int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
+int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
+		       struct gsh_buffdesc *hdl_desc, uuid_t uuid,
+		       struct gsh_buffdesc *path);
+
 
 /* txn backup and restore */
 fsal_status_t txnfs_create_or_lookup_backup_dir(
