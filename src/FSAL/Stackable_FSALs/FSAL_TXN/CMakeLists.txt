@@ -20,7 +20,6 @@ SET(fsaltxn_LIB_SRCS
    opvec.c
    cleanup.c
    locking.c
-   rename.c
 )
 
 add_library(fsaltxnfs SHARED ${fsaltxn_LIB_SRCS})
