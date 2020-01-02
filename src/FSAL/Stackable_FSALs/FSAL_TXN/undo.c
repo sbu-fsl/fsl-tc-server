@@ -698,9 +698,11 @@ static int undo_rename(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	int ret = 0;
 	fsal_status_t status = {0};
 
-	ret = nfs4_utf8string2dynamic(&rename_arg->oldname, UTF8_SCAN_ALL, &oldname);
+	ret = nfs4_utf8string2dynamic(&rename_arg->oldname, UTF8_SCAN_ALL,
+				      &oldname);
 	assert(ret == 0);
-	ret = nfs4_utf8string2dynamic(&rename_arg->newname, UTF8_SCAN_ALL, &newname);
+	ret = nfs4_utf8string2dynamic(&rename_arg->newname, UTF8_SCAN_ALL,
+				      &newname);
 	assert(ret == 0);
 
 	/* Rename back: src = (new_dir, newname); dest = (old_dir, oldname) */

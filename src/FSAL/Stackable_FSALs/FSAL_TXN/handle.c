@@ -541,17 +541,16 @@ static fsal_status_t renamefile(struct fsal_obj_handle *obj_hdl,
 		char *old_path = obj_hdl->absolute_path;
 		char *new_path = gsh_calloc(1, PATH_MAX + 1);
 		int new_len = tc_path_join(newdir_hdl->absolute_path, new_name,
-		    new_path, PATH_MAX + 1);
+					   new_path, PATH_MAX + 1);
 		new_path = gsh_realloc(new_path, new_len + 1);
-		struct gsh_buffdesc path_desc = {
-			.addr = new_path,
-			.len = new_len + 1
-		};
+		struct gsh_buffdesc path_desc = {.addr = new_path,
+						 .len = new_len + 1};
 		txnfs_cache_insert(txnfs_cache_entry_modify, NULL,
-		    txnfs_obj->uuid, &path_desc);
-		LogDebug(COMPONENT_FSAL, "rename operation: old path=%s, "
-			 "new path=%s, is_txn=%d", obj_hdl->absolute_path,
-			 new_path, (op_ctx->txnid > 0));
+				   txnfs_obj->uuid, &path_desc);
+		LogDebug(COMPONENT_FSAL,
+			 "rename operation: old path=%s, "
+			 "new path=%s, is_txn=%d",
+			 obj_hdl->absolute_path, new_path, (op_ctx->txnid > 0));
 		obj_hdl->absolute_path = new_path;
 		gsh_free(old_path);
 	}
