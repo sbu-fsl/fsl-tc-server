@@ -683,6 +683,34 @@ static int undo_write(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
 	return restore_data(cur, txnid, opidx, true, offset, len);
 }
 
+/**
+ * @brief Undo regular file renaming
+ *
+ * This function simply renames the target file back to its old path.
+ */
+static int undo_rename(struct nfs_argop4 *arg, struct fsal_obj_handle *cur,
+		       struct fsal_obj_handle *saved)
+{
+	struct fsal_obj_handle *old_dir = saved;
+	struct fsal_obj_handle *new_dir = cur;
+	RENAME4args *rename_arg = &arg->nfs_argop4_u.oprename;
+	char *oldname, *newname;
+	int ret = 0;
+	fsal_status_t status = {0};
+
+	ret = nfs4_utf8string2dynamic(&rename_arg->oldname, UTF8_SCAN_ALL, &oldname);
+	assert(ret == 0);
+	ret = nfs4_utf8string2dynamic(&rename_arg->newname, UTF8_SCAN_ALL, &newname);
+	assert(ret == 0);
+
+	/* Rename back: src = (new_dir, newname); dest = (old_dir, oldname) */
+	status = fsal_rename(new_dir, newname, old_dir, oldname);
+
+	/* There is no need to update leveldb path mapping because it has not
+	 * been committed yet. */
+	return status.major;
+}
+
 static int dispatch_undoer(struct op_vector *vec)
 {
 	struct op_desc *el = NULL;
@@ -705,6 +733,7 @@ static int dispatch_undoer(struct op_vector *vec)
 				break;
 
 			case NFS4_OP_RENAME:
+				ret = undo_rename(el->arg, el->cwh, el->savedh);
 				break;
 
 			case NFS4_OP_WRITE:
