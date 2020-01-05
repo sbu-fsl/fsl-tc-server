@@ -705,7 +705,6 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
 
   for (int i = 0; i < n; ++i) {
     int op = argarray[i].argop;
-    std::cerr << "current op: %d" << op << ", ";
     switch (op) {
       case NFS4_OP_PUTFH: {
         /* PUTFH: query the abs. path associated with the request
@@ -723,7 +722,6 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
         if (error) {
           delete [] key;
           /* Database error: return EIO */
-          std::cerr << "db error: " << error << std::endl;
           return false;
         } else {
           if (pathlen > 1) {
@@ -734,7 +732,6 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
             /* Empty result? Likely that the UUID corresponds to the root */
             current_path = root_path;
           }
-          std::cerr << "putfh uuid->path: " << current_path.string() << ", ";
           delete [] key;
         }
         break;
@@ -778,7 +775,6 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
         utf8string u8name = argarray[i].nfs_argop4_u.oprename.oldname;
         std::string name(u8name.utf8string_val, u8name.utf8string_len);
         src_path /= name;
-        std::cerr << "rename: src path = " << src_path.string() << ", ";
 
         /* Use lstat system call: C++ filesystem API always recognizes
          * files as directories */
@@ -786,14 +782,11 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
         int ret = lstat(src_path.c_str(), &fileinfo);
         if (ret == 0) {
           if (S_ISDIR(fileinfo.st_mode)) {
-            std::cerr << "type failed: path is directory" << std::endl;
             return false;
           } else {
             /* Non-dir files should be ok */
-            std::cerr << "ok." << std::endl;
           }
         } else {
-          std::cerr << "error in lstat: " << errno << std::endl;
           return false;
         }
         break;
