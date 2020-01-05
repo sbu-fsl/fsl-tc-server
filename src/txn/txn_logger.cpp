@@ -10,6 +10,8 @@
 
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #include "nfs_fh.h"
 #include "txn.pb.h"
@@ -703,6 +705,7 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
 
   for (int i = 0; i < n; ++i) {
     int op = argarray[i].argop;
+    std::cerr << "current op: %d" << op << ", ";
     switch (op) {
       case NFS4_OP_PUTFH: {
         /* PUTFH: query the abs. path associated with the request
@@ -714,17 +717,32 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
         memcpy(key, "path-", 5);
         memcpy(key + 5, fh->fsopaque, fh->fs_len);
         size_t pathlen;
-        char *val, *error;
+        char *val, *error = nullptr;
         val = leveldb_get(db->db, db->r_options, key, fh->fs_len + 5, &pathlen,
                           &error);
         if (error) {
-          delete key;
+          delete [] key;
           /* Database error: return EIO */
+          std::cerr << "db error: " << error << std::endl;
           return false;
         } else {
-          current_path = std::string(val, pathlen);
-          delete key;
+          if (pathlen > 1) {
+            /* Rule out the last '\0' */
+            current_path = std::string(val, pathlen - 1);
+          }
+          else {
+            /* Empty result? Likely that the UUID corresponds to the root */
+            current_path = root_path;
+          }
+          std::cerr << "putfh uuid->path: " << current_path.string() << ", ";
+          delete [] key;
         }
+        break;
+      }
+
+      case NFS4_OP_PUTROOTFH: {
+        /* PUTROOTFH: set current path to root path */
+        current_path = root_path;
         break;
       }
 
@@ -750,22 +768,34 @@ bool check_rename(const db_store_t *db, const COMPOUND4args *arg,
       }
 
       case NFS4_OP_LOOKUPP: {
-        const fs::path new_cur_path(current_path);
+        const fs::path new_cur_path = current_path;
         current_path = new_cur_path.parent_path();
         break;
       }
 
       case NFS4_OP_RENAME: {
-        fs::path src_path(current_path);
+        fs::path src_path = current_path;
         utf8string u8name = argarray[i].nfs_argop4_u.oprename.oldname;
         std::string name(u8name.utf8string_val, u8name.utf8string_len);
         src_path /= name;
-        fs::file_status src_stat = fs::status(src_path);
-        if (src_stat.type() == fs::file_type::none ||
-            src_stat.type() == fs::file_type::not_found ||
-            src_stat.type() == fs::file_type::directory ||
-            src_stat.type() == fs::file_type::unknown)
+        std::cerr << "rename: src path = " << src_path.string() << ", ";
+
+        /* Use lstat system call: C++ filesystem API always recognizes
+         * files as directories */
+        struct stat fileinfo;
+        int ret = lstat(src_path.c_str(), &fileinfo);
+        if (ret == 0) {
+          if (S_ISDIR(fileinfo.st_mode)) {
+            std::cerr << "type failed: path is directory" << std::endl;
+            return false;
+          } else {
+            /* Non-dir files should be ok */
+            std::cerr << "ok." << std::endl;
+          }
+        } else {
+          std::cerr << "error in lstat: " << errno << std::endl;
           return false;
+        }
         break;
       }
     } /* switch(op) */
@@ -792,9 +822,9 @@ uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
 
   txn_log.set_id(internal::get_txn_id());
   if (txn_log.type() == proto::TransactionType::VCREATE) {
-    internal::build_vcreate_txn(arg, txn_log.mutable_creates());
+    // internal::build_vcreate_txn(arg, txn_log.mutable_creates());
   } else if (txn_log.type() == proto::TransactionType::VWRITE) {
-    internal::build_vwrite_txn(arg, txn_log.mutable_writes());
+    // internal::build_vwrite_txn(arg, txn_log.mutable_writes());
   }
 
   const string key = absl::StrCat("txn-", txn_log.id());
