@@ -80,6 +80,6 @@ if(APPLE)
 endif(APPLE)
 
 add_library(support STATIC ${support_STAT_SRCS})
-add_sanitizers(support)
+# add_sanitizers(support)
 
 ########### install files ###############
