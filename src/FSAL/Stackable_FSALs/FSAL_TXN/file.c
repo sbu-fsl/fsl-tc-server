@@ -90,6 +90,8 @@ fsal_status_t txnfs_close(struct fsal_obj_handle *obj_hdl)
 	    handle->sub_handle->obj_ops->close(handle->sub_handle);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "close");
 	return status;
 }
 
@@ -146,6 +148,8 @@ bool txnfs_check_verifier(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle, verifier);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "check_verifier");
 	return result;
 }
 
@@ -164,6 +168,9 @@ fsal_openflags_t txnfs_status2(struct fsal_obj_handle *obj_hdl,
 	fsal_openflags_t result =
 	    handle->sub_handle->obj_ops->status2(handle->sub_handle, state);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "status2");
 
 	return result;
 }
@@ -184,6 +191,8 @@ fsal_status_t txnfs_reopen2(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle, state, openflags);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "reopen2");
 	return status;
 }
 
@@ -209,6 +218,9 @@ void txnfs_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass,
 					   null_async_cb, read_arg, arg);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "read2");
 }
 
 void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
@@ -233,6 +245,9 @@ void txnfs_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
 					    null_async_cb, write_arg, arg);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "write2");
 }
 
 fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
@@ -251,6 +266,8 @@ fsal_status_t txnfs_seek2(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle->obj_ops->seek2(handle->sub_handle, state, info);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "seek2");
 	return status;
 }
 
@@ -270,6 +287,8 @@ fsal_status_t txnfs_io_advise2(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle, state, hints);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "io_advise2");
 	return status;
 }
 
@@ -289,6 +308,8 @@ fsal_status_t txnfs_commit2(struct fsal_obj_handle *obj_hdl, off_t offset,
 	    handle->sub_handle, offset, len);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "commit2");
 	return status;
 }
 
@@ -312,6 +333,8 @@ fsal_status_t txnfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 	    conflicting_lock);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "lock_op2");
 	return status;
 }
 
@@ -331,6 +354,8 @@ fsal_status_t txnfs_close2(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle->obj_ops->close2(handle->sub_handle, state);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "close2");
 	return status;
 }
 
@@ -351,6 +376,9 @@ fsal_status_t txnfs_fallocate(struct fsal_obj_handle *obj_hdl,
 	status = handle->sub_handle->obj_ops->fallocate(
 	    handle->sub_handle, state, offset, length, allocate);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "fallocate");
 	return status;
 }
 
@@ -373,6 +401,8 @@ fsal_status_t txnfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 	    dst_offset, count, copied);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "copy");
 	return status;
 }
 
@@ -396,6 +426,9 @@ fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
 	    file_uuid);
 	op_ctx->fsal_export = &export->export;
 	LogDebug(COMPONENT_FSAL, "Returned to TXNFS layer");
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "clone");
 	return fsal_status;
 }
 
@@ -417,5 +450,7 @@ fsal_status_t txnfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
 	    flags);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "clone2");
 	return status;
 }

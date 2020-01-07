@@ -333,6 +333,8 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle, link_content, refresh);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "readsym");
 	return status;
 }
 
@@ -353,6 +355,9 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 	fsal_status_t status = handle->sub_handle->obj_ops->link(
 	    handle->sub_handle, txnfs_dir->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "link");
 
 	return status;
 }
@@ -431,6 +436,9 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	    eof);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "readdir");
+
 	return status;
 }
 
@@ -469,6 +477,9 @@ fsal_cookie_t compute_readdir_cookie(struct fsal_obj_handle *parent,
 	cookie = handle->sub_handle->obj_ops->compute_readdir_cookie(
 	    handle->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "compute_readdir_cookie");
 	return cookie;
 }
 
@@ -509,6 +520,9 @@ int dirent_cmp(struct fsal_obj_handle *parent, const char *name1,
 	rc = handle->sub_handle->obj_ops->dirent_cmp(handle->sub_handle, name1,
 						     cookie1, name2, cookie2);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "dirent_cmp");
 	return rc;
 }
 
@@ -534,6 +548,9 @@ static fsal_status_t renamefile(struct fsal_obj_handle *obj_hdl,
 	    txnfs_obj->sub_handle, txnfs_olddir->sub_handle, old_name,
 	    txnfs_newdir->sub_handle, new_name);
 	op_ctx->fsal_export = &export->export;
+
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "rename");
 
 	/* If successful, update absolute_path field and insert a
 	 * modification request in txn cache */
@@ -574,6 +591,8 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle, attrib_get);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "getattrs");
 	return status;
 }
 
@@ -593,6 +612,8 @@ static fsal_status_t txnfs_setattr2(struct fsal_obj_handle *obj_hdl,
 	    handle->sub_handle, bypass, state, attrs);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "setattr2");
 	return status;
 }
 
@@ -664,7 +685,7 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 end:
 	op_ctx->fsal_export = &export->export;
 	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
-			 op_ctx->txnid, "mkdir");
+			 op_ctx->txnid, "unlink");
 	if (FSAL_IS_SUCCESS(status)) {
 		txnfs_db_delete_uuid(txnfs_obj->uuid);
 		txnfs_tracepoint(delete_uuid, obj_hdl->fileid);
@@ -743,6 +764,8 @@ static void release(struct fsal_obj_handle *obj_hdl)
 	hdl->sub_handle->obj_ops->release(hdl->sub_handle);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "release");
 	/* cleaning data allocated by txnfs */
 	fsal_obj_handle_fini(&hdl->obj_handle);
 	gsh_free(obj_hdl->absolute_path);
@@ -765,6 +788,8 @@ static bool txnfs_is_referral(struct fsal_obj_handle *obj_hdl,
 						       cache_attrs);
 	op_ctx->fsal_export = &export->export;
 
+	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			 op_ctx->txnid, "is_referral");
 	return result;
 }
 
