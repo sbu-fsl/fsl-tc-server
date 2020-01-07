@@ -427,7 +427,7 @@ fsal_status_t txnfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
 	op_ctx->fsal_export = &export->export;
 	LogDebug(COMPONENT_FSAL, "Returned to TXNFS layer");
 
-	txnfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+	txnfs_tracepoint(subfsal_op_done, fsal_status.major, op_ctx->opidx,
 			 op_ctx->txnid, "clone");
 	return fsal_status;
 }
