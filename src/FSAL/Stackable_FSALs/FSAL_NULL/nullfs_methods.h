@@ -32,6 +32,13 @@
 #ifndef NULLFS_METHODS_H
 #define NULLFS_METHODS_H
 
+#ifdef USE_LTTNG
+#include "gsh_lttng/txnfs.h"
+#define nullfs_tracepoint(event, ...) tracepoint(txnfs, event, ##__VA_ARGS__)
+#else
+#define nullfs_tracepoint(event, ...)
+#endif
+
 struct null_fsal_module {
 	struct fsal_module module;
 	struct fsal_obj_ops handle_ops;
