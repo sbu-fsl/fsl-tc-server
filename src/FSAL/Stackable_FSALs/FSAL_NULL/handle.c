@@ -431,7 +431,7 @@ fsal_cookie_t compute_readdir_cookie(struct fsal_obj_handle *parent,
 						handle->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, cookie, op_ctx->opidx,
 			  0, "compute_readdir_cookie");
 	return cookie;
 }
@@ -478,7 +478,7 @@ int dirent_cmp(struct fsal_obj_handle *parent,
 						    name2, cookie2);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, rc, op_ctx->opidx,
 			  0, "dirent_cmp");
 	return rc;
 }
@@ -644,7 +644,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 	handle->sub_handle->obj_ops->handle_to_key(handle->sub_handle, fh_desc);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, 0, op_ctx->opidx,
 			  0, "handle_to_key");
 }
 
@@ -668,7 +668,7 @@ static void release(struct fsal_obj_handle *obj_hdl)
 	hdl->sub_handle->obj_ops->release(hdl->sub_handle);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, 0, op_ctx->opidx,
 			  0, "release");
 
 	/* cleaning data allocated by nullfs */
@@ -695,7 +695,7 @@ static bool nullfs_is_referral(struct fsal_obj_handle *obj_hdl,
 						      cache_attrs);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, result, op_ctx->opidx,
 			  0, "is_referral");
 	return result;
 }
