@@ -96,6 +96,8 @@ fsal_status_t nullfs_close(struct fsal_obj_handle *obj_hdl)
 		handle->sub_handle->obj_ops->close(handle->sub_handle);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "close");
 	return status;
 }
 
@@ -128,6 +130,9 @@ fsal_status_t nullfs_open2(struct fsal_obj_handle *obj_hdl,
 						  caller_perm_check);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "open");
+
 	if (sub_handle) {
 		/* wrap the subfsal handle in a nullfs handle. */
 		return nullfs_alloc_and_check_handle(export, sub_handle,
@@ -156,6 +161,9 @@ bool nullfs_check_verifier(struct fsal_obj_handle *obj_hdl,
 							   verifier);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, result, op_ctx->opidx,
+			  0, "check_verifier");
+
 	return result;
 }
 
@@ -177,6 +185,8 @@ fsal_openflags_t nullfs_status2(struct fsal_obj_handle *obj_hdl,
 						    state);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, result, op_ctx->opidx,
+			  0, "status2");
 	return result;
 }
 
@@ -199,6 +209,8 @@ fsal_status_t nullfs_reopen2(struct fsal_obj_handle *obj_hdl,
 						    state, openflags);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "reopen2");
 	return status;
 }
 
@@ -227,6 +239,9 @@ void nullfs_read2(struct fsal_obj_handle *obj_hdl,
 	handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass,
 					  null_async_cb, read_arg, arg);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, arg->io_amount, op_ctx->opidx,
+			  0, "read2");
 }
 
 void nullfs_write2(struct fsal_obj_handle *obj_hdl,
@@ -255,6 +270,9 @@ void nullfs_write2(struct fsal_obj_handle *obj_hdl,
 	handle->sub_handle->obj_ops->write2(handle->sub_handle, bypass,
 					   null_async_cb, write_arg, arg);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, arg->io_amount, op_ctx->opidx,
+			  0, "write2");
 }
 
 fsal_status_t nullfs_seek2(struct fsal_obj_handle *obj_hdl,
@@ -276,6 +294,8 @@ fsal_status_t nullfs_seek2(struct fsal_obj_handle *obj_hdl,
 						  info);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "seek2");
 	return status;
 }
 
@@ -298,6 +318,8 @@ fsal_status_t nullfs_io_advise2(struct fsal_obj_handle *obj_hdl,
 						       state, hints);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "io_advise2");
 	return status;
 }
 
@@ -319,6 +341,8 @@ fsal_status_t nullfs_commit2(struct fsal_obj_handle *obj_hdl, off_t offset,
 						    len);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "commit2");
 	return status;
 }
 
@@ -345,6 +369,8 @@ fsal_status_t nullfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 						     conflicting_lock);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "lock_op2");
 	return status;
 }
 
@@ -365,6 +391,8 @@ fsal_status_t nullfs_close2(struct fsal_obj_handle *obj_hdl,
 		handle->sub_handle->obj_ops->close2(handle->sub_handle, state);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "close2");
 	return status;
 }
 
@@ -387,6 +415,9 @@ fsal_status_t nullfs_fallocate(struct fsal_obj_handle *obj_hdl,
 							state, offset, length,
 							allocate);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "fallocate");
 	return status;
 }
 
@@ -409,5 +440,55 @@ fsal_status_t nullfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 	    null_src_hdl->sub_handle, src_offset, null_dst_hdl->sub_handle,
 	    dst_offset, count, copied);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "copy");
 	return status;
+}
+
+/* NOTE: Not sure if this method is needed in real workloads */
+fsal_status_t nullfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
+                          struct fsal_obj_handle *dst_hdl, char *file_uuid)
+{
+        fsal_status_t fsal_status;
+        struct nullfs_fsal_obj_handle *txn_src_hdl =
+            container_of(src_hdl, struct nullfs_fsal_obj_handle, obj_handle);
+
+        struct nullfs_fsal_obj_handle *txn_dst_hdl =
+            container_of(dst_hdl, struct nullfs_fsal_obj_handle, obj_handle);
+        struct nullfs_fsal_export *export =
+            container_of(op_ctx->fsal_export, struct nullfs_fsal_export, export);
+
+        op_ctx->fsal_export = export->export.sub_export;
+        fsal_status = txn_src_hdl->sub_handle->obj_ops->clone(
+            txn_src_hdl->sub_handle, dst_name, txn_dst_hdl->sub_handle,
+            file_uuid);
+        op_ctx->fsal_export = &export->export;
+
+        nullfs_tracepoint(subfsal_op_done, fsal_status.major, op_ctx->opidx,
+                          0, "clone");
+        return fsal_status;
+}
+
+fsal_status_t nullfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+                           struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+                           size_t len, unsigned int flags)
+{
+        struct nullfs_fsal_obj_handle *txn_hdl =
+            container_of(src_hdl, struct nullfs_fsal_obj_handle, obj_handle);
+
+        struct nullfs_fsal_obj_handle *txn_hdl1 =
+            container_of(dst_hdl, struct nullfs_fsal_obj_handle, obj_handle);
+        struct nullfs_fsal_export *export =
+            container_of(op_ctx->fsal_export, struct nullfs_fsal_export, export);
+
+        op_ctx->fsal_export = export->export.sub_export;
+        fsal_status_t status = txn_hdl->sub_handle->obj_ops->clone2(
+            txn_hdl->sub_handle, off_in, txn_hdl1->sub_handle, off_out, len,
+            flags);
+        op_ctx->fsal_export = &export->export;
+
+        nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+                          0, "clone2");
+        return status;
 }

@@ -173,7 +173,11 @@ fsal_status_t nullfs_fallocate(struct fsal_obj_handle *obj_hdl,
 fsal_status_t nullfs_copy(struct fsal_obj_handle *src_hdl, uint64_t src_offset,
 			 struct fsal_obj_handle *dst_hdl, uint64_t dst_offset,
 			 uint64_t count, uint64_t *copied);
-
+fsal_status_t nullfs_clone(struct fsal_obj_handle *src_hdl, char **dst_name,
+                          struct fsal_obj_handle *dst_hdl, char *file_uuid);
+fsal_status_t nullfs_clone2(struct fsal_obj_handle *src_hdl, loff_t *off_in,
+                           struct fsal_obj_handle *dst_hdl, loff_t *off_out,
+                           size_t len, unsigned int flags);
 
 /* extended attributes management */
 fsal_status_t nullfs_list_ext_attrs(struct fsal_obj_handle *obj_hdl,

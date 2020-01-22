@@ -103,7 +103,13 @@ static bool fs_supports(struct fsal_export *exp_hdl,
 {
 	struct nullfs_fsal_export *exp =
 		container_of(exp_hdl, struct nullfs_fsal_export, export);
-
+#ifdef USE_LTTNG
+	/* Debug purpose: pretend nullfs supports transaction, so
+	 * start_compound and end_compound will be called at the beginning
+	 * and the end of compound execution.
+	 */
+	if (option == fso_transaction) return true;
+#endif
 	op_ctx->fsal_export = exp->export.sub_export;
 	bool result =
 		exp->export.sub_export->exp_ops.fs_supports(

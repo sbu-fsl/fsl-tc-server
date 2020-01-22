@@ -118,6 +118,10 @@ fsal_status_t nullfs_alloc_and_check_handle(
 
 		*new_handle = &null_handle->obj_handle;
 	}
+
+	nullfs_tracepoint(alloc_handle, *new_handle,
+			  null_handle->obj_handle.fileid,
+			  null_handle->obj_handle.type);
 	return status;
 }
 
@@ -149,6 +153,9 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 			null_parent->sub_handle, path, &sub_handle, attrs_out);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "lookup");
+
 	/* wraping the subfsal handle in a nullfs handle. */
 	return nullfs_alloc_and_check_handle(export, sub_handle, parent->fs,
 					     handle, status);
@@ -177,6 +184,9 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 	fsal_status_t status = parent_hdl->sub_handle->obj_ops->mkdir(
 		parent_hdl->sub_handle, name, attrs_in, &sub_handle, attrs_out);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "mkdir");
 
 	/* wraping the subfsal handle in a nullfs handle. */
 	return nullfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
@@ -211,6 +221,8 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 		&sub_handle, attrs_out);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "mknode");
 	/* wraping the subfsal handle in a nullfs handle. */
 	return nullfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
 					     new_obj, status);
@@ -250,6 +262,8 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 		attrs_out);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "symlink");
 	/* wraping the subfsal handle in a nullfs handle. */
 	return nullfs_alloc_and_check_handle(export, sub_handle, dir_hdl->fs,
 					     new_obj, status);
@@ -272,6 +286,8 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 						     link_content, refresh);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "readsym");
 	return status;
 }
 
@@ -293,6 +309,8 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 		handle->sub_handle, nullfs_dir->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "link");
 	return status;
 }
 
@@ -370,6 +388,8 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		whence, &cb_state, nullfs_readdir_cb, attrmask, eof);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "readdir");
 	return status;
 }
 
@@ -410,6 +430,9 @@ fsal_cookie_t compute_readdir_cookie(struct fsal_obj_handle *parent,
 	cookie = handle->sub_handle->obj_ops->compute_readdir_cookie(
 						handle->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "compute_readdir_cookie");
 	return cookie;
 }
 
@@ -454,6 +477,9 @@ int dirent_cmp(struct fsal_obj_handle *parent,
 						    name1, cookie1,
 						    name2, cookie2);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "dirent_cmp");
 	return rc;
 }
 
@@ -484,6 +510,8 @@ static fsal_status_t renamefile(struct fsal_obj_handle *obj_hdl,
 		old_name, nullfs_newdir->sub_handle, new_name);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "rename");
 	return status;
 }
 
@@ -505,6 +533,8 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 						     attrib_get);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "getattrs");
 	return status;
 }
 
@@ -527,6 +557,8 @@ static fsal_status_t nullfs_setattr2(struct fsal_obj_handle *obj_hdl,
 		handle->sub_handle, bypass, state, attrs);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "setattr2");
 	return status;
 }
 
@@ -554,6 +586,8 @@ static fsal_status_t file_unlink(struct fsal_obj_handle *dir_hdl,
 		nullfs_dir->sub_handle, nullfs_obj->sub_handle, name);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "unlink");
 	return status;
 }
 
@@ -582,6 +616,8 @@ static fsal_status_t handle_to_wire(const struct fsal_obj_handle *obj_hdl,
 		handle->sub_handle, output_type, fh_desc);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "handle_to_wire");
 	return status;
 }
 
@@ -607,6 +643,9 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 	op_ctx->fsal_export = export->export.sub_export;
 	handle->sub_handle->obj_ops->handle_to_key(handle->sub_handle, fh_desc);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "handle_to_key");
 }
 
 /*
@@ -628,6 +667,9 @@ static void release(struct fsal_obj_handle *obj_hdl)
 	op_ctx->fsal_export = export->export.sub_export;
 	hdl->sub_handle->obj_ops->release(hdl->sub_handle);
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "release");
 
 	/* cleaning data allocated by nullfs */
 	fsal_obj_handle_fini(&hdl->obj_handle);
@@ -653,6 +695,8 @@ static bool nullfs_is_referral(struct fsal_obj_handle *obj_hdl,
 						      cache_attrs);
 	op_ctx->fsal_export = &export->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "is_referral");
 	return result;
 }
 
@@ -692,6 +736,8 @@ void nullfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->close2 = nullfs_close2;
 	ops->fallocate = nullfs_fallocate;
 	ops->copy = nullfs_copy;
+	ops->clone = nullfs_clone;
+	ops->clone2 = nullfs_clone2;
 
 	/* xattr related functions */
 	ops->list_ext_attrs = nullfs_list_ext_attrs;
@@ -738,6 +784,8 @@ fsal_status_t nullfs_lookup_path(struct fsal_export *exp_hdl,
 
 	op_ctx->fsal_export = &exp->export;
 
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "lookupp");
 	/* wraping the subfsal handle in a nullfs handle. */
 	/* Note : nullfs filesystem = subfsal filesystem or NULL ? */
 	return nullfs_alloc_and_check_handle(exp, sub_handle, NULL, handle,
@@ -778,6 +826,9 @@ fsal_status_t nullfs_create_handle(struct fsal_export *exp_hdl,
 			attrs_out);
 
 	op_ctx->fsal_export = &export->export;
+
+	nullfs_tracepoint(subfsal_op_done, status.major, op_ctx->opidx,
+			  0, "create_handle");
 
 	/* wraping the subfsal handle in a nullfs handle. */
 	/* Note : nullfs filesystem = subfsal filesystem or NULL ? */
