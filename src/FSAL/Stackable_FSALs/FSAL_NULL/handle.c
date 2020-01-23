@@ -120,8 +120,7 @@ fsal_status_t nullfs_alloc_and_check_handle(
 	}
 
 	nullfs_tracepoint(alloc_handle, *new_handle,
-			  null_handle->obj_handle.fileid,
-			  null_handle->obj_handle.type);
+			  sub_handle->fileid, sub_handle->type);
 	return status;
 }
 

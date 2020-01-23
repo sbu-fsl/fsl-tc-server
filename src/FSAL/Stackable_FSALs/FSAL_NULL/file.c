@@ -240,7 +240,7 @@ void nullfs_read2(struct fsal_obj_handle *obj_hdl,
 					  null_async_cb, read_arg, arg);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, arg->io_amount, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, read_arg->io_amount, op_ctx->opidx,
 			  0, "read2");
 }
 
@@ -271,7 +271,7 @@ void nullfs_write2(struct fsal_obj_handle *obj_hdl,
 					   null_async_cb, write_arg, arg);
 	op_ctx->fsal_export = &export->export;
 
-	nullfs_tracepoint(subfsal_op_done, arg->io_amount, op_ctx->opidx,
+	nullfs_tracepoint(subfsal_op_done, write_arg->io_amount, op_ctx->opidx,
 			  0, "write2");
 }
 
