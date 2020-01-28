@@ -127,8 +127,8 @@ struct txnfs_fsal_export {
 	struct cleanup_queue cqueue;
 	/* A op_ctx dedicated for cleanup thread */
 	struct req_op_context *cleaner_ctx;
-  /* Lock manager object (Opaque) */
-  lock_manager_t *lm;
+	/* Lock manager object (Opaque) */
+	lock_manager_t *lm;
 };
 
 fsal_status_t txnfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
@@ -293,11 +293,12 @@ fsal_status_t txnfs_end_compound(struct fsal_export *exp_hdl, void *data);
 /* txn handle */
 bool txnfs_db_handle_exists(struct gsh_buffdesc *hdl_desc);
 int txnfs_db_insert_handle(struct gsh_buffdesc *hdl_desc, uuid_t uuid,
-                           struct gsh_buffdesc *path);
+			   struct gsh_buffdesc *path);
 int txnfs_db_get_uuid(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_uuid_nocache(struct gsh_buffdesc *hdl_desc, uuid_t uuid);
 int txnfs_db_get_handle(uuid_t uuid, struct gsh_buffdesc *hdl_desc);
-int txnfs_db_get_path(uuid_t uuid, struct gsh_buffdesc *path, struct fsal_obj_handle *obj_hdl);
+int txnfs_db_get_path(uuid_t uuid, struct gsh_buffdesc *path,
+		      struct fsal_obj_handle *obj_hdl);
 int txnfs_db_delete_uuid(uuid_t uuid);
 
 /* txn entries related */
@@ -305,6 +306,9 @@ void txnfs_cache_init(uint32_t compound_size);
 int txnfs_cache_commit(void);
 void txnfs_cache_cleanup(void);
 void get_txn_root(struct fsal_obj_handle **root_handle, struct attrlist *attrs);
+int txnfs_cache_insert(enum txnfs_cache_entry_type entry_type,
+		       struct gsh_buffdesc *hdl_desc, uuid_t uuid,
+		       struct gsh_buffdesc *path);
 
 /* txn backup and restore */
 fsal_status_t txnfs_create_or_lookup_backup_dir(

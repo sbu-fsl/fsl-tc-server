@@ -2,9 +2,8 @@
 #ifndef _TXN_LOGGER_H
 #define _TXN_LOGGER_H
 
+#include "nfs_fh.h"
 #include "lwrapper.h"
-#include "nfsv41.h"
-#include "txn_context.h"
 #include "uuid/uuid.h"
 
 #define ENABLE_NORMAL_TEXT_LOGGING 0
@@ -12,6 +11,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "nfsv41.h"
+#include "txn_context.h"
 
 enum FSObjectType { ft_None, ft_File, ft_Directory, ft_Symlink, ft_Hardlink };
 
@@ -85,7 +86,8 @@ struct TxnLog {
 };
 
 typedef struct TxnLog TxnLog;
-uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg);
+uint64_t create_txn_log(const db_store_t *db, const COMPOUND4args *arg,
+    const char *root_path);
 
 #ifdef __cplusplus
 }
