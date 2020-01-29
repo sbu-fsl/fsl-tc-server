@@ -913,6 +913,7 @@ fsal_status_t txnfs_create_handle(struct fsal_export *exp_hdl,
 		ret = txnfs_db_get_path(uuid, &abs_path, NULL);
 		assert(ret == 0);
 	}
+	txnfs_tracepoint(get_abs_path, sub_handle->fileid, abs_path.addr);
 	return txnfs_alloc_and_check_handle(export, sub_handle, NULL, handle,
 					    "", abs_path.addr, status,
 					    false /* is_creation */);

@@ -179,6 +179,16 @@ static inline bool txnfs_unopenable_type(object_file_type_t type)
 	}
 }
 
+static inline int round_down(int n, int unit)
+{
+    return unit * (n / unit);
+}
+
+static inline int round_up(int n, int unit)
+{
+    return round_down(n, unit) + unit;
+}
+
 /* I/O management */
 fsal_status_t txnfs_open(struct fsal_obj_handle *obj_hdl,
 			 fsal_openflags_t openflags);

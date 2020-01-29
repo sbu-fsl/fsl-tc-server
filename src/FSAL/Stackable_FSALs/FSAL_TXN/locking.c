@@ -182,6 +182,7 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				ret = tc_path_join(current_path, name,
 						   current_path, PATH_MAX);
 				assert(ret >= 0);
+				ret = 0;
 				free(name);
 				break;
 
@@ -190,6 +191,7 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				ret = tc_path_join(current_path, "..",
 						   current_path, PATH_MAX);
 				assert(ret >= 0);
+				ret = 0;
 				break;
 
 				/* We don't have to worry about appending lock
@@ -285,9 +287,9 @@ int find_relevant_handles(COMPOUND4args *args, lock_request_t *lr_vec)
 				break;
 
 			default:
-				LogWarn(COMPONENT_FSAL,
+				LogFullDebug(COMPONENT_FSAL,
 					"Operation %d will not be"
-					" counted for rollback",
+					" counted for handle collection",
 					op);
 				break;
 		}

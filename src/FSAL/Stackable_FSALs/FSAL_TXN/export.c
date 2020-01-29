@@ -395,6 +395,8 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	/* lock all paths involved */
 	/* analyze compound args to compose lock request */
 	int n = find_relevant_handles(args, lrs);
+	txnfs_tracepoint(find_relevant_paths, op_ctx->txnid, n,
+			 args->argarray.argarray_len);
 	/* We must remind the paths because we need to free them in the end */
 	op_ctx->locked_paths = gsh_calloc(n, sizeof(char *));
 	op_ctx->paths_count = n;
@@ -403,6 +405,7 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 	}
 	/* lock */
 	op_ctx->lh = lm_lock(lm, lrs, n);
+	txnfs_tracepoint(locked_paths, op_ctx->txnid);
 	if (n > 0 && op_ctx->lh == NULL)
 		LogFatal(COMPONENT_FSAL, "n_paths: %d, can't lock.", n);
 
