@@ -34,8 +34,8 @@
 #include "gsh_list.h"
 #include "nfs_exports.h"
 #include "nfs_proto_data.h"
-#include "txnfs.h"
 #include "txn_logger.h"
+#include "txnfs.h"
 #include "txnfs_methods.h"
 #include <dlfcn.h>
 #include <libgen.h> /* used for 'dirname' */
@@ -367,6 +367,17 @@ static void txnfs_prepare_unexport(struct fsal_export *exp_hdl)
  */
 static inline bool txn_context_valid(void) { return (op_ctx->op_args != NULL); }
 
+/**
+ * Test if this compound elects to use transaction support. We designate the
+ * MSB of the first opcode as the indicator. 0 means use transaction and 1
+ * means not to enforce transaction semantics. This is to minimize code
+ * changes to the vNFS client.
+ */
+static inline bool use_transaction(COMPOUND4args *compound)
+{
+	return (compound->argarray.argarray_val[0].argop & TXN_BIT) == 0;
+}
+
 fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 {
 	COMPOUND4args *args = data;
@@ -384,7 +395,11 @@ fsal_status_t txnfs_start_compound(struct fsal_export *exp_hdl, void *data)
 
 	txnfs_tracepoint(init_start_compound, args->argarray.argarray_len);
 
-	op_ctx->txnid = create_txn_log(fs->db, args, op_ctx->ctx_export->fullpath);
+	if (use_transaction(args))
+		op_ctx->txnid =
+		    create_txn_log(fs->db, args, op_ctx->ctx_export->fullpath);
+	else
+		op_ctx->txnid = 0;
 
 	txnfs_tracepoint(create_txn_log, op_ctx->txnid);
 

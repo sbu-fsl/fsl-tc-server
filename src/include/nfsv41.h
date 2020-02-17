@@ -38,6 +38,12 @@ typedef struct authsys_parms authsys_parms;
 
 #define BITMAP4_MAPLEN 3
 
+/* Use MSB of the opcode to indicate whether to use transaction
+ * To minimize modification to existing vNFS client code, let's
+ * set 0 as yes to transaction while 1 as no. */
+#define TXN_BIT 0x80000000
+#define OPCODE_MASK 0x7FFFFFFF
+
 enum nfs_ftype4 {
 	NF4REG = 1,
 	NF4DIR = 2,
@@ -8133,7 +8139,7 @@ static inline bool xdr_nfs_argop4(XDR *xdrs, nfs_argop4 *objp)
 
 	if (!xdr_nfs_opnum4(xdrs, &objp->argop))
 		return false;
-	switch (objp->argop) {
+	switch (objp->argop & OPCODE_MASK) {
 	case NFS4_OP_ACCESS:
 		if (!xdr_ACCESS4args(xdrs, &objp->nfs_argop4_u.opaccess))
 			return false;
@@ -8488,7 +8494,7 @@ static inline bool xdr_nfs_resop4(XDR *xdrs, nfs_resop4 *objp)
 {
 	if (!xdr_nfs_opnum4(xdrs, &objp->resop))
 		return false;
-	switch (objp->resop) {
+	switch (objp->resop & OPCODE_MASK) {
 	case NFS4_OP_ACCESS:
 		if (!xdr_ACCESS4res(xdrs, &objp->nfs_resop4_u.opaccess))
 			return false;
@@ -9585,7 +9591,7 @@ static inline bool xdr_nfs_cb_argop4(XDR *xdrs, nfs_cb_argop4 *objp)
 {
 	if (!inline_xdr_u_int(xdrs, &objp->argop))
 		return false;
-	switch (objp->argop) {
+	switch (objp->argop & OPCODE_MASK) {
 	case NFS4_OP_CB_GETATTR:
 		if (!xdr_CB_GETATTR4args(xdrs,
 		    &objp->nfs_cb_argop4_u.opcbgetattr))
@@ -9658,7 +9664,7 @@ static inline bool xdr_nfs_cb_resop4(XDR *xdrs, nfs_cb_resop4 *objp)
 {
 	if (!inline_xdr_u_int(xdrs, &objp->resop))
 		return false;
-	switch (objp->resop) {
+	switch (objp->resop & OPCODE_MASK) {
 	case NFS4_OP_CB_GETATTR:
 		if (!xdr_CB_GETATTR4res(xdrs,
 		    &objp->nfs_cb_resop4_u.opcbgetattr))

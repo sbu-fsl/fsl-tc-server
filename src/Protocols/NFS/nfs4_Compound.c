@@ -747,13 +747,14 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 
 		/* Check for valid operation to start an NFS v4.1 COMPOUND:
 		 */
-		if (argarray[0].argop != NFS4_OP_ILLEGAL
-		    && argarray[0].argop != NFS4_OP_SEQUENCE
-		    && argarray[0].argop != NFS4_OP_EXCHANGE_ID
-		    && argarray[0].argop != NFS4_OP_CREATE_SESSION
-		    && argarray[0].argop != NFS4_OP_DESTROY_SESSION
-		    && argarray[0].argop != NFS4_OP_BIND_CONN_TO_SESSION
-		    && argarray[0].argop != NFS4_OP_DESTROY_CLIENTID) {
+		nfs_opnum4 first_op = argarray[0].argop & OPCODE_MASK;
+		if (first_op != NFS4_OP_ILLEGAL
+		    && first_op != NFS4_OP_SEQUENCE
+		    && first_op != NFS4_OP_EXCHANGE_ID
+		    && first_op != NFS4_OP_CREATE_SESSION
+		    && first_op != NFS4_OP_DESTROY_SESSION
+		    && first_op != NFS4_OP_BIND_CONN_TO_SESSION
+		    && first_op != NFS4_OP_DESTROY_CLIENTID) {
 			status = NFS4ERR_OP_NOT_IN_SESSION;
 			res->res_compound4.status = status;
 			res->res_compound4.resarray.resarray_len = 0;
@@ -774,11 +775,11 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			 * then server MUST return  NFS4ERR_NOT_ONLY_OP. See
 			 * 18.37.3 nd test DSESS9005 for details
 			 */
-			if (argarray[0].argop == NFS4_OP_EXCHANGE_ID ||
-			    argarray[0].argop == NFS4_OP_CREATE_SESSION ||
-			    argarray[0].argop == NFS4_OP_DESTROY_CLIENTID ||
-			    argarray[0].argop == NFS4_OP_DESTROY_SESSION ||
-			    argarray[0].argop == NFS4_OP_BIND_CONN_TO_SESSION) {
+			if (first_op == NFS4_OP_EXCHANGE_ID ||
+			    first_op == NFS4_OP_CREATE_SESSION ||
+			    first_op == NFS4_OP_DESTROY_CLIENTID ||
+			    first_op == NFS4_OP_DESTROY_SESSION ||
+			    first_op == NFS4_OP_BIND_CONN_TO_SESSION) {
 				status = NFS4ERR_NOT_ONLY_OP;
 				res->res_compound4.status = status;
 				res->res_compound4.resarray.resarray_len = 0;
@@ -791,7 +792,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		/* Used to check if OP_SEQUENCE is the first operation */
 		data.oppos = i;
 		data.op_resp_size = sizeof(nfsstat4);
-		opcode = argarray[i].argop;
+		opcode = argarray[i].argop & OPCODE_MASK;
 
 		/* Handle opcode overflow */
 		if (opcode > LastOpcode[compound4_minor])
@@ -800,14 +801,14 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		data.opname = optabv4[opcode].name;
 
 		LogDebug(COMPONENT_NFS_V4, "Request %d: opcode %d is %s", i,
-			 argarray[i].argop, data.opname);
+			 opcode, data.opname);
 
 		/* Verify BIND_CONN_TO_SESSION is not used in a compound
 		 * with length > 1. This check is NOT redundant with the
 		 * checks above.
 		 */
 		if (i > 0 &&
-		    argarray[i].argop == NFS4_OP_BIND_CONN_TO_SESSION) {
+		    opcode == NFS4_OP_BIND_CONN_TO_SESSION) {
 			status = NFS4ERR_NOT_ONLY_OP;
 			bad_op_state_reason =
 					"BIND_CONN_TO_SESSION past position 1";
@@ -815,7 +816,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		}
 
 		/* OP_SEQUENCE is always the first operation of the request */
-		if (i > 0 && argarray[i].argop == NFS4_OP_SEQUENCE) {
+		if (i > 0 && opcode == NFS4_OP_SEQUENCE) {
 			status = NFS4ERR_SEQUENCE_POS;
 			bad_op_state_reason =
 					"SEQUENCE past position 1";
@@ -827,7 +828,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		 * has more than one op, we already know it MUST start with
 		 * SEQUENCE), then it MUST be the final op in the compound.
 		 */
-		if (i > 0 && argarray[i].argop == NFS4_OP_DESTROY_SESSION) {
+		if (i > 0 && opcode == NFS4_OP_DESTROY_SESSION) {
 			bool session_compare;
 			bool bad_pos;
 
@@ -929,7 +930,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			 * a first replied field called .status
 			 */
 			resarray[i].nfs_resop4_u.opaccess.status = status;
-			resarray[i].resop = argarray[i].argop;
+			resarray[i].resop = opcode;
 
 			/* Do not manage the other requests in the COMPOUND. */
 			res->res_compound4.resarray.resarray_len = i + 1;
@@ -940,7 +941,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		 * Make the actual op call                                     *
 		 **************************************************************/
 #ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_start, i, argarray[i].argop,
+		tracepoint(nfs_rpc, v4op_start, i, opcode,
 			   data.opname);
 #endif
 		// create backups for txnfs
@@ -951,7 +952,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				&argarray[i], &data);
 #ifdef USE_LTTNG
 			tracepoint(txnfs, end_backup, op_ctx->txnid, i,
-				   argarray[i].argop, data.opname);
+				   opcode, data.opname);
 #endif
 		}
 		
@@ -960,7 +961,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 						  &resarray[i]);
 		
 #ifdef USE_LTTNG
-		tracepoint(nfs_rpc, v4op_end, i, argarray[i].argop,
+		tracepoint(nfs_rpc, v4op_end, i, opcode,
 			   data.opname, nfsstat4_to_str(status));
 #endif
 
@@ -1092,7 +1093,7 @@ int nfs4_Compound(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		 */
 		*data.cached_result = res->res_compound4_extended;
 	} else if (compound4_minor > 0 && !data.use_slot_cached_result &&
-		   argarray[0].argop == NFS4_OP_SEQUENCE &&
+		   (argarray[0].argop & OPCODE_MASK) == NFS4_OP_SEQUENCE &&
 		   data.cached_result != NULL) {
 		/* We need to cache an "uncached" response. The length is
 		 * 1 if only one op processed, otherwise 2. */
